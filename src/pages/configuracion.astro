@@ -1,0 +1,642 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { RefreshCw, Mail } from 'lucide';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+const iMail = iconToSvg(Mail, { width: 16, height: 16 });
+---
+<Layout activePage="configuracion">
+  <div class="wrapper cfg-page">
+    <div class="page-header">
+      <h2 class="page-title">Configuración</h2>
+      <p class="page-desc">
+        Ajustes persistidos por la API en <code>metrics-api/data/settings.json</code> (umbrales y SMTP). No subas credenciales a repositorios públicos.
+      </p>
+    </div>
+
+    <form id="config-form">
+      <div class="logs-tabs" role="tablist" aria-label="Secciones de configuración">
+        <button type="button" class="logs-tab active" data-cfg="thresholds" role="tab" aria-selected="true">Umbrales</button>
+        <button type="button" class="logs-tab" data-cfg="mail" role="tab" aria-selected="false">Correo</button>
+        <button type="button" class="logs-tab" data-cfg="security" role="tab" aria-selected="false">Seguridad</button>
+      </div>
+
+      <div class="cfg-flash cfg-flash--hidden" id="config-flash" role="status" aria-live="polite">
+        <span class="cfg-flash-icon" id="config-flash-icon" aria-hidden="true"></span>
+        <p class="cfg-flash-text" id="config-flash-text"></p>
+      </div>
+
+      <div class="page-toolbar">
+        <div class="cfg-toolbar-spacer" aria-hidden="true"></div>
+        <button type="submit" class="cron-submit" id="config-save">Guardar cambios</button>
+        <button type="button" class="page-filter-btn" id="config-test-mail" style="display:flex;align-items:center;gap:6px">
+          <span set:html={iMail} /> Probar correo
+        </button>
+        <button type="button" class="page-filter-btn" id="config-reload" style="display:flex;align-items:center;gap:6px">
+          <span set:html={iRefresh} /> Recargar
+        </button>
+      </div>
+
+      <div class="page-stat-strip" id="cfg-stats">
+        <div class="page-stat">
+          <span class="page-stat-value skeleton" id="cs-api">—</span>
+          <span class="page-stat-label">API ajustes</span>
+        </div>
+        <div class="page-stat">
+          <span class="page-stat-value" id="cs-email">—</span>
+          <span class="page-stat-label">Correo activo</span>
+        </div>
+        <div class="page-stat">
+          <span class="page-stat-value" id="cs-smtp">—</span>
+          <span class="page-stat-label">Servidor SMTP</span>
+        </div>
+        <div class="page-stat">
+          <span class="page-stat-value" id="cs-cool">—</span>
+          <span class="page-stat-label">Enfriamiento</span>
+        </div>
+        <div class="page-stat">
+          <span class="page-stat-value" id="cs-sev">—</span>
+          <span class="page-stat-label">Mín. notificación</span>
+        </div>
+      </div>
+
+      <div class="logs-panel active" id="cfg-panel-thresholds" role="tabpanel">
+        <div class="sys-panel">
+          <p class="cfg-hint">
+            Porcentajes de uso del host: por debajo del aviso no se genera alerta. Los valores se aplican al recopilar métricas en la API.
+          </p>
+          <div class="cfg-th-grid">
+            <div class="cron-form">
+              <div class="cron-form-title">Disco</div>
+              <div class="cfg-pair">
+                <label class="cfg-lbl">
+                  <span>Aviso (%)</span>
+                  <input type="number" class="cron-input" name="diskWarn" id="th-disk-warn" min="0" max="100" step="1" />
+                </label>
+                <label class="cfg-lbl">
+                  <span>Crítico (%)</span>
+                  <input type="number" class="cron-input" name="diskCrit" id="th-disk-crit" min="0" max="100" step="1" />
+                </label>
+              </div>
+            </div>
+            <div class="cron-form">
+              <div class="cron-form-title">RAM</div>
+              <div class="cfg-pair">
+                <label class="cfg-lbl">
+                  <span>Aviso (%)</span>
+                  <input type="number" class="cron-input" name="memWarn" id="th-mem-warn" min="0" max="100" step="1" />
+                </label>
+                <label class="cfg-lbl">
+                  <span>Crítico (%)</span>
+                  <input type="number" class="cron-input" name="memCrit" id="th-mem-crit" min="0" max="100" step="1" />
+                </label>
+              </div>
+            </div>
+            <div class="cron-form">
+              <div class="cron-form-title">CPU</div>
+              <div class="cfg-pair">
+                <label class="cfg-lbl">
+                  <span>Aviso (%)</span>
+                  <input type="number" class="cron-input" name="cpuWarn" id="th-cpu-warn" min="0" max="100" step="1" />
+                </label>
+                <label class="cfg-lbl">
+                  <span>Crítico (%)</span>
+                  <input type="number" class="cron-input" name="cpuCrit" id="th-cpu-crit" min="0" max="100" step="1" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="logs-panel" id="cfg-panel-mail" role="tabpanel">
+        <div class="sys-panel">
+          <p class="cfg-hint">
+            Si activas el envío, la API intentará notificar por correo cuando existan alertas de umbrales, respetando el nivel mínimo y el tiempo de enfriamiento.
+          </p>
+
+          <label class="cfg-check">
+            <input type="checkbox" name="emailEnabled" id="al-email-on" class="cfg-check-input" />
+            <span>Enviar correo cuando haya alertas de umbrales</span>
+          </label>
+
+          <div class="cron-form">
+            <div class="cron-form-title">Servidor SMTP</div>
+            <div class="cfg-mail-row cfg-mail-row--host">
+              <label class="cfg-lbl cfg-lbl--grow">
+                <span>Host</span>
+                <input type="text" class="cron-input" name="smtpHost" id="al-smtp-host" autocomplete="off" placeholder="smtp.ejemplo.com" />
+              </label>
+              <label class="cfg-lbl cfg-lbl--port">
+                <span>Puerto</span>
+                <input type="number" class="cron-input" name="smtpPort" id="al-smtp-port" min="1" max="65535" step="1" />
+              </label>
+            </div>
+            <label class="cfg-check cfg-check--tight">
+              <input type="checkbox" name="smtpSecure" id="al-smtp-secure" class="cfg-check-input" />
+              <span>TLS / SSL implícito (p. ej. puerto 465)</span>
+            </label>
+            <div class="cfg-pair cfg-pair--top">
+              <label class="cfg-lbl">
+                <span>Usuario</span>
+                <input type="text" class="cron-input" name="smtpUser" id="al-smtp-user" autocomplete="username" />
+              </label>
+              <label class="cfg-lbl">
+                <span>Contraseña</span>
+                <input type="password" class="cron-input" name="smtpPass" id="al-smtp-pass" placeholder="Vacío = no cambiar" autocomplete="new-password" />
+              </label>
+            </div>
+          </div>
+
+          <div class="cron-form cfg-mail-second">
+            <div class="cron-form-title">Mensajes</div>
+            <label class="cfg-lbl">
+              <span>Remitente (From)</span>
+              <input type="text" class="cron-input" name="mailFrom" id="al-mail-from" placeholder="monitor@dominio.com" />
+            </label>
+            <label class="cfg-lbl">
+              <span>Destinatarios (To)</span>
+              <input type="text" class="cron-input" name="mailTo" id="al-mail-to" placeholder="correo@dominio.com" />
+            </label>
+            <label class="cfg-lbl">
+              <span>Prefijo del asunto</span>
+              <input type="text" class="cron-input" name="subjectPrefix" id="al-subject" />
+            </label>
+            <div class="cfg-pair cfg-pair--top">
+              <label class="cfg-lbl">
+                <span>Mínimo para notificar</span>
+                <select class="cron-select" name="notifyMinSeverity" id="al-severity">
+                  <option value="all">Todas (aviso y crítico)</option>
+                  <option value="warning">Aviso o superior</option>
+                  <option value="critical">Solo críticas</option>
+                </select>
+              </label>
+              <label class="cfg-lbl">
+                <span>Enfriamiento (min)</span>
+                <input type="number" class="cron-input" name="emailCooldownMinutes" id="al-cooldown" min="5" max="1440" step="1" title="Mínimo entre correos" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="logs-panel" id="cfg-panel-security" role="tabpanel">
+        <div class="sys-panel">
+          <p class="cfg-hint">
+            El fichero de ajustes puede contener contraseñas SMTP. Restringe permisos en el servidor (p. ej. solo el usuario que ejecuta la API) y usa contraseñas de aplicación si tu proveedor lo ofrece.
+          </p>
+          <p class="cfg-legal">
+            Ruta por defecto: <code class="cfg-code">metrics-api/data/settings.json</code>
+            — añádela a <code class="cfg-code">.gitignore</code> si aún no está ignorada.
+          </p>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <style>
+    .cfg-page .page-desc code,
+    .cfg-code {
+      font-size: 0.88em;
+      padding: 0.12em 0.4em;
+      border-radius: 6px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    .cfg-flash {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 0 0 12px;
+      padding: 11px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      box-shadow: var(--shadow-card);
+    }
+    .cfg-flash--hidden {
+      display: none !important;
+    }
+    .cfg-flash-text {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.45;
+      color: var(--text-soft);
+    }
+    .cfg-flash-icon {
+      flex-shrink: 0;
+      width: 8px;
+      height: 8px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: var(--muted);
+      opacity: 0.75;
+    }
+    .cfg-flash--ok {
+      border-color: color-mix(in srgb, var(--ok) 28%, var(--border));
+      background: color-mix(in srgb, var(--ok) 7%, var(--bg-card));
+    }
+    .cfg-flash--ok .cfg-flash-icon {
+      background: var(--ok);
+      opacity: 1;
+    }
+    .cfg-flash--ok .cfg-flash-text {
+      color: var(--text);
+    }
+    .cfg-flash--err {
+      border-color: color-mix(in srgb, var(--crit) 32%, var(--border));
+      background: color-mix(in srgb, var(--crit) 8%, var(--bg-card));
+    }
+    .cfg-flash--err .cfg-flash-icon {
+      background: var(--crit);
+      opacity: 1;
+    }
+    .cfg-flash--err .cfg-flash-text {
+      color: var(--text);
+    }
+    .cfg-flash--wait .cfg-flash-icon {
+      background: var(--accent);
+      opacity: 1;
+      animation: cfgFlashPulse 1s ease-in-out infinite;
+    }
+    .cfg-flash--wait .cfg-flash-text {
+      color: var(--muted);
+    }
+    @keyframes cfgFlashPulse {
+      0%,
+      100% {
+        opacity: 0.45;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.15);
+      }
+    }
+
+    .cfg-page .page-stat-value.cfg-api-ok {
+      color: var(--ok);
+    }
+    .cfg-page .page-stat-value.cfg-api-warn {
+      color: var(--warn);
+    }
+    .cfg-page .page-stat-value.cfg-api-err {
+      color: var(--crit);
+    }
+
+    .cfg-page .page-toolbar {
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .cfg-toolbar-spacer {
+      flex: 1;
+      min-width: 8px;
+    }
+
+    .cfg-hint {
+      margin: 0 0 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .cfg-legal {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-soft);
+      line-height: 1.55;
+    }
+
+    .cfg-th-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    @media (max-width: 900px) {
+      .cfg-th-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .cfg-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .cfg-pair--top {
+      margin-top: 4px;
+    }
+
+    .cfg-lbl {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin: 0;
+      min-width: 0;
+    }
+    .cfg-lbl > span {
+      font-size: 10px;
+      font-weight: 800;
+      font-family: var(--font-display);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .cfg-lbl--grow {
+      flex: 1;
+      min-width: 0;
+    }
+    .cfg-lbl--port {
+      max-width: 120px;
+    }
+    @media (max-width: 520px) {
+      .cfg-lbl--port {
+        max-width: none;
+      }
+    }
+
+    .cfg-mail-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .cfg-mail-row--host .cfg-lbl--grow {
+      flex: 1 1 200px;
+    }
+    .cfg-mail-second {
+      margin-top: 14px;
+    }
+
+    .cfg-check,
+    .cfg-check--tight {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      margin: 0 0 14px;
+      user-select: none;
+    }
+    .cfg-check--tight {
+      margin-top: 2px;
+      margin-bottom: 12px;
+    }
+    .cfg-check-input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+  </style>
+
+  <script>
+    import { fetchSettings, saveSettings, testSettingsMail, type AppSettings } from '../lib/metrics';
+
+    const form = document.getElementById('config-form') as HTMLFormElement;
+    const flashBox = document.getElementById('config-flash') as HTMLDivElement;
+    const flashText = document.getElementById('config-flash-text') as HTMLParagraphElement;
+    let flashClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const panels: Record<string, HTMLElement | null> = {
+      thresholds: document.getElementById('cfg-panel-thresholds'),
+      mail: document.getElementById('cfg-panel-mail'),
+      security: document.getElementById('cfg-panel-security'),
+    };
+
+    function setFlash(
+      show: boolean,
+      kind: 'ok' | 'err' | 'wait' | '',
+      text: string,
+      autoHideMs?: number,
+    ) {
+      if (flashClearTimer) {
+        clearTimeout(flashClearTimer);
+        flashClearTimer = null;
+      }
+      if (!show || !text.trim()) {
+        flashBox.classList.add('cfg-flash--hidden');
+        flashBox.classList.remove('cfg-flash--ok', 'cfg-flash--err', 'cfg-flash--wait');
+        flashText.textContent = '';
+        return;
+      }
+      flashBox.classList.remove('cfg-flash--hidden', 'cfg-flash--ok', 'cfg-flash--err', 'cfg-flash--wait');
+      if (kind === 'ok') flashBox.classList.add('cfg-flash--ok');
+      else if (kind === 'err') flashBox.classList.add('cfg-flash--err');
+      else if (kind === 'wait') flashBox.classList.add('cfg-flash--wait');
+      flashText.textContent = text;
+      if (autoHideMs && kind === 'ok') {
+        flashClearTimer = setTimeout(() => setFlash(false, '', ''), autoHideMs);
+      }
+    }
+
+    function setApiStat(mode: 'loading' | 'ok' | 'local' | 'err') {
+      const el = document.getElementById('cs-api');
+      if (!el) return;
+      el.classList.remove('skeleton', 'cfg-api-ok', 'cfg-api-warn', 'cfg-api-err');
+      if (mode === 'loading') {
+        el.textContent = '…';
+        el.classList.add('skeleton');
+        return;
+      }
+      el.classList.remove('skeleton');
+      if (mode === 'ok') {
+        el.textContent = 'En línea';
+        el.classList.add('cfg-api-ok');
+      } else if (mode === 'local') {
+        el.textContent = 'Modo local';
+        el.classList.add('cfg-api-warn');
+      } else {
+        el.textContent = 'Error';
+        el.classList.add('cfg-api-err');
+      }
+    }
+
+    function showPanel(key: string) {
+      const tabs = form.querySelectorAll<HTMLButtonElement>('.logs-tab');
+      tabs.forEach((t) => {
+        const on = t.getAttribute('data-cfg') === key;
+        t.classList.toggle('active', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      Object.entries(panels).forEach(([k, el]) => {
+        if (!el) return;
+        el.classList.toggle('active', k === key);
+      });
+    }
+
+    form.querySelectorAll<HTMLButtonElement>('.logs-tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const key = tab.getAttribute('data-cfg');
+        if (key) showPanel(key);
+      });
+    });
+
+    function updateStats(s: Pick<AppSettings, 'alerts'>) {
+      const a = s.alerts;
+      const el = (id: string) => document.getElementById(id);
+      const vEmail = el('cs-email');
+      const vSmtp = el('cs-smtp');
+      const vCool = el('cs-cool');
+      const vSev = el('cs-sev');
+      if (vEmail) vEmail.textContent = a.emailEnabled ? 'Sí' : 'No';
+      if (vSmtp) {
+        const h = (a.smtpHost || '').trim();
+        vSmtp.textContent = h ? (h.length > 22 ? h.slice(0, 20) + '…' : h) : '—';
+      }
+      if (vCool) vCool.textContent = `${a.emailCooldownMinutes ?? 30} min`;
+      if (vSev) {
+        const m: Record<string, string> = {
+          all: 'Todas',
+          warning: 'Aviso+',
+          critical: 'Crítico',
+        };
+        vSev.textContent = m[a.notifyMinSeverity] || 'Aviso+';
+      }
+    }
+
+    function fill(s: AppSettings) {
+      const th = s.thresholds;
+      (document.getElementById('th-disk-warn') as HTMLInputElement).value = String(th.diskWarn);
+      (document.getElementById('th-disk-crit') as HTMLInputElement).value = String(th.diskCrit);
+      (document.getElementById('th-mem-warn') as HTMLInputElement).value = String(th.memWarn);
+      (document.getElementById('th-mem-crit') as HTMLInputElement).value = String(th.memCrit);
+      (document.getElementById('th-cpu-warn') as HTMLInputElement).value = String(th.cpuWarn);
+      (document.getElementById('th-cpu-crit') as HTMLInputElement).value = String(th.cpuCrit);
+
+      const a = s.alerts;
+      (document.getElementById('al-email-on') as HTMLInputElement).checked = !!a.emailEnabled;
+      (document.getElementById('al-smtp-host') as HTMLInputElement).value = a.smtpHost || '';
+      (document.getElementById('al-smtp-port') as HTMLInputElement).value = String(a.smtpPort ?? 587);
+      (document.getElementById('al-smtp-secure') as HTMLInputElement).checked = !!a.smtpSecure;
+      (document.getElementById('al-smtp-user') as HTMLInputElement).value = a.smtpUser || '';
+      (document.getElementById('al-smtp-pass') as HTMLInputElement).value = '';
+      (document.getElementById('al-mail-from') as HTMLInputElement).value = a.mailFrom || '';
+      (document.getElementById('al-mail-to') as HTMLInputElement).value = a.mailTo || '';
+      (document.getElementById('al-subject') as HTMLInputElement).value = a.subjectPrefix || '';
+      const sev = document.getElementById('al-severity') as HTMLSelectElement;
+      sev.value = ['all', 'warning', 'critical'].includes(a.notifyMinSeverity) ? a.notifyMinSeverity : 'warning';
+      (document.getElementById('al-cooldown') as HTMLInputElement).value = String(a.emailCooldownMinutes ?? 30);
+      updateStats(s);
+    }
+
+    function collectPayload(): Partial<AppSettings> {
+      const passEl = document.getElementById('al-smtp-pass') as HTMLInputElement;
+      const pass = passEl.value.trim();
+      const alerts: AppSettings['alerts'] = {
+        emailEnabled: (document.getElementById('al-email-on') as HTMLInputElement).checked,
+        smtpHost: (document.getElementById('al-smtp-host') as HTMLInputElement).value.trim(),
+        smtpPort: Number.parseInt((document.getElementById('al-smtp-port') as HTMLInputElement).value, 10) || 587,
+        smtpSecure: (document.getElementById('al-smtp-secure') as HTMLInputElement).checked,
+        smtpUser: (document.getElementById('al-smtp-user') as HTMLInputElement).value.trim(),
+        smtpPass: '',
+        mailFrom: (document.getElementById('al-mail-from') as HTMLInputElement).value.trim(),
+        mailTo: (document.getElementById('al-mail-to') as HTMLInputElement).value.trim(),
+        subjectPrefix: (document.getElementById('al-subject') as HTMLInputElement).value.trim(),
+        notifyMinSeverity: (document.getElementById('al-severity') as HTMLSelectElement).value,
+        emailCooldownMinutes: Number.parseInt((document.getElementById('al-cooldown') as HTMLInputElement).value, 10) || 30,
+      };
+      const payload: Partial<AppSettings> = {
+        thresholds: {
+          diskWarn: Number.parseInt((document.getElementById('th-disk-warn') as HTMLInputElement).value, 10),
+          diskCrit: Number.parseInt((document.getElementById('th-disk-crit') as HTMLInputElement).value, 10),
+          memWarn: Number.parseInt((document.getElementById('th-mem-warn') as HTMLInputElement).value, 10),
+          memCrit: Number.parseInt((document.getElementById('th-mem-crit') as HTMLInputElement).value, 10),
+          cpuWarn: Number.parseInt((document.getElementById('th-cpu-warn') as HTMLInputElement).value, 10),
+          cpuCrit: Number.parseInt((document.getElementById('th-cpu-crit') as HTMLInputElement).value, 10),
+        },
+        alerts,
+      };
+      if (pass.length > 0) {
+        payload.alerts = { ...alerts, smtpPass: pass };
+      } else {
+        const { smtpPass: _p, ...rest } = alerts;
+        payload.alerts = rest as AppSettings['alerts'];
+      }
+      return payload;
+    }
+
+    function loadSettings() {
+      setApiStat('loading');
+      setFlash(false, '', '');
+      fetchSettings()
+        .then(({ settings, fromApi }) => {
+          fill(settings);
+          setApiStat(fromApi ? 'ok' : 'local');
+          if (fromApi) {
+            setFlash(false, '', '');
+          } else {
+            setFlash(
+              true,
+              'err',
+              'No hay API de ajustes: estás viendo valores por defecto. Arranca metrics-api (puerto 3001), usa npm run dev, y pulsa Recargar.',
+            );
+          }
+        })
+        .catch((e) => {
+          setApiStat('err');
+          setFlash(true, 'err', 'No se pudieron cargar los ajustes: ' + (e && e.message ? e.message : e));
+        });
+    }
+
+    loadSettings();
+
+    document.getElementById('config-reload')!.addEventListener('click', () => loadSettings());
+
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      setFlash(true, 'wait', 'Guardando en el servidor…');
+      saveSettings(collectPayload())
+        .then((r) => {
+          if (r.settings) fill(r.settings);
+          setApiStat('ok');
+          setFlash(true, 'ok', 'Cambios guardados correctamente.', 4500);
+        })
+        .catch((e) =>
+          setFlash(true, 'err', 'No se pudo guardar: ' + (e && e.message ? e.message : e)),
+        );
+    });
+
+    document.getElementById('config-test-mail')!.addEventListener('click', () => {
+      setFlash(true, 'wait', 'Enviando correo de prueba…');
+      testSettingsMail()
+        .then(() =>
+          setFlash(true, 'ok', 'Prueba enviada. Revisa la bandeja de entrada (y spam).', 5000),
+        )
+        .catch((e) => setFlash(true, 'err', String(e && e.message ? e.message : e)));
+    });
+
+    function refreshStatsStripFromForm() {
+      updateStats({
+        alerts: {
+          emailEnabled: (document.getElementById('al-email-on') as HTMLInputElement).checked,
+          smtpHost: (document.getElementById('al-smtp-host') as HTMLInputElement).value.trim(),
+          smtpPort: 587,
+          smtpSecure: false,
+          smtpUser: '',
+          smtpPass: '',
+          mailFrom: '',
+          mailTo: '',
+          subjectPrefix: '',
+          notifyMinSeverity: (document.getElementById('al-severity') as HTMLSelectElement).value,
+          emailCooldownMinutes:
+            Number.parseInt((document.getElementById('al-cooldown') as HTMLInputElement).value, 10) || 30,
+        },
+      });
+    }
+
+    ['al-email-on', 'al-smtp-host', 'al-severity', 'al-cooldown'].forEach((id) => {
+      const el = document.getElementById(id);
+      el?.addEventListener('change', refreshStatsStripFromForm);
+      el?.addEventListener('input', refreshStatsStripFromForm);
+    });
+  </script>
+</Layout>

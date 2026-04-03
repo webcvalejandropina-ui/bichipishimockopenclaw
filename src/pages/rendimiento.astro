@@ -1,0 +1,285 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { RefreshCw, Activity } from 'lucide';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
+---
+<Layout activePage="rendimiento">
+  <div class="wrapper perf-page">
+    <div class="perf-top">
+      <div class="page-header perf-header">
+        <div class="perf-title-row">
+          <span class="perf-title-icon" set:html={iActivity} aria-hidden="true" />
+          <div>
+            <h2 class="page-title">Rendimiento por días</h2>
+            <p class="page-desc">
+              Solo se muestran <strong>días ya transcurridos</strong> (hasta hoy), a partir de la base <strong>SQLite</strong> del servidor y, si hace falta, <code>localStorage</code> en el navegador.
+              La tabla y el informe usan únicamente datos disponibles, sin días futuros.
+            </p>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="page-filter-btn" id="perf-refresh" style="display:flex;align-items:center;gap:6px">
+        <span set:html={iRefresh} /> Actualizar
+      </button>
+    </div>
+
+    <div class="page-stat-strip perf-strip" id="perf-live">
+      <div class="page-stat">
+        <span class="page-stat-value skeleton" id="pl-cpu">—</span>
+        <span class="page-stat-label">CPU ahora</span>
+      </div>
+      <div class="page-stat">
+        <span class="page-stat-value skeleton" id="pl-mem">—</span>
+        <span class="page-stat-label">RAM ahora</span>
+      </div>
+      <div class="page-stat">
+        <span class="page-stat-value skeleton" id="pl-disk">—</span>
+        <span class="page-stat-label">Disco ahora</span>
+      </div>
+      <div class="page-stat">
+        <span class="page-stat-value skeleton" id="pl-days">—</span>
+        <span class="page-stat-label">Días con datos</span>
+      </div>
+    </div>
+
+    <div class="sys-panel perf-panel" id="perf-panel">
+      <div class="perf-report" id="perf-report" hidden>
+        <h3 class="perf-report-title">Informe de medias (datos reales)</h3>
+        <p class="perf-report-body" id="perf-report-body"></p>
+      </div>
+      <p class="perf-empty" id="perf-empty" hidden>No hay histórico aún. Abre el dashboard un rato o pulsa Actualizar aquí para registrar muestras.</p>
+      <div class="table-scroll perf-scroll" id="perf-table-wrap" hidden>
+        <table class="data-table perf-table" id="perf-table">
+          <thead>
+            <tr>
+              <th>Día</th>
+              <th>Muestras</th>
+              <th>CPU Ø</th>
+              <th>CPU máx</th>
+              <th>RAM Ø</th>
+              <th>RAM máx</th>
+              <th>Disco Ø</th>
+              <th>Disco máx</th>
+            </tr>
+          </thead>
+          <tbody id="perf-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .perf-page .perf-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .perf-title-row {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .perf-title-icon {
+      flex-shrink: 0;
+      margin-top: 4px;
+      color: var(--accent);
+      display: grid;
+      place-items: center;
+    }
+    .perf-panel {
+      padding: 0;
+      overflow: hidden;
+    }
+    .perf-scroll {
+      margin: 0;
+      max-height: min(70vh, 640px);
+    }
+    .perf-table th,
+    .perf-table td {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .perf-table td:first-child {
+      font-weight: 700;
+      font-family: var(--font-display);
+    }
+    .perf-empty {
+      margin: 0;
+      padding: 28px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .perf-bar-cell {
+      min-width: 88px;
+    }
+    .perf-bar-track {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--bar-bg);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .perf-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--accent);
+      max-width: 100%;
+    }
+    .perf-table tr.perf-row--today td {
+      background: var(--accent-soft);
+    }
+    .perf-report {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-subtle);
+    }
+    .perf-report-title {
+      margin: 0 0 8px;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .perf-report-body {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+    .perf-report-body strong { color: var(--text); }
+  </style>
+
+  <script>
+    import { fetchMetrics, updateHeader } from '../lib/metrics';
+    import {
+      type DayPerfAgg,
+      fmtPct,
+      localDateKey,
+      recordPerfSample,
+      sortedDayEntriesFrom,
+      loadPerfDailyMerged,
+      filterPerfMapUpToToday,
+      computePerfSummary,
+    } from '../lib/perf-daily';
+
+    const $ = (id: string) => document.getElementById(id)!;
+
+    let mergedMap: Record<string, DayPerfAgg> = {};
+
+    function renderReport() {
+      const box = document.getElementById('perf-report');
+      const body = document.getElementById('perf-report-body');
+      if (!box || !body) return;
+      const s = computePerfSummary(mergedMap);
+      if (!s) {
+        box.hidden = true;
+        body.textContent = '';
+        return;
+      }
+      const fmt = (n: number) => `${n.toFixed(1)}%`;
+      body.innerHTML =
+        `<strong>${s.dayCount}</strong> día(s) con datos, del <strong>${s.firstDay}</strong> al <strong>${s.lastDay}</strong> ` +
+        `sobre <strong>${s.totalSamples.toLocaleString('es-ES')}</strong> muestras acumuladas. ` +
+        `Medias: CPU <strong>${fmt(s.avgCpu)}</strong> (pico <strong>${fmt(s.peakCpu)}</strong>), ` +
+        `RAM <strong>${fmt(s.avgMem)}</strong> (pico <strong>${fmt(s.peakMem)}</strong>), ` +
+        `disco <strong>${fmt(s.avgDisk)}</strong> (pico <strong>${fmt(s.peakDisk)}</strong>).`;
+      box.hidden = false;
+    }
+
+    function renderTable() {
+      const entries = sortedDayEntriesFrom(mergedMap).slice(0, 45);
+      const tbody = $('perf-tbody');
+      const wrap = $('perf-table-wrap');
+      const empty = $('perf-empty');
+      const daysEl = $('pl-days');
+      daysEl.textContent = String(Object.keys(mergedMap).length);
+      daysEl.classList.remove('skeleton');
+
+      if (!entries.length) {
+        empty.hidden = false;
+        wrap.hidden = true;
+        return;
+      }
+      empty.hidden = true;
+      wrap.hidden = false;
+
+      const today = localDateKey();
+      tbody.innerHTML = entries
+        .map(([day, a]) => {
+          const rowToday = day === today ? 'perf-row--today' : '';
+          const avgCpu = a.samples ? a.sumCpu / a.samples : 0;
+          const avgMem = a.samples ? a.sumMem / a.samples : 0;
+          const avgDisk = a.samples ? a.sumDisk / a.samples : 0;
+          const d = parseDay(day);
+          const label = d
+            ? d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+            : day;
+          return `<tr class="${rowToday}">
+            <td title="${day}">${label}</td>
+            <td>${a.samples}</td>
+            <td>${fmtPct(avgCpu)}</td>
+            <td class="perf-bar-cell">${fmtPct(a.maxCpu)}<div class="perf-bar-track"><div class="perf-bar-fill" style="width:${a.maxCpu}%"></div></div></td>
+            <td>${fmtPct(avgMem)}</td>
+            <td>${fmtPct(a.maxMem)}</td>
+            <td>${fmtPct(avgDisk)}</td>
+            <td>${fmtPct(a.maxDisk)}</td>
+          </tr>`;
+        })
+        .join('');
+    }
+
+    function parseDay(key: string): Date | null {
+      const m = key.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return null;
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+
+    async function load() {
+      try {
+        const d = await fetchMetrics();
+        updateHeader(d);
+        const cpu = Number(d.cpu) || 0;
+        const mem = Number(d.mem) || 0;
+        const disk = Number(d.disk) || 0;
+        recordPerfSample({ cpu, mem, disk });
+        mergedMap = filterPerfMapUpToToday(await loadPerfDailyMerged());
+
+        const set = (id: string, v: string) => {
+          const e = $(id);
+          e.textContent = v;
+          e.classList.remove('skeleton');
+        };
+        set('pl-cpu', fmtPct(cpu));
+        set('pl-mem', fmtPct(mem));
+        set('pl-disk', fmtPct(disk));
+
+        renderReport();
+        renderTable();
+      } catch (e) {
+        console.error(e);
+        const rep = document.getElementById('perf-report');
+        if (rep) rep.hidden = true;
+        ['pl-cpu', 'pl-mem', 'pl-disk', 'pl-days'].forEach((id) => {
+          const el = $(id);
+          el.textContent = '—';
+          el.classList.add('skeleton');
+        });
+        $('perf-empty').hidden = false;
+        $('perf-empty').textContent = 'No se pudo contactar con la API de métricas.';
+        $('perf-table-wrap').hidden = true;
+      }
+    }
+
+    $('perf-refresh').addEventListener('click', load);
+    load();
+    setInterval(load, 60_000);
+  </script>
+</Layout>

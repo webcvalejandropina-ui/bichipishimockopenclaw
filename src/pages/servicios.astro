@@ -1,0 +1,139 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { Settings, RefreshCw } from 'lucide';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+---
+<Layout activePage="servicios">
+  <div class="wrapper">
+    <div class="page-header">
+      <h2 class="page-title">Servicios</h2>
+      <p class="page-desc">
+        Datos reales del host: systemd/init en Linux, Win32 en Windows, coincidencia de procesos en macOS.
+        Personaliza con <code>BICHI_SERVICES</code> y <code>BICHI_SERVICES_MAX</code> en la API.
+      </p>
+    </div>
+
+    <div class="page-toolbar">
+      <input type="text" class="page-search" id="svc-search" placeholder="Buscar servicio..." />
+      <button type="button" class="page-filter-btn active" data-filter="all">Todos</button>
+      <button type="button" class="page-filter-btn" data-filter="active">Activos</button>
+      <button type="button" class="page-filter-btn" data-filter="inactive">Inactivos</button>
+      <button type="button" class="page-filter-btn" id="svc-refresh" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <span set:html={iRefresh} /> Actualizar
+      </button>
+    </div>
+
+    <div class="page-stat-strip" id="svc-stats">
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ss-total">—</span><span class="page-stat-label">Total</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ss-active">—</span><span class="page-stat-label">Activos</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ss-running">—</span><span class="page-stat-label">Ejecutando</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ss-stopped">—</span><span class="page-stat-label">Detenidos</span></div>
+    </div>
+
+    <div class="card-grid" id="svc-grid" aria-busy="true">
+      <span class="sr-only">Obteniendo servicios del sistema</span>
+      {[1, 2, 3, 4].map(() => (
+        <div class="info-card info-card--skel" aria-hidden="true">
+          <div class="info-card-header">
+            <span class="skeleton info-card-skel-icon">&nbsp;</span>
+            <div class="info-card-skel-lines">
+              <span class="skeleton info-card-skel-line">&nbsp;</span>
+              <span class="skeleton info-card-skel-line info-card-skel-line--sm">&nbsp;</span>
+            </div>
+          </div>
+          <span class="skeleton info-card-skel-body">&nbsp;</span>
+          <div class="info-card-skel-pills">
+            <span class="skeleton info-card-skel-pill">&nbsp;</span>
+            <span class="skeleton info-card-skel-pill">&nbsp;</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <script>
+    import { fetchMetrics, updateHeader } from '../lib/metrics';
+    import { serviceActivityDescription, escHtml } from '../lib/process-hints';
+    import { iconToSvg } from '../lib/lucide-svg-string';
+    import { Settings } from 'lucide';
+
+    const iSvc = iconToSvg(Settings, { width: 18, height: 18 });
+    const $ = (id: string) => document.getElementById(id)!;
+    let allSvcs: any[] = [];
+    let filter = 'all';
+    let dataLoaded = false;
+
+    async function load() {
+      try {
+        const d = await fetchMetrics();
+        updateHeader(d);
+        allSvcs = d.services || [];
+
+        const set = (id: string, v: string) => { const e = $(id); e.textContent = v; e.classList.remove('skeleton'); };
+        set('ss-total', String(allSvcs.length));
+        set('ss-active', String(allSvcs.filter((s: any) => s.active).length));
+        set('ss-running', String(allSvcs.filter((s: any) => s.running).length));
+        set('ss-stopped', String(allSvcs.filter((s: any) => !s.running).length));
+
+        dataLoaded = true;
+        render();
+      } catch (e) {
+        console.error(e);
+        $('svc-grid').removeAttribute('aria-busy');
+        $('svc-grid').innerHTML =
+          '<div class="page-empty">No se pudieron cargar los servicios (¿API en marcha?)</div>';
+      }
+    }
+
+    function render() {
+      if (!dataLoaded) return;
+      $('svc-grid').removeAttribute('aria-busy');
+      const search = ($('svc-search') as HTMLInputElement).value.toLowerCase();
+      let filtered = allSvcs.filter((s: any) => (s.name || '').toLowerCase().includes(search));
+      if (filter === 'active') filtered = filtered.filter((s: any) => s.active);
+      if (filter === 'inactive') filtered = filtered.filter((s: any) => !s.active);
+
+      if (!filtered.length) {
+        $('svc-grid').innerHTML = '<div class="page-empty">Sin servicios encontrados</div>';
+        return;
+      }
+
+      $('svc-grid').innerHTML = filtered.map((s: any, i: number) => {
+        const title = (s.name || '').replace(/\.service$/i, '').replace(/\.timer$/i, '');
+        const htop = serviceActivityDescription(s.name || '', s.desc);
+        return `
+        <div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
+          <div class="info-card-header">
+            <div class="info-card-icon ${s.running ? 'green' : 'red'}">${iSvc}</div>
+            <div>
+              <div class="info-card-title">${escHtml(title)}</div>
+              <div class="info-card-sub">${escHtml(s.desc || 'Unidad systemd')}</div>
+            </div>
+          </div>
+          <div class="info-card-htop">${escHtml(htop)}</div>
+          <div class="info-card-footer">
+            <span class="pill ${s.active ? 'pill-ok' : 'pill-crit'}">${s.active ? 'Activo' : 'Inactivo'}</span>
+            <span class="pill ${s.running ? 'pill-ok' : 'pill-crit'}">${s.running ? 'Ejecutando' : 'Detenido'}</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    $('svc-search').addEventListener('input', render);
+    $('svc-refresh').addEventListener('click', load);
+
+    document.querySelectorAll('[data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        filter = (btn as HTMLElement).dataset.filter!;
+        render();
+      });
+    });
+
+    load();
+    setInterval(load, 12000);
+  </script>
+</Layout>

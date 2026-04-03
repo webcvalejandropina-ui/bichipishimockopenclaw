@@ -1,0 +1,13 @@
+:8080 {
+  root * /srv
+
+  handle /api/* {
+    reverse_proxy 127.0.0.1:3001
+  }
+
+  handle {
+    file_server
+  }
+
+  encode zstd gzip
+}

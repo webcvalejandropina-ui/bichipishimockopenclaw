@@ -1,0 +1,175 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { RefreshCw, X } from 'lucide';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+const iDismiss = iconToSvg(X, { width: 16, height: 16 });
+---
+<Layout activePage="alertas">
+  <div class="wrapper">
+    <div class="page-header">
+      <h2 class="page-title">Alertas</h2>
+      <p class="page-desc">Historial de alertas y advertencias del sistema. Puedes descartarlas de forma persistente (este navegador); la campana del menú usa el mismo criterio.</p>
+    </div>
+
+    <div class="page-toolbar">
+      <button type="button" class="page-filter-btn active" data-filter="all">Todas</button>
+      <button type="button" class="page-filter-btn" data-filter="warn">Advertencias</button>
+      <button type="button" class="page-filter-btn" data-filter="crit">Críticas</button>
+      <button type="button" class="page-filter-btn" id="alert-refresh" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <span set:html={iRefresh} /> Actualizar
+      </button>
+    </div>
+
+    <div class="page-stat-strip">
+      <div class="page-stat"><span class="page-stat-value skeleton" id="as-total">—</span><span class="page-stat-label">Total</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="as-warn">—</span><span class="page-stat-label">Advertencias</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="as-crit">—</span><span class="page-stat-label">Críticas</span></div>
+    </div>
+
+    <div class="sys-panel" id="alert-panel" aria-busy="true">
+      <span class="sr-only">Obteniendo alertas del sistema</span>
+      <div class="alert-timeline">
+        {[1, 2, 3, 4].map(() => (
+          <div class="alert-skel-item" aria-hidden="true">
+            <span class="skeleton alert-skel-dot">&nbsp;</span>
+            <div class="alert-skel-body">
+              <span class="skeleton alert-skel-line alert-skel-line--lg">&nbsp;</span>
+              <span class="skeleton alert-skel-line alert-skel-line--md">&nbsp;</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ iDismissHtml: iDismiss }}>
+    import { fetchMetrics, updateHeader, setAlertsBadgeCount } from '../lib/metrics';
+    import { escHtml } from '../lib/process-hints';
+    import {
+      type NormalizedMetricAlert,
+      countUndismissedAlertsFromMetrics,
+      filterUndismissedAlerts,
+      normalizeAlertsFromMetrics,
+      rememberDismissedAlertId,
+      stableAlertDismissId,
+    } from '../lib/alert-dismiss';
+
+    const $ = (id: string) => document.getElementById(id)!;
+
+    let rows: NormalizedMetricAlert[] = [];
+    let filter: 'all' | 'warn' | 'crit' = 'all';
+    let dataLoaded = false;
+    let lastMetrics: any = null;
+
+    function applyStats(list: NormalizedMetricAlert[]) {
+      const set = (id: string, v: string) => {
+        const e = $(id);
+        e.textContent = v;
+        e.classList.remove('skeleton');
+      };
+      const crits = list.filter((r) => r.severity === 'critical');
+      set('as-total', String(list.length));
+      set('as-warn', String(list.length - crits.length));
+      set('as-crit', String(crits.length));
+    }
+
+    function render() {
+      if (!dataLoaded) return;
+      const panel = $('alert-panel');
+      panel.removeAttribute('aria-busy');
+      let filtered = [...rows];
+      if (filter === 'warn') filtered = filtered.filter((r) => r.severity !== 'critical');
+      if (filter === 'crit') filtered = filtered.filter((r) => r.severity === 'critical');
+
+      if (!filtered.length) {
+        panel.innerHTML =
+          '<div class="page-empty">Sin alertas activas — todo correcto o ya descartadas en este navegador</div>';
+        return;
+      }
+
+      panel.innerHTML = `<div class="alert-timeline">${filtered
+        .map((r, i) => {
+          const t = new Date(r.at);
+          const aid = stableAlertDismissId(r);
+          const kind = r.severity === 'critical' ? 'Crítica' : 'Advertencia';
+          return `<div class="alert-item" data-alert-id="${aid}" style="animation-delay:${i * 30}ms">
+          <div class="alert-dot-col">
+            <div class="alert-dot ${r.severity === 'critical' ? 'crit' : 'warn'}"></div>
+            ${i < filtered.length - 1 ? '<div class="alert-line"></div>' : ''}
+          </div>
+          <div class="alert-content">
+            <div class="alert-msg">${escHtml([r.title, r.detail].filter(Boolean).join(': ') || r.title)}</div>
+            <div class="alert-time">${t.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${kind}</div>
+          </div>
+          <button type="button" class="alert-dismiss-btn" aria-label="Descartar alerta" title="Descartar">${iDismissHtml}</button>
+        </div>`;
+        })
+        .join('')}</div>`;
+    }
+
+    async function load() {
+      try {
+        const d = await fetchMetrics();
+        lastMetrics = d;
+        updateHeader(d);
+        setAlertsBadgeCount(countUndismissedAlertsFromMetrics(d));
+
+        const base = normalizeAlertsFromMetrics(d);
+        rows = filterUndismissedAlerts(base, (a) => stableAlertDismissId(a));
+        rows.sort((a, b) => b.at - a.at);
+
+        applyStats(rows);
+        dataLoaded = true;
+        render();
+      } catch (e) {
+        console.error(e);
+        lastMetrics = null;
+        rows = [];
+        dataLoaded = false;
+        ['as-total', 'as-warn', 'as-crit'].forEach((id) => {
+          const el = $(id);
+          el.textContent = '—';
+          el.classList.add('skeleton');
+        });
+        $('alert-panel').removeAttribute('aria-busy');
+        $('alert-panel').innerHTML = '<div class="page-empty">No se pudieron cargar las alertas (¿API en marcha?).</div>';
+        setAlertsBadgeCount(0);
+      }
+    }
+
+    function initDismiss() {
+      const panel = $('alert-panel');
+      if ((panel as HTMLElement).dataset.dismissInit) return;
+      (panel as HTMLElement).dataset.dismissInit = '1';
+      panel.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest('.alert-dismiss-btn');
+        if (!btn) return;
+        const item = btn.closest('.alert-item');
+        const id = item?.getAttribute('data-alert-id');
+        if (id) rememberDismissedAlertId(id);
+        const aid = id || '';
+        rows = rows.filter((r) => stableAlertDismissId(r) !== aid);
+        applyStats(rows);
+        setAlertsBadgeCount(countUndismissedAlertsFromMetrics(lastMetrics));
+        render();
+      });
+    }
+    initDismiss();
+
+    $('alert-refresh').addEventListener('click', load);
+
+    document.querySelectorAll('[data-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-filter]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        filter = (btn as HTMLElement).dataset.filter! as 'all' | 'warn' | 'crit';
+        render();
+      });
+    });
+
+    load();
+    setInterval(load, 12000);
+  </script>
+</Layout>

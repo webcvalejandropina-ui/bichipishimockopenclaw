@@ -1,0 +1,142 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { Monitor, RefreshCw } from 'lucide';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+---
+<Layout activePage="procesos">
+  <div class="wrapper">
+    <div class="page-header">
+      <h2 class="page-title">Procesos</h2>
+      <p class="page-desc">Procesos activos del sistema ordenados por consumo de CPU.</p>
+    </div>
+
+    <div class="page-toolbar">
+      <input type="text" class="page-search" id="proc-search" placeholder="Buscar proceso por nombre o PID..." />
+      <button type="button" class="page-filter-btn active" data-sort="cpu">CPU ↓</button>
+      <button type="button" class="page-filter-btn" data-sort="name">Nombre</button>
+      <button type="button" class="page-filter-btn" data-sort="pid">PID</button>
+      <button type="button" class="page-filter-btn" id="proc-refresh" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <span set:html={iRefresh} /> Actualizar
+      </button>
+    </div>
+
+    <div class="page-stat-strip" id="proc-stats">
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ps-total">—</span><span class="page-stat-label">Total</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ps-high">—</span><span class="page-stat-label">CPU &gt; 60%</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ps-avg">—</span><span class="page-stat-label">CPU Medio</span></div>
+    </div>
+
+    <div id="proc-table-wrap" aria-busy="true">
+      <span class="sr-only">Obteniendo datos del monitor del sistema</span>
+      <div class="table-scroll">
+        <table class="data-table data-table--procs">
+          <thead>
+            <tr>
+              <th>PID</th>
+              <th>Proceso</th>
+              <th>Actividad</th>
+              <th>CPU %</th>
+              <th class="col-proc-bar">Uso</th>
+              <th>Comando</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(() => (
+              <tr class="data-table-skel-row" aria-hidden="true">
+                <td><span class="skeleton skel-cell skel-cell--pid">&nbsp;</span></td>
+                <td><span class="skeleton skel-cell skel-cell--name">&nbsp;</span></td>
+                <td><span class="skeleton skel-cell skel-cell--act">&nbsp;</span></td>
+                <td><span class="skeleton skel-cell skel-cell--pct">&nbsp;</span></td>
+                <td class="col-proc-bar"><span class="skeleton skel-cell skel-cell--bar">&nbsp;</span></td>
+                <td><span class="skeleton skel-cell skel-cell--cmd">&nbsp;</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { fetchMetrics, updateHeader, statusColor } from '../lib/metrics';
+    import { processActivityDescription, escHtml } from '../lib/process-hints';
+
+    const $ = (id: string) => document.getElementById(id)!;
+    let allProcs: any[] = [];
+    let sortBy = 'cpu';
+    let dataLoaded = false;
+
+    async function load() {
+      try {
+        const d = await fetchMetrics();
+        updateHeader(d);
+        allProcs = d.topCpu || [];
+
+        const set = (id: string, v: string) => { const e = $(id); e.textContent = v; e.classList.remove('skeleton'); };
+        set('ps-total', String(allProcs.length));
+        set('ps-high', String(allProcs.filter((p: any) => (p.cpu || 0) > 60).length));
+        set('ps-avg', allProcs.length ? `${(allProcs.reduce((s: number, p: any) => s + (p.cpu || 0), 0) / allProcs.length).toFixed(1)}%` : '0%');
+
+        dataLoaded = true;
+        render();
+      } catch (e) {
+        console.error(e);
+        $('proc-table-wrap').removeAttribute('aria-busy');
+        $('proc-table-wrap').innerHTML =
+          '<div class="page-empty">No se pudo obtener datos del monitor (¿API en marcha?)</div>';
+      }
+    }
+
+    function render() {
+      if (!dataLoaded) return;
+      $('proc-table-wrap').removeAttribute('aria-busy');
+      const search = ($('proc-search') as HTMLInputElement).value.toLowerCase();
+      let filtered = allProcs.filter((p: any) =>
+        (p.comm || '').toLowerCase().includes(search) ||
+        String(p.pid).includes(search)
+      );
+
+      if (sortBy === 'cpu') filtered.sort((a: any, b: any) => (b.cpu || 0) - (a.cpu || 0));
+      else if (sortBy === 'name') filtered.sort((a: any, b: any) => (a.comm || '').localeCompare(b.comm || ''));
+      else if (sortBy === 'pid') filtered.sort((a: any, b: any) => a.pid - b.pid);
+
+      if (!filtered.length) {
+        $('proc-table-wrap').innerHTML = '<div class="page-empty">Sin procesos encontrados</div>';
+        return;
+      }
+
+      $('proc-table-wrap').innerHTML = `<div class="table-scroll"><table class="data-table data-table--procs">
+        <thead><tr><th>PID</th><th>Proceso</th><th>Actividad</th><th>CPU %</th><th class="col-proc-bar">Uso</th><th>Comando</th></tr></thead>
+        <tbody>${filtered.map((p: any, i: number) => {
+          const col = statusColor(p.cpu || 0, 'cpu');
+          const act = processActivityDescription(p.comm || '', p.cmd || '', p.desc);
+          return `<tr style="animation:listSlideIn 0.3s ease ${i * 20}ms both">
+            <td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)">${p.pid}</td>
+            <td class="col-name">${escHtml((p.comm || '?').substring(0, 30))}</td>
+            <td class="col-activity">${escHtml(act)}</td>
+            <td class="col-metric" style="color:${col}">${(p.cpu ?? 0).toFixed(1)}%</td>
+            <td class="col-bar col-proc-bar"><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.min(p.cpu||0,100)}%;background:${col}"></div></div></td>
+            <td class="col-cmd" title="${escHtml(p.cmd || '')}">${escHtml((p.cmd || '—').substring(0, 48))}${(p.cmd && p.cmd.length > 48) ? '…' : ''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+    }
+
+    $('proc-search').addEventListener('input', render);
+    $('proc-refresh').addEventListener('click', load);
+
+    document.querySelectorAll('[data-sort]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-sort]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        sortBy = (btn as HTMLElement).dataset.sort!;
+        render();
+      });
+    });
+
+    load();
+    setInterval(load, 12000);
+  </script>
+</Layout>

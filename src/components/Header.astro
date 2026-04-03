@@ -1,0 +1,170 @@
+---
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { Sun, Moon, Clock, Menu, X, Bell } from 'lucide';
+
+interface Props {
+  activePage?: string;
+}
+
+const { activePage = 'dashboard' } = Astro.props;
+
+const icons = {
+  sun: iconToSvg(Sun, { width: 18, height: 18 }),
+  moon: iconToSvg(Moon, { width: 18, height: 18 }),
+  clock: iconToSvg(Clock, { width: 14, height: 14 }),
+  menu: iconToSvg(Menu, { width: 22, height: 22 }),
+  close: iconToSvg(X, { width: 22, height: 22 }),
+  bell: iconToSvg(Bell, { width: 18, height: 18 }),
+};
+
+const navItems = [
+  { id: 'dashboard', label: 'Dashboard', href: '/' },
+  { id: 'rendimiento', label: 'Rendimiento', href: '/rendimiento' },
+  { id: 'procesos', label: 'Procesos', href: '/procesos' },
+  { id: 'servicios', label: 'Servicios', href: '/servicios' },
+  { id: 'docker', label: 'Docker', href: '/docker' },
+  { id: 'logs', label: 'Logs', href: '/logs' },
+  { id: 'openclaw', label: 'OpenClaw', href: '/openclaw' },
+  { id: 'sistema', label: 'Sistema', href: '/sistema' },
+  { id: 'configuracion', label: 'Configuración', href: '/configuracion' },
+];
+---
+<div class="site-chrome">
+<header class="header">
+  <div class="header-left">
+    <button type="button" class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menú" aria-expanded="false" aria-controls="mobile-drawer-nav">
+      <span id="menu-icon-open" set:html={icons.menu} />
+      <span id="menu-icon-close" style="display:none" set:html={icons.close} />
+    </button>
+    <a href="/" class="brand-pill">Bichipishi</a>
+  </div>
+
+  <nav class="header-center">
+    <div class="main-nav" role="navigation" aria-label="Secciones">
+      {navItems.map(item => (
+        <a href={item.href} class={`nav-link${activePage === item.id ? ' active' : ''}`}>
+          {item.label}
+        </a>
+      ))}
+    </div>
+  </nav>
+
+  <div class="header-right">
+    <a href="/alertas" class="header-alerts-link" id="header-alerts-link" aria-label="Ver alertas" title="Alertas">
+      <span set:html={icons.bell} aria-hidden="true" />
+      <span class="header-alerts-badge" id="header-alerts-badge" hidden></span>
+    </a>
+    <button type="button" class="theme-toggle" id="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema">
+      <span id="theme-icon-sun" set:html={icons.sun} />
+      <span id="theme-icon-moon" style="display:none" set:html={icons.moon} />
+    </button>
+    <div class="health-badge" id="health-badge" data-health="ok" role="status" aria-live="polite">
+      <span class="health-dot" aria-hidden="true"></span>
+      <span id="health-badge-text">Estable</span>
+    </div>
+    <div class="uptime-pill uptime-pill--clock-only" id="uptime-pill" title="Hora local">
+      <span class="uptime-pill__icon" set:html={icons.clock} aria-hidden="true" />
+      <span class="uptime-pill__text">
+        <span id="header-wall-clock" class="header-wall-clock">--:--</span>
+        <span class="uptime-pill__sep" aria-hidden="true" hidden>·</span>
+        <span id="uptime-text" class="uptime-pill__uptime" hidden></span>
+      </span>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile drawer nav -->
+<div class="mobile-drawer" id="mobile-drawer">
+  <div class="mobile-drawer-backdrop" id="mobile-drawer-backdrop"></div>
+  <nav class="mobile-drawer-nav" id="mobile-drawer-nav">
+    <div class="mobile-drawer-header">
+      <span class="brand-pill" style="border:none;padding:0">Bichipishi</span>
+    </div>
+    {navItems.map(item => (
+      <a href={item.href} class={`mobile-nav-link${activePage === item.id ? ' active' : ''}`}>
+        {item.label}
+      </a>
+    ))}
+  </nav>
+</div>
+</div>
+
+<script>
+  import { setupThemeToggle, applyStoredTheme } from '../lib/metrics';
+
+  function normalizePath(pathname: string) {
+    const p = pathname.replace(/\/$/, '') || '/';
+    return p === '' ? '/' : p;
+  }
+
+  function hrefToPath(href: string | null) {
+    if (!href) return '/';
+    try {
+      return normalizePath(new URL(href, window.location.origin).pathname);
+    } catch {
+      return '/';
+    }
+  }
+
+  function syncNavActive() {
+    const current = normalizePath(window.location.pathname);
+    document.querySelectorAll<HTMLAnchorElement>('.nav-link, .mobile-nav-link').forEach((a) => {
+      const target = hrefToPath(a.getAttribute('href'));
+      a.classList.toggle('active', target === current);
+    });
+  }
+
+  function initHeaderChrome() {
+    setupThemeToggle();
+    applyStoredTheme();
+
+    const btn = document.getElementById('mobile-menu-btn');
+    const drawer = document.getElementById('mobile-drawer');
+    const backdrop = document.getElementById('mobile-drawer-backdrop');
+    const iconOpen = document.getElementById('menu-icon-open');
+    const iconClose = document.getElementById('menu-icon-close');
+
+    function setDrawerOpen(open: boolean) {
+      if (!drawer) return;
+      drawer.classList.toggle('open', open);
+      btn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (iconOpen) (iconOpen as HTMLElement).style.display = open ? 'none' : 'block';
+      if (iconClose) (iconClose as HTMLElement).style.display = open ? 'block' : 'none';
+      document.body.style.overflow = open ? 'hidden' : '';
+    }
+
+    if (btn && drawer && !(btn as HTMLElement).dataset.bichiDrawerInit) {
+      (btn as HTMLElement).dataset.bichiDrawerInit = '1';
+      btn.addEventListener('click', () => setDrawerOpen(!drawer.classList.contains('open')));
+    }
+    if (backdrop && !(backdrop as HTMLElement).dataset.bichiBackdropInit) {
+      (backdrop as HTMLElement).dataset.bichiBackdropInit = '1';
+      backdrop.addEventListener('click', () => setDrawerOpen(false));
+    }
+
+    document.querySelectorAll('.mobile-nav-link').forEach((link) => {
+      if ((link as HTMLElement).dataset.bichiCloseDrawer) return;
+      (link as HTMLElement).dataset.bichiCloseDrawer = '1';
+      link.addEventListener('click', () => setDrawerOpen(false));
+    });
+
+    syncNavActive();
+
+    function tickHeaderWallClock() {
+      const el = document.getElementById('header-wall-clock');
+      if (!el) return;
+      try {
+        el.textContent = new Date().toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      } catch {
+        el.textContent = '--:--';
+      }
+    }
+    tickHeaderWallClock();
+    window.setInterval(tickHeaderWallClock, 30_000);
+  }
+
+  initHeaderChrome();
+</script>

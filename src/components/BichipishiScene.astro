@@ -1,0 +1,603 @@
+<div class="pine-stage" aria-label="Bichipishi" id="pine-stage-desktop">
+  <!-- Desktop: full detailed SVG pineapple -->
+  <div class="glow-orb"></div>
+  <div class="star sp1"></div>
+  <div class="star sp2"></div>
+  <div class="star sp3"></div>
+
+  <div class="pine">
+
+    <!-- === LEAF CROWN === -->
+    <svg class="crown-svg" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="lgB" x1="50%" y1="100%" x2="50%" y2="0%">
+          <stop offset="0%" stop-color="#1A5319"/>
+          <stop offset="100%" stop-color="#4CAF50"/>
+        </linearGradient>
+        <linearGradient id="lgC" x1="50%" y1="100%" x2="50%" y2="0%">
+          <stop offset="0%" stop-color="#2E7D32"/>
+          <stop offset="100%" stop-color="#8BC34A"/>
+        </linearGradient>
+      </defs>
+
+      <!-- Outer/back leaves -->
+      <path d="M70 150 Q40 100 20 40 Q60 70 90 130 Z" fill="url(#lgB)" opacity="0.7"/>
+      <path d="M210 150 Q240 100 260 40 Q220 70 190 130 Z" fill="url(#lgB)" opacity="0.7"/>
+
+      <!-- Middle leaves - left -->
+      <path d="M90 150 Q50 90 30 20 Q70 60 100 120 Z" fill="url(#lgB)" opacity="0.85"/>
+      <path d="M115 150 Q80 80 65 15 Q95 55 118 125 Z" fill="url(#lgC)"/>
+
+      <!-- Middle leaves - right -->
+      <path d="M190 150 Q225 90 245 20 Q205 60 175 120 Z" fill="url(#lgB)" opacity="0.85"/>
+      <path d="M165 150 Q200 80 215 15 Q185 55 162 125 Z" fill="url(#lgC)"/>
+
+      <!-- Center leaves -->
+      <path d="M138 150 Q120 80 118 10 Q140 55 145 120 Z" fill="url(#lgC)"/>
+      <path d="M142 150 Q160 80 162 10 Q140 55 135 120 Z" fill="url(#lgC)"/>
+    </svg>
+
+    <!-- === PINEAPPLE BODY === -->
+    <svg class="body-svg" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bodyFill" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#FFF275"/>
+          <stop offset="35%" stop-color="#FFD700"/>
+          <stop offset="70%" stop-color="#E68A00"/>
+          <stop offset="100%" stop-color="#BF6000"/>
+        </radialGradient>
+        <pattern id="scalePat" x="0" y="0" width="24" height="28" patternUnits="userSpaceOnUse">
+          <path d="M12 0 L24 7 L24 21 L12 28 L0 21 L0 7 Z"
+                fill="none" stroke="#BF6000" stroke-width="0.8" opacity="0.4"/>
+          <path d="M6 8 Q8 6 12 6 Q10 8 6 8 Z" fill="#FFF275" opacity="0.5"/>
+        </pattern>
+        <linearGradient id="lensFill" x1="10%" y1="10%" x2="90%" y2="90%">
+          <stop offset="0%" stop-color="#4DD0E1"/>
+          <stop offset="40%" stop-color="#0097A7"/>
+          <stop offset="100%" stop-color="#00363A"/>
+        </linearGradient>
+        <linearGradient id="frameFill" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#5D4037"/>
+          <stop offset="100%" stop-color="#3E2723"/>
+        </linearGradient>
+        <clipPath id="clipL">
+          <path d="M20 18 Q18 8 30 6 L85 6 Q97 8 95 18 L95 50 Q95 60 85 62 L30 62 Q20 60 20 50 Z"/>
+        </clipPath>
+        <clipPath id="clipR">
+          <path d="M145 18 Q143 8 155 6 L210 6 Q222 8 220 18 L220 50 Q220 60 210 62 L155 62 Q145 60 145 50 Z"/>
+        </clipPath>
+      </defs>
+
+      <ellipse cx="120" cy="140" rx="96" ry="116" fill="url(#bodyFill)"/>
+      <ellipse cx="120" cy="140" rx="96" ry="116" fill="url(#scalePat)"/>
+      <ellipse cx="80" cy="90" rx="40" ry="30" fill="rgba(255,255,200,0.18)"/>
+      <ellipse cx="120" cy="98" rx="88" ry="12" fill="rgba(0,0,0,0.08)"/>
+
+      <!-- === AVIATOR SUNGLASSES === -->
+      <g class="glasses">
+        <path d="M20 18 Q18 8 30 6 L85 6 Q97 8 95 18 L95 50 Q95 60 85 62 L30 62 Q20 60 20 50 Z"
+              fill="url(#frameFill)" stroke="#2A1A12" stroke-width="2"/>
+        <path d="M24 20 Q22 11 32 9 L83 9 Q93 11 91 20 L91 49 Q91 57 83 59 L32 59 Q24 57 24 49 Z"
+              fill="url(#lensFill)"/>
+        <g clip-path="url(#clipL)" opacity="0.55">
+          <rect x="36" y="18" width="2" height="26" fill="#00363A"/>
+          <path d="M37 20 Q28 15 20 18 Q28 20 37 20" fill="#00363A"/>
+          <path d="M37 22 Q46 17 54 20 Q46 22 37 22" fill="#00363A"/>
+          <path d="M37 25 Q30 22 24 24 Q30 26 37 25" fill="#00363A"/>
+          <path d="M37 28 Q44 25 50 27 Q44 29 37 28" fill="#00363A"/>
+          <rect x="58" y="28" width="2" height="20" fill="#00363A"/>
+          <path d="M59 30 Q52 25 44 28 Q52 30 59 30" fill="#00363A"/>
+          <path d="M59 33 Q66 28 74 30 Q66 33 59 33" fill="#00363A"/>
+          <path d="M59 36 Q54 33 48 35 Q54 37 59 36" fill="#00363A"/>
+          <rect x="74" y="36" width="2" height="14" fill="#00363A"/>
+          <path d="M75 38 Q68 33 60 36 Q68 38 75 38" fill="#00363A"/>
+          <path d="M75 41 Q82 36 90 39 Q82 41 75 41" fill="#00363A"/>
+        </g>
+        <ellipse cx="38" cy="20" rx="9" ry="5" fill="rgba(255,255,255,0.35)" transform="rotate(-20 38 20)"/>
+        <ellipse cx="42" cy="26" rx="4" ry="2" fill="rgba(255,255,255,0.2)" transform="rotate(-20 42 26)"/>
+
+        <rect x="90" y="12" width="60" height="5" rx="2" fill="url(#frameFill)"/>
+        <path d="M95 17 Q120 22 145 17" fill="none" stroke="#3E2723" stroke-width="2.5"/>
+
+        <path d="M145 18 Q143 8 155 6 L210 6 Q222 8 220 18 L220 50 Q220 60 210 62 L155 62 Q145 60 145 50 Z"
+              fill="url(#frameFill)" stroke="#2A1A12" stroke-width="2"/>
+        <path d="M149 20 Q147 11 157 9 L208 9 Q218 11 216 20 L216 49 Q216 57 208 59 L157 59 Q149 57 149 49 Z"
+              fill="url(#lensFill)"/>
+        <g clip-path="url(#clipR)" opacity="0.55">
+          <rect x="161" y="18" width="2" height="26" fill="#00363A"/>
+          <path d="M162 20 Q153 15 145 18 Q153 20 162 20" fill="#00363A"/>
+          <path d="M162 22 Q171 17 179 20 Q171 22 162 22" fill="#00363A"/>
+          <path d="M162 25 Q155 22 149 24 Q155 26 162 25" fill="#00363A"/>
+          <path d="M162 28 Q169 25 175 27 Q169 29 162 28" fill="#00363A"/>
+          <rect x="183" y="28" width="2" height="20" fill="#00363A"/>
+          <path d="M184 30 Q177 25 169 28 Q177 30 184 30" fill="#00363A"/>
+          <path d="M184 33 Q191 28 199 30 Q191 33 184 33" fill="#00363A"/>
+          <rect x="199" y="36" width="2" height="14" fill="#00363A"/>
+          <path d="M200 38 Q193 33 185 36 Q193 38 200 38" fill="#00363A"/>
+          <path d="M200 41 Q207 36 215 39 Q207 41 200 41" fill="#00363A"/>
+        </g>
+        <ellipse cx="163" cy="20" rx="9" ry="5" fill="rgba(255,255,255,0.35)" transform="rotate(-20 163 20)"/>
+        <ellipse cx="167" cy="26" rx="4" ry="2" fill="rgba(255,255,255,0.2)" transform="rotate(-20 167 26)"/>
+      </g>
+    </svg>
+  </div>
+</div>
+
+<!-- Mobile pineapple: z-index 201 above sticky header (200), outside .pine-stage
+     so it escapes the z-index stacking context. Styles live in global.css. -->
+<div class="pine-mobile" id="pine-mobile" data-mood="ok">
+  <div class="pm-wrapper">
+    <div class="pm-leaf-crown">
+      <div class="pm-leaf pm-leaf-c"></div>
+      <div class="pm-leaf pm-leaf-l"></div>
+      <div class="pm-leaf pm-leaf-r"></div>
+    </div>
+    <div class="pm-body">
+      <div class="pm-glasses">
+        <div class="pm-lens"></div>
+        <div class="pm-bridge"></div>
+        <div class="pm-lens"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ─── SHARED KEYFRAMES ─── */
+  @keyframes sceneFadeIn {
+    from { opacity: 0; transform: scale(0.94) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes orbPulse {
+    0%, 100% { opacity: .8; transform: translate(-40%, -45%) scale(1); }
+    50%       { opacity: 1;   transform: translate(-40%, -45%) scale(1.06); }
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: .25; transform: scale(1); }
+    50%       { opacity: .85; transform: scale(1.25); }
+  }
+  @keyframes crownSway {
+    0%, 100% { transform: rotate(0deg); }
+    25%       { transform: rotate(-1.2deg); }
+    50%       { transform: rotate(0.6deg); }
+    75%       { transform: rotate(-0.4deg); }
+  }
+  @keyframes idleSway {
+    0%, 100% { transform: rotate(0deg); }
+    20%       { transform: rotate(-1.2deg); }
+    40%       { transform: rotate(0.8deg); }
+    60%       { transform: rotate(-0.7deg); }
+    80%       { transform: rotate(0.4deg); }
+  }
+  /* gentleBob: primary mobile pineapple animation — defined once, inherited by all breakpoints */
+  @keyframes gentleBob {
+    0%, 100% { transform: rotate(0deg); }
+    20%       { transform: rotate(-2deg); }
+    50%       { transform: rotate(1deg); }
+    75%       { transform: rotate(-1.2deg); }
+  }
+
+  /* Piña móvil: solo ≤639px (evita hueco en escritorio) */
+  .pine-mobile {
+    display: none;
+  }
+
+  /* ─── DESKTOP (≥640px): mascota arriba-izquierda, fuera del flujo ─── */
+  .pine-stage {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: min(280px, 34vw);
+    height: min(320px, 42vh);
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: calc(56px + max(6px, env(safe-area-inset-top))) 8px 12px max(10px, env(safe-area-inset-left));
+    box-sizing: border-box;
+    overflow: visible;
+    animation: sceneFadeIn 0.8s cubic-bezier(.22,1,.36,1) both;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .glow-orb {
+    position: absolute;
+    width: min(220px, 70vw);
+    height: min(220px, 70vw);
+    left: 10%;
+    top: 52%;
+    transform: translate(-40%, -45%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(139,92,246,.12) 0%, rgba(34,211,238,.09) 42%, rgba(250,204,21,.05) 58%, transparent 72%);
+    animation: orbPulse 5s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .star {
+    position: absolute; border-radius: 50%;
+    background: rgba(255,255,255,.75);
+    animation: twinkle 3s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .sp1 { width: 4px; height: 4px; top: 28%; left: 18%; animation-delay: 0s; }
+  .sp2 { width: 3px; height: 3px; top: 20%; left: 62%;   animation-delay: .8s; }
+  .sp3 { width: 3px; height: 3px; top: 58%; left: 42%;    animation-delay: 1.6s; }
+
+  .pine {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 2;
+    animation: idleSway 5s cubic-bezier(.34,1.56,.64,1) infinite;
+    transform-origin: bottom center;
+    will-change: transform;
+    backface-visibility: hidden;
+    pointer-events: none;
+    opacity: .18;
+    mix-blend-mode: soft-light;
+  }
+
+  .crown-svg {
+    width: clamp(72px, 15vw, 132px);
+    height: auto;
+    margin-bottom: -12px;
+    z-index: 3;
+    position: relative;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,.2));
+    animation: crownSway 5s cubic-bezier(.34,1.56,.64,1) infinite;
+    transform-origin: bottom center;
+  }
+
+  .body-svg {
+    width: clamp(64px, 13.5vw, 118px);
+    height: auto;
+    display: block;
+    filter: drop-shadow(0 12px 10px rgba(0,0,0,.22));
+  }
+
+  /* ─── MOBILE (≤639px) — base: uses gentleBob from global keyframes ─── */
+  @keyframes leafFlutter {
+    0%, 100% { transform: rotate(var(--leaf-base)) scaleY(1) translateX(0); }
+    35%       { transform: rotate(calc(var(--leaf-base) - 4deg)) scaleY(1.04) translateX(-0.4px); }
+    70%       { transform: rotate(calc(var(--leaf-base) + 3deg)) scaleY(0.97) translateX(0.3px); }
+  }
+  @keyframes ambientPulse {
+    0%, 100% { opacity: .55; transform: scale(1); }
+    50%       { opacity: .9;  transform: scale(1.08); }
+  }
+
+  @media (max-width: 639px) {
+    .glow-orb, .star, .pine { display: none; }
+
+    .pine-mobile {
+      position: fixed;
+      top: max(54px, calc(env(safe-area-inset-top) + 48px));
+      left: max(10px, env(safe-area-inset-left));
+      right: auto;
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .pine-mobile::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      background: radial-gradient(circle,
+        rgba(52,211,153,.22) 0%,
+        rgba(255,215,0,.08) 40%,
+        transparent 68%);
+      animation: ambientPulse 5s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .pine-mobile[data-mood="crit"]::before {
+      background: radial-gradient(circle,
+        rgba(248,113,113,.26) 0%,
+        rgba(220,38,38,.10) 40%,
+        transparent 65%);
+      animation-duration: 2.2s;
+    }
+    .pine-mobile[data-mood="warn"]::before {
+      background: radial-gradient(circle,
+        rgba(251,191,36,.22) 0%,
+        rgba(249,115,22,.08) 40%,
+        transparent 65%);
+      animation-duration: 3.5s;
+    }
+
+    .pm-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      animation: gentleBob 5.5s cubic-bezier(.45,1,.55,1) infinite;
+      transform-origin: center bottom;
+      position: relative;
+      z-index: 2;
+      will-change: transform;
+      backface-visibility: hidden;
+    }
+
+    /* ── Leaf crown ── */
+    .pm-leaf-crown {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: -1px;
+    }
+    .pm-leaf {
+      position: relative;
+      flex-shrink: 0;
+      transform-origin: bottom center;
+    }
+    .pm-leaf-c {
+      --leaf-base: 0deg;
+      width: 11px;
+      height: 16px;
+      background: linear-gradient(162deg, #7ADE68 0%, #3ab543 50%, #1a6e22 100%);
+      clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+      animation: leafFlutter 3.2s ease-in-out infinite;
+    }
+    .pm-leaf-c::before {
+      content: '';
+      position: absolute;
+      top: 2px; left: 4px;
+      width: 1.5px; height: 7px;
+      background: rgba(255,255,255,.2);
+      border-radius: 2px;
+      transform: rotate(-12deg);
+    }
+    .pm-leaf-l {
+      --leaf-base: -18deg;
+      width: 8px;
+      height: 12px;
+      background: linear-gradient(155deg, #4CAF50 0%, #2E7D32 60%, #1B5E20 100%);
+      clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+      animation: leafFlutter 3.7s ease-in-out infinite;
+      animation-delay: 0.3s;
+      margin-right: -2px;
+    }
+    .pm-leaf-r {
+      --leaf-base: 18deg;
+      width: 8px;
+      height: 12px;
+      background: linear-gradient(205deg, #4CAF50 0%, #2E7D32 60%, #1B5E20 100%);
+      clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+      animation: leafFlutter 3.9s ease-in-out infinite;
+      animation-delay: 0.5s;
+      margin-left: -2px;
+    }
+
+    /* ── Body ── */
+    .pm-body {
+      width: 26px;
+      height: 26px;
+      background:
+        radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(180,90,0,.18) 100%),
+        radial-gradient(ellipse at 36% 32%, #FFF7A0 0%, #FFD700 28%, #E68A00 62%, #BF6000 100%);
+      border-radius: 40% 40% 46% 46% / 28% 28% 72% 72%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 2px 6px rgba(0,0,0,.22),
+        0 4px 12px rgba(180,100,0,.12),
+        inset 0 1px 3px rgba(255,255,255,.28),
+        inset 0 -2px 6px rgba(0,0,0,.1);
+      z-index: 1;
+    }
+    .pm-body::before {
+      content: '';
+      position: absolute;
+      inset: 2.5px;
+      border-radius: inherit;
+      background:
+        repeating-linear-gradient( 45deg, transparent, transparent 3px, rgba(255,220,100,.09) 3px, rgba(255,220,100,.09) 4px),
+        repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(180,80,0,.07) 3px, rgba(180,80,0,.07) 4px);
+      pointer-events: none;
+    }
+
+    /* ── Aviators ── */
+    .pm-glasses {
+      display: flex;
+      align-items: center;
+      gap: 1px;
+      position: absolute;
+      top: 7px;
+      z-index: 3;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+    }
+    .pm-lens {
+      width: 9px;
+      height: 6px;
+      background: linear-gradient(145deg, #4DD0E1, #0097A7 50%, #00363A 100%);
+      border-radius: 4px 4px 3px 3px;
+      border: 0.5px solid #1a0f0a;
+      position: relative;
+      box-shadow:
+        inset 0 1px 2px rgba(255,255,255,.28),
+        inset 0 -1px 2px rgba(0,0,0,.2);
+    }
+    .pm-lens::after {
+      content: '';
+      position: absolute;
+      top: 0.5px; left: 1.5px;
+      width: 3px; height: 1.5px;
+      background: rgba(255,255,255,.5);
+      border-radius: 50%;
+      transform: rotate(-15deg);
+    }
+    .pm-lens::before {
+      content: '';
+      position: absolute;
+      inset: 0.5px;
+      border-radius: inherit;
+      background: linear-gradient(180deg, rgba(0,0,0,.12) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .pm-bridge {
+      width: 3px;
+      height: 1px;
+      background: linear-gradient(180deg, #5D4037, #3E2723);
+      border-radius: 2px;
+      align-self: flex-start;
+      margin-top: 0.5px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.3);
+    }
+    .pm-body::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 4px;
+      width: 7px; height: 4px;
+      background: rgba(255,255,230,.3);
+      border-radius: 50%;
+      filter: blur(1.5px);
+      pointer-events: none;
+    }
+  }
+
+  /* ─── 431–639px: Large phones (Pixel 7, iPhone 14/15 Pro Max) — medium pineapple ─── */
+  @media (min-width: 431px) and (max-width: 639px) {
+    .pine-mobile {
+      top: max(54px, calc(env(safe-area-inset-top) + 48px));
+      left: max(10px, env(safe-area-inset-left));
+      right: auto;
+    }
+    .pine-mobile::before {
+      width: 20px;
+      height: 20px;
+    }
+    .pm-wrapper {
+      animation: gentleBob 5.5s cubic-bezier(.42,1,.58,1) infinite;
+    }
+    /* Crown: medium — proportional to 18px body, clear visual presence */
+    .pm-leaf-c { width: 8px; height: 13px; }
+    .pm-leaf-l, .pm-leaf-r { width: 6px; height: 10px; margin-right: -1.5px; margin-left: -1.5px; }
+    /* Body: 18px — intermediate between SE (12px) and tablet (24px) */
+    .pm-body { width: 18px; height: 18px; }
+    .pm-glasses { top: 4px; gap: 0.5px; }
+    .pm-lens { width: 6.5px; height: 4px; border-radius: 3px 3px 2px 2px; }
+    .pm-bridge { width: 2px; height: 0.7px; margin-top: 0.3px; }
+    .pm-body::after { top: 1.5px; left: 3px; width: 4px; height: 2.5px; }
+    .pm-leaf-c::before { top: 1px; left: 2.5px; width: 0.8px; height: 4px; }
+
+    /* Charts: 85px canvas — proportional to 18px body, crisp doughnut */
+    .chart-card canvas { height: 85px !important; }
+    .chart-meta { font-size: 9px; gap: 1px; }
+    .chart-meta span:first-child { font-size: 10.5px; }
+    .chart-title { font-size: 10px; letter-spacing: .09em; }
+  }
+
+  /* ─── 501–639px: Large phones / small tablets — larger pineapple for bigger screens ─── */
+  @media (min-width: 501px) and (max-width: 639px) {
+    .pine-mobile {
+      top: max(54px, calc(env(safe-area-inset-top) + 48px));
+      left: max(10px, env(safe-area-inset-left));
+      right: auto;
+    }
+    .pine-mobile::before {
+      width: 22px;
+      height: 22px;
+    }
+    .pm-wrapper {
+      animation: gentleBob 5.5s cubic-bezier(.42,1,.58,1) infinite;
+    }
+    .pm-leaf-c { width: 11px; height: 16px; }
+    .pm-leaf-l, .pm-leaf-r { width: 7px; height: 12px; margin-right: -1.5px; margin-left: -1.5px; }
+    /* Body: 24px — full size for large phones and small tablets */
+    .pm-body { width: 24px; height: 24px; }
+    .pm-glasses { top: 5px; gap: 0.7px; }
+    .pm-lens { width: 8px; height: 5.5px; border-radius: 3.5px 3.5px 3px 3px; }
+    .pm-bridge { width: 2.5px; height: 0.8px; margin-top: 0.3px; }
+    .pm-body::after { top: 2px; left: 4px; width: 5px; height: 3px; }
+    .pm-leaf-c::before { top: 1px; left: 3px; width: 1px; height: 5px; }
+    /* Charts: 90px canvas — generous for larger screens */
+    .chart-card canvas { height: 90px !important; }
+    .chart-meta { font-size: 9.5px; gap: 1px; }
+    .chart-meta span:first-child { font-size: 11px; }
+  }
+
+  /* ─── 375–430px: iPhone SE / 12 / 13 / 14 — ultra-compact pineapple, minimal footprint ─── */
+  @media (min-width: 375px) and (max-width: 430px) {
+    .pine-mobile {
+      top: max(54px, calc(env(safe-area-inset-top) + 48px));
+      left: max(8px, env(safe-area-inset-left));
+      right: auto;
+    }
+    .pine-mobile::before {
+      width: 14px;
+      height: 14px;
+      opacity: .75;
+      background: radial-gradient(circle,
+        rgba(52,211,153,.18) 0%,
+        rgba(255,215,0,.05) 40%,
+        transparent 65%);
+      animation-duration: 6s;
+    }
+    .pine-mobile[data-mood="crit"]::before {
+      background: radial-gradient(circle,
+        rgba(248,113,113,.20) 0%,
+        rgba(220,38,38,.07) 40%,
+        transparent 62%);
+      animation-duration: 3s;
+    }
+    .pine-mobile[data-mood="warn"]::before {
+      background: radial-gradient(circle,
+        rgba(251,191,36,.18) 0%,
+        rgba(249,115,22,.05) 40%,
+        transparent 62%);
+      animation-duration: 4.5s;
+    }
+    .pm-wrapper {
+      animation: gentleBob 6.5s cubic-bezier(.42,1,.58,1) infinite;
+    }
+    /* Crown: ultra-compact — subtle accent, minimal footprint */
+    .pm-leaf-c { width: 5px; height: 8px; }
+    .pm-leaf-l, .pm-leaf-r { width: 4px; height: 6px; margin-right: -1px; margin-left: -1px; }
+    /* Body: 12px — barely there, just enough to recognize the pineapple shape */
+    .pm-body { width: 12px; height: 12px; }
+    .pm-glasses { top: 2px; gap: 0.3px; }
+    .pm-lens { width: 4.5px; height: 2.8px; border-radius: 2px 2px 1.5px 1.5px; }
+    .pm-bridge { width: 1.2px; height: 0.5px; margin-top: 0.2px; }
+    .pm-body::after { top: 1px; left: 2px; width: 2.5px; height: 1.5px; }
+    .pm-leaf-c::before { top: 0.5px; left: 1.5px; width: 0.6px; height: 3px; }
+
+    /* Charts: 70px canvas — crisp doughnut without dominating the card */
+    .chart-card canvas { height: 70px !important; }
+    .chart-meta { font-size: 8.5px; gap: 1px; }
+    .chart-meta span:first-child { font-size: 10px; }
+    .chart-title { font-size: 9px; letter-spacing: .09em; }
+  }
+
+  /* ─── ≤375px: iPhone SE 1st gen, very small Android — ultra-compact ─── */
+  @media (max-width: 374px) {
+    .pine-mobile {
+      top: max(52px, calc(env(safe-area-inset-top) + 44px));
+      left: max(6px, env(safe-area-inset-left));
+      right: auto;
+    }
+    .pine-mobile::before {
+      width: clamp(12px, 3.8vw, 18px);
+      height: clamp(12px, 3.8vw, 18px);
+    }
+    .pm-wrapper {
+      animation: gentleBob 6s cubic-bezier(.42,1,.58,1) infinite;
+    }
+    .pm-leaf-c { width: 6px; height: 9px; }
+    .pm-leaf-l, .pm-leaf-r { width: 4.5px; height: 7px; margin-right: -1px; margin-left: -1px; }
+    .pm-body { width: 13px; height: 13px; }
+    .pm-glasses { top: 2.5px; gap: 0.4px; }
+    .pm-lens { width: 5px; height: 3px; border-radius: 2px 2px 1.5px 1.5px; }
+    .pm-bridge { width: 1.5px; height: 0.6px; margin-top: 0.2px; }
+    .pm-body::after { top: 1px; left: 2px; width: 3px; height: 2px; }
+    .pm-leaf-c::before { top: 1px; left: 2px; width: 0.8px; height: 3px; }
+  }
+</style>

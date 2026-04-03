@@ -1,0 +1,9 @@
+# Cron extra para Bichipishi (mismo formato que crontab: 5 campos + comando, o @daily / @hourly / …).
+# En Docker Compose este fichero se monta en el contenedor metrics como CRON_EXTRA_FILE.
+# Sustituye /bin/true por tus scripts reales; las líneas que empiezan por # se ignoran.
+
+# Ejemplo: comprobación ligera cada hora (no-op en Alpine; cámbialo por tu ruta)
+@hourly /bin/true
+
+# Ejemplo: tarea diaria a las 03:15 (servidor/contenedor)
+15 3 * * * /bin/true

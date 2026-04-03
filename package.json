@@ -1,0 +1,45 @@
+{
+  "name": "bichipishimockopenclaw",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bichipishi — dashboard de métricas del sistema (Astro + API Node). Repo público.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git"
+  },
+  "bugs": {
+    "url": "https://github.com/webcvalejandropina-ui/bichipishimockopenclaw/issues"
+  },
+  "homepage": "https://github.com/webcvalejandropina-ui/bichipishimockopenclaw#readme",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "scripts": {
+    "start": "pnpm run dev",
+    "dev": "concurrently -k -n api,astro -c cyan,magenta \"pnpm run dev:api\" \"pnpm run dev:astro\"",
+    "dev:api": "node metrics-api/server.js",
+    "dev:astro": "astro dev --host",
+    "build": "astro build",
+    "serve": "node metrics-api/server.js",
+    "preview": "pnpm run build && node metrics-api/server.js",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "astro": "^5.0.0",
+    "chart.js": "^4.4.0",
+    "lucide": "^1.7.0",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "dotenv": "^16.6.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
+  }
+}

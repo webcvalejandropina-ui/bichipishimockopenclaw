@@ -1,0 +1,40 @@
+# Stack completo (UI + API) en cualquier SO con Docker Desktop / Engine + Compose v2.
+# Uso: docker compose up --build
+# UI (todo en uno, /api proxificado): http://localhost:8080
+# API directa (opcional): http://localhost:3001/api/metrics
+
+name: bichipishi
+
+services:
+  metrics:
+    build: ./metrics-api
+    container_name: bichipishi-metrics
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      # Cron “real” en contenedor: fichero estilo crontab (edita ./config/cron.extra en el host).
+      - CRON_EXTRA_FILE=/app/cron.extra
+      # Lista explícita (coma) o vacío para predeterminado: Linux/BSD/Windows '*' = servicios reales del SO.
+      # macOS: lista por patrones ps. Límite: BICHI_SERVICES_MAX=300
+    volumes:
+      - ./config/cron.extra:/app/cron.extra:ro
+    # Opcional: LOG_FILE, OPENCLAW_LOG_PATH, BICHI_DOCKER_SOCKET…
+    # Docker del host (métricas de contenedores): descomenta
+    #   - /var/run/docker.sock:/var/run/docker.sock
+    # Linux: crontab del host en /etc/crontab
+    #   - /etc/crontab:/etc/crontab:ro
+    # Windows (Docker Desktop): ruta del socket según tu cliente
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    container_name: bichipishi-web
+    ports:
+      - "8080:80"
+    depends_on:
+      metrics:
+        condition: service_healthy
+    restart: unless-stopped

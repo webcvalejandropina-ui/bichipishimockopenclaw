@@ -1,0 +1,238 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { RefreshCw, Trash2, Download } from 'lucide';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
+---
+<Layout activePage="logs">
+  <div class="wrapper">
+    <div class="page-header">
+      <h2 class="page-title">Logs</h2>
+      <p class="page-desc">Líneas reales desde la API (<code>/api/logs</code>): archivo <code>LOG_FILE</code>, journalctl o log de OpenClaw.</p>
+    </div>
+
+    <div class="logs-tabs">
+      <button type="button" class="logs-tab active" data-log="system">Sistema</button>
+      <button type="button" class="logs-tab" data-log="openclaw">OpenClaw</button>
+    </div>
+
+    <!-- ═══ SYSTEM LOGS ═══ -->
+    <div class="logs-panel active" id="panel-system">
+      <div class="log-toolbar">
+        <button type="button" class="log-filter-btn active" data-level="all">Todos</button>
+        <button type="button" class="log-filter-btn" data-level="info">Info</button>
+        <button type="button" class="log-filter-btn" data-level="warn">Warn</button>
+        <button type="button" class="log-filter-btn" data-level="error">Error</button>
+        <button type="button" class="log-filter-btn" data-level="debug">Debug</button>
+        <div class="log-toolbar-spacer" aria-hidden="true"></div>
+        <button type="button" class="page-filter-btn" id="sys-log-refresh" style="display:flex;align-items:center;gap:5px">
+          <span set:html={iRefresh} /> Actualizar
+        </button>
+        <button type="button" class="page-filter-btn" id="sys-log-clear" style="display:flex;align-items:center;gap:5px">
+          <span set:html={iClear} /> Limpiar
+        </button>
+      </div>
+
+      <div class="page-stat-strip">
+        <div class="page-stat"><span class="page-stat-value" id="sl-total">0</span><span class="page-stat-label">Total</span></div>
+        <div class="page-stat"><span class="page-stat-value" id="sl-info" style="color:#58a6ff">0</span><span class="page-stat-label">Info</span></div>
+        <div class="page-stat"><span class="page-stat-value" id="sl-warn" style="color:#d29922">0</span><span class="page-stat-label">Warn</span></div>
+        <div class="page-stat"><span class="page-stat-value" id="sl-error" style="color:#f85149">0</span><span class="page-stat-label">Error</span></div>
+      </div>
+
+      <div class="log-terminal">
+        <div class="log-terminal-bar">
+          <div class="log-terminal-dots">
+            <span class="log-terminal-dot red"></span>
+            <span class="log-terminal-dot yellow"></span>
+            <span class="log-terminal-dot green"></span>
+          </div>
+          <span class="log-terminal-title">system.log — bichipishi</span>
+        </div>
+        <div class="log-terminal-body" id="sys-log-body"></div>
+      </div>
+    </div>
+
+    <!-- ═══ OPENCLAW LOGS ═══ -->
+    <div class="logs-panel" id="panel-openclaw">
+      <div class="log-toolbar">
+        <button type="button" class="log-filter-btn active" data-oclevel="all">Todos</button>
+        <button type="button" class="log-filter-btn" data-oclevel="cmd">Comandos</button>
+        <button type="button" class="log-filter-btn" data-oclevel="out">Output</button>
+        <button type="button" class="log-filter-btn" data-oclevel="error">Error</button>
+        <div class="log-toolbar-spacer" aria-hidden="true"></div>
+        <button type="button" class="page-filter-btn" id="oc-log-refresh" style="display:flex;align-items:center;gap:5px">
+          <span set:html={iRefresh} /> Actualizar
+        </button>
+        <button type="button" class="page-filter-btn" id="oc-log-clear" style="display:flex;align-items:center;gap:5px">
+          <span set:html={iClear} /> Limpiar
+        </button>
+      </div>
+
+      <div class="page-stat-strip">
+        <div class="page-stat"><span class="page-stat-value" id="ol-total">0</span><span class="page-stat-label">Líneas</span></div>
+        <div class="page-stat"><span class="page-stat-value" id="ol-cmds" style="color:#3fb950">0</span><span class="page-stat-label">Comandos</span></div>
+        <div class="page-stat"><span class="page-stat-value" id="ol-errors" style="color:#f85149">0</span><span class="page-stat-label">Errores</span></div>
+      </div>
+
+      <div class="log-terminal">
+        <div class="log-terminal-bar">
+          <div class="log-terminal-dots">
+            <span class="log-terminal-dot red"></span>
+            <span class="log-terminal-dot yellow"></span>
+            <span class="log-terminal-dot green"></span>
+          </div>
+          <span class="log-terminal-title">openclaw.log — terminal</span>
+        </div>
+        <div class="log-terminal-body" id="oc-log-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { fetchMetrics, updateHeader, apiFetch } from '../lib/metrics';
+    import { escHtml } from '../lib/process-hints';
+
+    const $ = (id: string) => document.getElementById(id)!;
+
+    document.querySelectorAll('.logs-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.logs-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.logs-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        $(`panel-${(tab as HTMLElement).dataset.log}`).classList.add('active');
+      });
+    });
+
+    interface LogEntry { time: string; level: string; msg: string; }
+
+    async function fetchLogStream(stream: 'system' | 'openclaw') {
+      const r = await apiFetch(`/api/logs?stream=${stream}`);
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json() as Promise<{ entries: LogEntry[]; hint?: string | null }>;
+    }
+
+    let sysLogs: LogEntry[] = [];
+    let ocLogs: LogEntry[] = [];
+    let sysHint = '';
+    let ocHint = '';
+    let sysFilter = 'all';
+    let ocFilter = 'all';
+
+    const LEVEL_CLASS = new Set(['info', 'warn', 'error', 'debug', 'cmd', 'out']);
+    function levelClass(lvl: string) {
+      return LEVEL_CLASS.has(lvl) ? lvl : 'info';
+    }
+
+    function renderLogs(logs: LogEntry[], containerId: string, filter: string, hint?: string) {
+      const el = $(containerId);
+      const filtered = filter === 'all' ? logs : logs.filter(l => l.level === filter);
+
+      if (!filtered.length) {
+        const h = hint || 'Sin líneas en esta vista.';
+        el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;line-height:1.5">${escHtml(h)}</div>`;
+        return;
+      }
+
+      el.innerHTML = filtered.map(l =>
+        `<div class="log-line"><span class="log-time">${escHtml(l.time || '—')}</span><span class="log-level ${levelClass(l.level)}">[${escHtml(l.level).toUpperCase()}]</span><span class="log-msg">${escHtml(l.msg)}</span></div>`
+      ).join('');
+
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function updateSysStats() {
+      $('sl-total').textContent = String(sysLogs.length);
+      $('sl-info').textContent = String(sysLogs.filter(l => l.level === 'info').length);
+      $('sl-warn').textContent = String(sysLogs.filter(l => l.level === 'warn').length);
+      $('sl-error').textContent = String(sysLogs.filter(l => l.level === 'error').length);
+    }
+
+    function updateOcStats() {
+      $('ol-total').textContent = String(ocLogs.length);
+      $('ol-cmds').textContent = String(ocLogs.filter(l => l.level === 'cmd').length);
+      $('ol-errors').textContent = String(ocLogs.filter(l => l.level === 'error').length);
+    }
+
+    async function reloadSystemLogs() {
+      try {
+        const d = await fetchLogStream('system');
+        sysLogs = d.entries || [];
+        sysHint = d.hint || '';
+        renderLogs(sysLogs, 'sys-log-body', sysFilter, sysHint);
+        updateSysStats();
+      } catch {
+        sysLogs = [];
+        sysHint = 'No se pudo cargar /api/logs?stream=system (¿API en marcha?).';
+        renderLogs([], 'sys-log-body', sysFilter, sysHint);
+        updateSysStats();
+      }
+    }
+
+    async function reloadOpenclawLogs() {
+      try {
+        const d = await fetchLogStream('openclaw');
+        ocLogs = d.entries || [];
+        ocHint = d.hint || '';
+        renderLogs(ocLogs, 'oc-log-body', ocFilter, ocHint);
+        updateOcStats();
+      } catch {
+        ocLogs = [];
+        ocHint = 'No se pudo cargar /api/logs?stream=openclaw.';
+        renderLogs([], 'oc-log-body', ocFilter, ocHint);
+        updateOcStats();
+      }
+    }
+
+    document.querySelectorAll('[data-level]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-level]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        sysFilter = (btn as HTMLElement).dataset.level!;
+        renderLogs(sysLogs, 'sys-log-body', sysFilter, sysHint);
+      });
+    });
+
+    document.querySelectorAll('[data-oclevel]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-oclevel]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        ocFilter = (btn as HTMLElement).dataset.oclevel!;
+        renderLogs(ocLogs, 'oc-log-body', ocFilter, ocHint);
+      });
+    });
+
+    $('sys-log-refresh').addEventListener('click', () => { reloadSystemLogs(); });
+    $('sys-log-clear').addEventListener('click', () => {
+      sysLogs = [];
+      sysHint = 'Vista vacía (solo en el navegador). Pulsa Actualizar para volver a cargar desde la API.';
+      renderLogs(sysLogs, 'sys-log-body', sysFilter, sysHint);
+      updateSysStats();
+    });
+    $('oc-log-refresh').addEventListener('click', () => { reloadOpenclawLogs(); });
+    $('oc-log-clear').addEventListener('click', () => {
+      ocLogs = [];
+      ocHint = 'Vista vacía (solo en el navegador). Pulsa Actualizar para volver a cargar desde la API.';
+      renderLogs(ocLogs, 'oc-log-body', ocFilter, ocHint);
+      updateOcStats();
+    });
+
+    async function loadHeaderMetrics() {
+      try {
+        const d = await fetchMetrics();
+        updateHeader(d);
+      } catch (e) { console.error(e); }
+    }
+
+    reloadSystemLogs();
+    reloadOpenclawLogs();
+    loadHeaderMetrics();
+    setInterval(() => {
+      reloadSystemLogs();
+      reloadOpenclawLogs();
+      loadHeaderMetrics();
+    }, 15000);
+  </script>
+</Layout>

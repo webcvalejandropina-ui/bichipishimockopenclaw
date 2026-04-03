@@ -1,0 +1,382 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { Package, RefreshCw } from 'lucide';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+---
+<Layout activePage="docker">
+  <div class="wrapper dk-page">
+    <div class="page-header">
+      <h2 class="page-title">Docker</h2>
+      <p class="page-desc">Contenedores, imágenes y volúmenes del daemon Docker del host donde corre la API.</p>
+    </div>
+
+    <div class="logs-tabs" role="tablist" aria-label="Vista Docker">
+      <button type="button" class="logs-tab active" data-dk="ctnr" role="tab" aria-selected="true">Contenedores</button>
+      <button type="button" class="logs-tab" data-dk="img" role="tab" aria-selected="false">Imágenes</button>
+      <button type="button" class="logs-tab" data-dk="vol" role="tab" aria-selected="false">Volúmenes</button>
+    </div>
+
+    <div class="page-toolbar dk-toolbar">
+      <input type="text" class="page-search" id="dk-search" placeholder="Buscar…" />
+      <div class="dk-ctnr-filters" id="dk-ctnr-filters">
+        <button type="button" class="page-filter-btn active" data-filter="all">Todos</button>
+        <button type="button" class="page-filter-btn" data-filter="up">En marcha</button>
+        <button type="button" class="page-filter-btn" data-filter="down">Detenidos</button>
+      </div>
+      <button type="button" class="page-filter-btn" id="dk-refresh" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <span set:html={iRefresh} /> Actualizar
+      </button>
+    </div>
+
+    <div class="page-stat-strip" id="dk-stats-ctnr">
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ds-total">—</span><span class="page-stat-label">Contenedores</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ds-up">—</span><span class="page-stat-label">En marcha</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ds-down">—</span><span class="page-stat-label">Detenidos</span></div>
+    </div>
+
+    <div class="page-stat-strip dk-stats-panel" id="dk-stats-img" hidden>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="is-total">—</span><span class="page-stat-label">Imágenes</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="is-size">—</span><span class="page-stat-label">Tamaño en disco</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="is-dangling">—</span><span class="page-stat-label">Sin etiqueta</span></div>
+    </div>
+
+    <div class="page-stat-strip dk-stats-panel" id="dk-stats-vol" hidden>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="vs-total">—</span><span class="page-stat-label">Volúmenes</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="vs-drivers">—</span><span class="page-stat-label">Drivers</span></div>
+    </div>
+
+    <div class="logs-panel active" id="dk-panel-ctnr" role="tabpanel">
+      <div class="card-grid" id="ctnr-grid" aria-busy="true">
+        <span class="sr-only">Cargando contenedores</span>
+        {[1, 2, 3, 4].map(() => (
+          <div class="info-card info-card--skel" aria-hidden="true">
+            <div class="info-card-header">
+              <span class="skeleton info-card-skel-icon">&nbsp;</span>
+              <div class="info-card-skel-lines">
+                <span class="skeleton info-card-skel-line">&nbsp;</span>
+                <span class="skeleton info-card-skel-line info-card-skel-line--sm">&nbsp;</span>
+              </div>
+            </div>
+            <span class="skeleton info-card-skel-body">&nbsp;</span>
+            <div class="info-card-skel-pills">
+              <span class="skeleton info-card-skel-pill">&nbsp;</span>
+              <span class="skeleton info-card-skel-pill">&nbsp;</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="logs-panel" id="dk-panel-img" role="tabpanel">
+      <div class="card-grid" id="img-grid" aria-busy="true">
+        <span class="sr-only">Cargando imágenes</span>
+        {[1, 2, 3].map(() => (
+          <div class="info-card info-card--skel" aria-hidden="true">
+            <div class="info-card-header">
+              <span class="skeleton info-card-skel-icon">&nbsp;</span>
+              <div class="info-card-skel-lines">
+                <span class="skeleton info-card-skel-line">&nbsp;</span>
+                <span class="skeleton info-card-skel-line info-card-skel-line--sm">&nbsp;</span>
+              </div>
+            </div>
+            <span class="skeleton info-card-skel-body">&nbsp;</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="logs-panel" id="dk-panel-vol" role="tabpanel">
+      <div class="card-grid" id="vol-grid" aria-busy="true">
+        <span class="sr-only">Cargando volúmenes</span>
+        {[1, 2, 3].map(() => (
+          <div class="info-card info-card--skel" aria-hidden="true">
+            <div class="info-card-header">
+              <span class="skeleton info-card-skel-icon">&nbsp;</span>
+              <div class="info-card-skel-lines">
+                <span class="skeleton info-card-skel-line">&nbsp;</span>
+                <span class="skeleton info-card-skel-line info-card-skel-line--sm">&nbsp;</span>
+              </div>
+            </div>
+            <span class="skeleton info-card-skel-body">&nbsp;</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .dk-toolbar .dk-ctnr-filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .dk-page .logs-panel:not(.active) {
+      display: none;
+    }
+    .dk-page .logs-panel.active {
+      display: block;
+    }
+  </style>
+
+  <script>
+    import { fetchMetrics, updateHeader } from '../lib/metrics';
+    import { iconToSvg } from '../lib/lucide-svg-string';
+    import { Package, Layers, Database } from 'lucide';
+    import { escHtml } from '../lib/process-hints';
+
+    const iPkg = iconToSvg(Package, { width: 18, height: 18 });
+    const iLayers = iconToSvg(Layers, { width: 18, height: 18 });
+    const iVol = iconToSvg(Database, { width: 18, height: 18 });
+
+    const $ = (id: string) => document.getElementById(id)!;
+
+    let allCtrs: any[] = [];
+    let allImgs: any[] = [];
+    let allVols: any[] = [];
+    let filter = 'all';
+    let tab: 'ctnr' | 'img' | 'vol' = 'ctnr';
+    let dataLoaded = false;
+
+    function fmtBytes(n: number) {
+      if (n == null || !Number.isFinite(n) || n <= 0) return '—';
+      let v = n;
+      const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let i = 0;
+      while (v >= 1024 && i < u.length - 1) {
+        v /= 1024;
+        i += 1;
+      }
+      return i === 0 ? `${Math.round(v)} ${u[i]}` : `${v < 10 ? v.toFixed(1) : Math.round(v)} ${u[i]}`;
+    }
+
+    function fmtTs(sec: number) {
+      if (!sec) return '—';
+      try {
+        return new Date(sec * 1000).toLocaleString('es-ES', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+        });
+      } catch {
+        return '—';
+      }
+    }
+
+    function setStat(id: string, v: string) {
+      const e = $(id);
+      e.textContent = v;
+      e.classList.remove('skeleton');
+    }
+
+    function showTab(next: 'ctnr' | 'img' | 'vol') {
+      tab = next;
+      document.querySelectorAll<HTMLButtonElement>('.dk-page .logs-tab').forEach((b) => {
+        const on = b.getAttribute('data-dk') === next;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      document.querySelectorAll<HTMLElement>('.dk-page .logs-panel').forEach((p) => {
+        p.classList.toggle('active', p.id === `dk-panel-${next}`);
+      });
+      const ctnrStrip = $('dk-stats-ctnr');
+      const imgStrip = $('dk-stats-img');
+      const volStrip = $('dk-stats-vol');
+      ctnrStrip.hidden = next !== 'ctnr';
+      imgStrip.hidden = next !== 'img';
+      volStrip.hidden = next !== 'vol';
+
+      const filt = $('dk-ctnr-filters');
+      filt.style.display = next === 'ctnr' ? '' : 'none';
+
+      const ph =
+        next === 'ctnr'
+          ? 'Buscar contenedor…'
+          : next === 'img'
+            ? 'Buscar imagen o ID…'
+            : 'Buscar volumen…';
+      ($('dk-search') as HTMLInputElement).placeholder = ph;
+
+      render();
+    }
+
+    document.querySelectorAll<HTMLButtonElement>('.dk-page .logs-tab').forEach((b) => {
+      b.addEventListener('click', () => {
+        const k = b.getAttribute('data-dk') as 'ctnr' | 'img' | 'vol' | null;
+        if (k) showTab(k);
+      });
+    });
+
+    async function load() {
+      try {
+        const d = await fetchMetrics();
+        updateHeader(d);
+        allCtrs = Array.isArray(d.containers) ? d.containers : [];
+        allImgs = Array.isArray(d.dockerImages) ? d.dockerImages : [];
+        allVols = Array.isArray(d.dockerVolumes) ? d.dockerVolumes : [];
+
+        const ups = allCtrs.filter((c: any) => c.status?.toLowerCase().includes('up'));
+        setStat('ds-total', String(allCtrs.length));
+        setStat('ds-up', String(ups.length));
+        setStat('ds-down', String(allCtrs.length - ups.length));
+
+        const totalBytes = Number(d.dockerImagesTotalBytes) || 0;
+        const dangling = allImgs.filter((im: any) => im.repo === '<sin etiqueta>').length;
+        setStat('is-total', String(allImgs.length));
+        setStat('is-size', fmtBytes(totalBytes));
+        setStat('is-dangling', String(dangling));
+
+        const drivers = [...new Set(allVols.map((v: any) => v.driver || 'local'))];
+        setStat('vs-total', String(allVols.length));
+        setStat('vs-drivers', drivers.length ? drivers.slice(0, 3).join(', ') + (drivers.length > 3 ? '…' : '') : '—');
+
+        dataLoaded = true;
+        render();
+      } catch (e) {
+        console.error(e);
+        ['ctnr-grid', 'img-grid', 'vol-grid'].forEach((gid) => {
+          const g = $(gid);
+          g.removeAttribute('aria-busy');
+          g.innerHTML =
+            '<div class="page-empty" style="grid-column:1/-1">No se pudieron cargar datos Docker (¿daemon en marcha y API actualizada?).</div>';
+        });
+      }
+    }
+
+    function render() {
+      if (!dataLoaded) return;
+      const q = ($('dk-search') as HTMLInputElement).value.toLowerCase().trim();
+
+      if (tab === 'ctnr') {
+        const grid = $('ctnr-grid');
+        grid.removeAttribute('aria-busy');
+        let filtered = allCtrs.filter((c: any) => (c.name || '').toLowerCase().includes(q));
+        if (filter === 'up') filtered = filtered.filter((c: any) => c.status?.toLowerCase().includes('up'));
+        if (filter === 'down') filtered = filtered.filter((c: any) => !c.status?.toLowerCase().includes('up'));
+
+        if (!filtered.length) {
+          grid.innerHTML = '<div class="page-empty" style="grid-column:1/-1">Sin contenedores que coincidan</div>';
+          return;
+        }
+
+        grid.innerHTML = filtered.map((c: any, i: number) => {
+          const up = c.status?.toLowerCase().includes('up');
+          const cpu = c.cpu != null ? `${c.cpu}% CPU` : null;
+          const mem = c.mem != null ? `${c.mem}% RAM` : null;
+          return `<div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
+            <div class="info-card-header">
+              <div class="info-card-icon ${up ? 'green' : 'red'}">${iPkg}</div>
+              <div>
+                <div class="info-card-title">${escHtml(c.name)}</div>
+                <div class="info-card-sub">${escHtml(c.status || '—')}</div>
+              </div>
+            </div>
+            <div class="info-card-body info-card-body--break-long" style="font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)">
+              ${escHtml(c.ports || 'Sin puertos expuestos')}
+            </div>
+            <div class="info-card-footer">
+              <span class="pill ${up ? 'pill-ok' : 'pill-crit'}">${up ? 'En marcha' : 'Detenido'}</span>
+              ${cpu ? `<span class="pill pill-info">${cpu}</span>` : ''}
+              ${mem ? `<span class="pill pill-info">${mem}</span>` : ''}
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      if (tab === 'img') {
+        const grid = $('img-grid');
+        grid.removeAttribute('aria-busy');
+        const filtered = allImgs.filter((im: any) => {
+          if (!q) return true;
+          const hay = `${im.repo || ''} ${im.id || ''} ${(im.tags || []).join(' ')}`.toLowerCase();
+          return hay.includes(q);
+        });
+
+        if (!filtered.length) {
+          const msg =
+            allImgs.length === 0
+              ? 'No hay imágenes en la respuesta de la API (reinicia metrics-api y comprueba Docker).'
+              : 'Sin imágenes que coincidan';
+          grid.innerHTML = `<div class="page-empty" style="grid-column:1/-1">${msg}</div>`;
+          return;
+        }
+
+        grid.innerHTML = filtered.map((im: any, i: number) => {
+          const dangling = im.repo === '<sin etiqueta>';
+          const extra =
+            Array.isArray(im.tags) && im.tags.length > 1
+              ? `<div class="info-card-htop">${im.tags.slice(1).map((t: string) => escHtml(t)).join('<br/>')}</div>`
+              : '';
+          return `<div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
+            <div class="info-card-header">
+              <div class="info-card-icon ${dangling ? 'yellow' : 'blue'}">${iLayers}</div>
+              <div>
+                <div class="info-card-title">${escHtml(im.repo || '—')}</div>
+                <div class="info-card-sub">ID ${escHtml(im.id || '—')} · ${escHtml(im.sizeLabel || '—')}</div>
+              </div>
+            </div>
+            ${extra}
+            <div class="info-card-footer">
+              <span class="pill pill-info">${escHtml(fmtTs(im.created))}</span>
+              ${dangling ? '<span class="pill pill-warn">Sin etiqueta</span>' : ''}
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      if (tab === 'vol') {
+        const grid = $('vol-grid');
+        grid.removeAttribute('aria-busy');
+        const filtered = allVols.filter((v: any) => {
+          if (!q) return true;
+          const hay = `${v.name || ''} ${v.driver || ''} ${v.mountpoint || ''}`.toLowerCase();
+          return hay.includes(q);
+        });
+
+        if (!filtered.length) {
+          const msg =
+            allVols.length === 0
+              ? 'No hay volúmenes en la respuesta de la API (reinicia metrics-api y comprueba Docker).'
+              : 'Sin volúmenes que coincidan';
+          grid.innerHTML = `<div class="page-empty" style="grid-column:1/-1">${msg}</div>`;
+          return;
+        }
+
+        grid.innerHTML = filtered.map((v: any, i: number) => {
+          const mp = (v.mountpoint || '').trim() || '—';
+          return `<div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
+            <div class="info-card-header">
+              <div class="info-card-icon gold">${iVol}</div>
+              <div>
+                <div class="info-card-title">${escHtml(v.name || '—')}</div>
+                <div class="info-card-sub">${escHtml(v.driver || 'local')}${v.scope ? ` · ${escHtml(v.scope)}` : ''}</div>
+              </div>
+            </div>
+            <div class="info-card-body info-card-body--break-long" style="font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);line-height:1.45">
+              ${escHtml(mp)}
+            </div>
+            <div class="info-card-footer">
+              <span class="pill pill-info">${escHtml(fmtTs(v.created))}</span>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    $('dk-search').addEventListener('input', render);
+    $('dk-refresh').addEventListener('click', load);
+
+    document.querySelectorAll('#dk-ctnr-filters [data-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#dk-ctnr-filters [data-filter]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        filter = (btn as HTMLElement).dataset.filter!;
+        render();
+      });
+    });
+
+    load();
+    setInterval(load, 15000);
+  </script>
+</Layout>
