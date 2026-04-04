@@ -1,209 +1,181 @@
-# Bichipishi — dashboard de métricas
+# Bichipishi — monitor de tu ordenador
 
-Interfaz estática (**Astro**) + **API Node** (`metrics-api`) que lee el sistema real (CPU, RAM, disco, procesos, Docker opcional, tareas programadas, alertas). Funciona en **Windows, macOS y Linux**.
+Es una **página web** que enseña CPU, RAM, disco, procesos, Docker (si lo tienes), etc. **No tienes que saber programar** para usarla en tu máquina.
 
-**Repositorio:** [github.com/webcvalejandropina-ui/bichipishimockopenclaw](https://github.com/webcvalejandropina-ui/bichipishimockopenclaw)
-
----
-
-## Inicio rápido
-
-| Entorno | Una orden (desde la raíz del repo) | URLs |
-|--------|-------------------------------------|------|
-| **Docker (Linux / macOS / WSL)** | `sh scripts/install.sh` o `./scripts/install.sh` o `make install && make up` | UI: **http://localhost:8080** · API: **http://localhost:3001** |
-| **Docker (Windows)** | En PowerShell: `.\scripts\install.ps1` (Docker Desktop) | Igual |
-| **Docker (manual)** | `cp .env.example .env` → `docker compose up --build -d` | Igual |
-| **Desarrollo (hot reload)** | Ver [Desarrollo local](#desarrollo-local) o `make dev` | UI: **http://localhost:4322** · API: **3001** |
-
-El ecosistema Docker incluye **dos servicios** (`web` + `metrics`), volumen persistente para datos de la API, healthcheck y proxy **Nginx `/api` → `metrics`**, sin CORS entre puertos en el uso típico.
-
-### Cualquier sistema operativo (distribución)
-
-La forma **recomendada** en Ubuntu, Debian, Fedora, Arch, openSUSE, Raspberry Pi OS, macOS y Windows es **Docker** (misma `docker-compose.yml`, mismas imágenes). No dependes de la versión concreta del kernel salvo tener un runtime compatible:
-
-- **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) o [Podman](https://podman.io/) con alias `docker` (opcional). El script `scripts/install.sh` usa **POSIX `sh`** y detecta `docker compose` (v2) o `docker-compose` (legado).
-- **macOS:** [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/).
-- **Windows:** [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) y `.\scripts\install.ps1`, o **WSL2** + Docker y entonces `sh scripts/install.sh` desde la distro.
-- **Móvil / tablet:** la interfaz es **responsive** (viewport seguro, menú lateral, rejillas y tablas con scroll horizontal donde hace falta). Instala en un servidor o PC y accede por el navegador del dispositivo.
-
-### Marca: nombre y avatar
-
-En **`.env`** (también leído por Compose al construir y arrancar):
-
-| Variable | Efecto |
-|----------|--------|
-| `PUBLIC_BICHI_APP_NAME` | Texto del menú, título del documento, fallback del perfil del dashboard, prefijo de asuntos en correos de la API (`metrics`), demo OpenClaw. Por defecto: `Bichipishi`. |
-| `PUBLIC_BICHI_AVATAR_URL` | URL de imagen que sustituye la piña en la tarjeta de perfil del dashboard. Vacío = piña por defecto. |
-
-- **Desarrollo:** edita `.env` y reinicia `pnpm dev`.
-- **Docker:** los **build args** del servicio `web` toman los mismos valores del `.env` (primera imagen). Si solo cambias nombre o avatar **sin** querer reconstruir la imagen, basta con ajustar las variables en `.env` y **reiniciar el contenedor `web`**: el arranque regenera `bichi-brand.js` en Nginx. Si cambias también textos compilados en HTML, ejecuta `docker compose build web` (o `make build-web`).
-- **API:** Compose pasa `BICHI_APP_NAME` al servicio `metrics` a partir de `PUBLIC_BICHI_APP_NAME` para mantener un solo nombre en todo el stack.
+**Código en GitHub:** [github.com/webcvalejandropina-ui/bichipishimockopenclaw](https://github.com/webcvalejandropina-ui/bichipishimockopenclaw)
 
 ---
 
-## Requisitos
+## Guía muy fácil (léeme primero)
 
-- **Docker + Compose** (`docker compose` v2 preferido; el script `install.sh` admite también `docker-compose`).
-- **Solo Node** (dev): **Node ≥ 18.17** y **pnpm** (`corepack enable` + `corepack prepare pnpm@latest --activate`, o `npm install -g pnpm`).
+### ¿Qué necesitas?
+
+Solo una cosa: **Docker** (un programa que arranca todo solo).
+
+- **Windows:** instala [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/). Ábrelo y espera a que diga que está listo.
+- **Mac:** instala [Docker Desktop para Mac](https://docs.docker.com/desktop/setup/install/mac-install/).
+- **Linux (Ubuntu, Debian, Fedora, etc.):** instala [Docker Engine](https://docs.docker.com/engine/install/) (y el plugin **Compose**; en muchas distros viene con `docker compose`).
+
+Si no tienes Docker, el resto no funcionará: instálalo antes.
 
 ---
 
-## Desarrollo local
+### Windows — copia y pega en PowerShell
 
-Objetivo: Astro con recarga en vivo + API en paralelo.
+1. Descarga el proyecto (sustituye la carpeta si quieres):
 
-```bash
+```powershell
+cd $HOME\Desktop
 git clone https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git
 cd bichipishimockopenclaw
+```
+
+2. Si Windows dice que no puede ejecutar scripts, una sola vez:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+3. Arranca todo:
+
+```powershell
+.\scripts\install.ps1
+```
+
+La primera vez **tarda varios minutos** (descarga imágenes). No cierres la ventana hasta que termine.
+
+---
+
+### Mac o Linux — copia y pega en la terminal
+
+```bash
+cd ~/Desktop
+git clone https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git
+cd bichipishimockopenclaw
+sh scripts/install.sh
+```
+
+(Si tu sistema usa carpeta “Escritorio” en español, puede ser `~/Escritorio`. Elige la carpeta que prefieras.)
+
+---
+
+### Abrir el panel
+
+En el navegador (Chrome, Edge, Firefox…) entra en:
+
+**http://localhost:8080**
+
+Ahí está el dashboard. La dirección **`localhost`** significa “esta misma máquina”.
+
+---
+
+### Parar todo
+
+En la misma carpeta del proyecto:
+
+**Windows (PowerShell):**
+
+```powershell
+docker compose down
+```
+
+**Mac / Linux:**
+
+```bash
+docker compose down
+```
+
+---
+
+### Si algo sale mal (lo más típico)
+
+| Problema | Qué hacer |
+|----------|-----------|
+| “No se reconoce docker” | Docker Desktop (Windows/Mac) no está instalado o **no está abierto**. Ábrelo y vuelve a intentar. |
+| “Puerto en uso” / no carga la página | Otra app usa el puerto **8080** o **3001**. Cierra esa app o cambia los puertos en `docker-compose.yml` (avanzado). |
+| La página carga pero **no hay datos** | Espera unos segundos y pulsa actualizar. Si sigue vacío, en PowerShell o terminal: `docker compose ps` y mira que los dos servicios estén “Up”. |
+| PowerShell no ejecuta `install.ps1` | Ejecuta `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` y prueba otra vez. |
+
+**Plan B (mismo resultado, a mano)**
+
+*Mac o Linux:*
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+*Windows (PowerShell):*
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build -d
+```
+
+---
+
+## Cambiar el nombre o la foto del muñeco (opcional)
+
+1. Abre el archivo **`.env`** en la raíz del proyecto (si no existe, copia `.env.example` y renómbralo a `.env`).
+2. Puedes editar:
+   - **`PUBLIC_BICHI_APP_NAME`** — el nombre que sale arriba (por defecto Bichipishi).
+   - **`PUBLIC_BICHI_AVATAR_URL`** — enlace a una imagen por internet que sustituye a la piña.
+3. Guarda el archivo. En Docker: **`docker compose restart web`** (y si no ves el cambio en todo, `docker compose build web` y vuelve a `up`).
+
+---
+
+## Móvil y tablet
+
+Puedes abrir **http://TU-IP-LOCAL:8080** desde el móvil si el PC y el móvil están en la misma WiFi (sustituye `TU-IP-LOCAL` por la IP de tu ordenador, p. ej. `192.168.1.10`). La interfaz se adapta a pantallas pequeñas.
+
+---
+
+## Para desarrolladores (hot reload)
+
+Necesitas **Node** y **pnpm**. En la carpeta del proyecto:
+
+```bash
 cp .env.example .env
 pnpm install
 cd metrics-api && npm install && cd ..
 pnpm dev
 ```
 
-- **Interfaz:** http://localhost:4322 (Vite proxy `/api` → API).
-- **API:** puerto **3001** (cámbialo en `.env` con `BICHI_API_PORT` y **`PUBLIC_BICHI_API_PORT` al mismo valor**).
-
-**Cron extra (opcional):** en `.env` puedes poner `CRON_EXTRA_FILE=config/cron.extra` (mismo criterio que en Docker).
-
-**Sin pnpm:** instálalo globalmente o usa `corepack` como arriba.
+- Web: **http://localhost:4322**
+- API: puerto **3001**
 
 ---
 
-## Producción con Docker Compose
+## Qué hace Docker aquí (resumen)
 
-Objetivo: mismo stack en cualquier servidor o en tu máquina.
+Suben **dos cajas** (contenedores):
 
-```bash
-docker compose up --build -d
-```
+1. **web** — sirve la página en el puerto **8080**.
+2. **metrics** — el programa que lee el sistema y responde por **3001**.
 
-| Servicio | Puerto host | Uso |
-|----------|-------------|-----|
-| **web** | **8080** → 80 | Dashboard; `/api/*` va al servicio `metrics`. |
-| **metrics** | **3001** | API JSON (opcional exponer; la UI ya proxifica vía Nginx). |
-
-**Datos persistentes:** el `docker-compose.yml` del repo ya monta el volumen **`bichi-api-data` → `/app/data`** (SQLite de rendimiento, `settings.json`, etc.), así que no pierdes historial al recrear el contenedor `metrics`. Para ver los ficheros en el host, cambia a un bind mount, por ejemplo `- ./metrics-api-data:/app/data`.
-
-La API escribe en **`/app/data`** dentro del contenedor (`metrics-api/server.js`).
-
-**Variables útiles en producción** (Compose `environment:` o fichero `.env` leído por Compose):
-
-| Variable | Cuándo usarla |
-|----------|----------------|
-| `BICHI_MEM_TOTAL_GIB=8` | API en contenedor: la RAM “total” del cgroup no coincide con la RAM real del host. |
-| `BICHI_SKIP_PUBLIC_IP=1` | No llamar a servicios externos para IP pública. |
-| `BICHI_CORS_ORIGIN=https://tudominio.com` | Si sirves la web y la API en **orígenes distintos** sin proxy. |
-| `BICHI_DISABLE_SETTINGS_WRITE=1` | API expuesta: desactiva escritura de ajustes por API. |
-
-Más opciones en **`.env.example`** y comentarios en **`docker-compose.yml`**.
+Los datos guardados (histórico, ajustes) pueden quedarse en un volumen aunque reinicies. Detalle técnico: carpeta de datos de la API dentro del contenedor en `/app/data`.
 
 ---
 
-## Producción sin Docker (build estático + API)
+## Más opciones (producción, sin Docker, API en Internet)
 
-1. **Build de la web**
-
-   ```bash
-   pnpm install
-   pnpm run build
-   ```
-
-   Salida: carpeta **`dist/`**. Súbela a cualquier hosting estático (Nginx, Caddy, S3+CDN, Pages, etc.).
-
-2. **API en el servidor**
-
-   ```bash
-   cd metrics-api && npm ci --omit=dev && node server.js
-   ```
-
-   O proceso gestionado (systemd, PM2, etc.) con `NODE_ENV=production` y `BICHI_API_PORT` si hace falta.
-
-3. **Conectar web y API**
-
-   - **Mismo origen:** configura el proxy del servidor web para que **`/api` → `http://127.0.0.1:3001`** (equivalente al `default.conf` de este repo).
-   - **Orígenes distintos (HTTPS):** en el **build** de Astro define `PUBLIC_BICHI_API_URL=https://api.tudominio.com` (sin `/` final). En la API, `BICHI_CORS_ORIGIN` con el origen de la web.
-
-No subas **`.env`** ni **`metrics-api/data/`** al repositorio (`.gitignore`).
+- Variables y seguridad: mira **`.env.example`** y los comentarios en **`docker-compose.yml`**.
+- Build estático + API aparte, CORS, SQLite: secciones equivalentes a las que ya tenías; si las necesitas, consulta el historial del repo o pregunta en issues.
 
 ---
 
-## Variables de entorno (referencia)
+## Estructura rápida del repo
 
-Copia **`.env.example`** → **`.env`** para desarrollo. En Docker, Compose lee el `.env` de la raíz del proyecto para **sustitución** en `docker-compose.yml` (build args y `environment`).
-
-Incluye **marca** (`PUBLIC_BICHI_APP_NAME`, `PUBLIC_BICHI_AVATAR_URL`); ver la tabla en [Marca: nombre y avatar](#marca-nombre-y-avatar).
-
-| Variable | Descripción |
-|----------|-------------|
-| `BICHI_API_PORT` | Puerto de la API (default 3001). |
-| `PUBLIC_BICHI_API_PORT` | Mismo valor que `BICHI_API_PORT` para el proxy de Astro en dev. |
-| `PUBLIC_BICHI_API_URL` | URL base HTTPS de la API si la web está en otro dominio (solo build). |
-| `BICHI_MEM_TOTAL_GIB` | Fija RAM total en GiB (útil en Docker/cgroup). |
-| `BICHI_SKIP_PUBLIC_IP` | `1` = no resolver IP pública por Internet. |
-| `BICHI_CORS_ORIGIN` | Origen permitido CORS (producción con orígenes separados). |
-| `BICHI_DISABLE_SETTINGS_WRITE` | `1` = no escribir ajustes vía API. |
-| `CRON_EXTRA_FILE` | Ruta a fichero estilo crontab extra. |
+| Carpeta / archivo | Para qué |
+|-------------------|----------|
+| `src/` | Interfaz web |
+| `metrics-api/` | Servidor que lee el sistema |
+| `docker-compose.yml` | Orden para levantar web + API |
+| `scripts/install.sh` | Instalación fácil (Mac/Linux) |
+| `scripts/install.ps1` | Instalación fácil (Windows) |
 
 ---
 
-## SQLite: rendimiento histórico
+## Licencia y repo
 
-| Detalle | Valor |
-|--------|--------|
-| **Fichero** | `metrics-api/data/perf.sqlite` |
-| **Lectura** | `GET /api/perf/daily?days=N` |
-| **Escritura** | Se actualiza en el flujo de métricas del host |
-
-En Docker, monta un volumen para **`data`** si quieres conservar el histórico al recrear el contenedor.
-
----
-
-## Tareas programadas (cron)
-
-Solo **lectura**: la API no ejecuta ni modifica el cron del sistema.
-
-| Entorno | Fuentes |
-|--------|---------|
-| API en el **host** | `crontab -l`, `/etc/crontab`, `CRON_EXTRA_FILE` |
-| **Docker (este repo)** | `config/cron.extra` montado en `/app/cron.extra` |
-| **Windows** | Tareas programadas (PowerShell) + `CRON_EXTRA_FILE` opcional |
-
----
-
-## Estructura del repo
-
-| Ruta | Contenido |
-|------|-----------|
-| `src/` | Astro: dashboard, páginas, estilos. |
-| `metrics-api/` | Servidor Node: `/api/metrics`, SQLite, sistema. |
-| `docker/` | `Dockerfile.web`, Nginx `default.conf`. |
-| `docker-compose.yml` | Stack **web + metrics**. |
-| `.env.example` | Plantilla de variables. |
-| `config/cron.extra` | Cron extra editable (Docker). |
-| `public/_headers` | Cabeceras en hosts compatibles (p. ej. Cloudflare Pages). |
-
----
-
-## Código y push (referencia)
-
-```bash
-git clone https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git
-cd bichipishimockopenclaw
-# … cambios …
-git add -A && git commit -m "…" && git push origin main
-```
-
----
-
-## Solución de problemas breve
-
-- **La web no muestra métricas:** comprueba que la API responde (`/api/metrics`) y que en dev `PUBLIC_BICHI_API_PORT` coincide con el puerto real.
-- **RAM “rara” en Docker:** define `BICHI_MEM_TOTAL_GIB` según la RAM física del host.
-- **Solo web estática sin API:** el dashboard mostrará fallos de conexión hasta que exista una API accesible o `PUBLIC_BICHI_API_URL` correcta en el build.
-
----
-
-## API en Internet
-
-Si expones **`metrics-api`** públicamente, usa **`BICHI_CORS_ORIGIN`**, **`BICHI_DISABLE_SETTINGS_WRITE`** y, si aplica, **`BICHI_SETTINGS_TOKEN`**. Los datos reflejan **solo el host donde corre la API**.
+Uso bajo la licencia del proyecto. **No subas** tu archivo **`.env`** a internet (está en `.gitignore`).
