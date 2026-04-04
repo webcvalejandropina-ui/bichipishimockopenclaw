@@ -40,6 +40,11 @@ export async function fetchMetrics(): Promise<any> {
   return r.json();
 }
 
+function defaultEmailSubjectPrefix(): string {
+  const n = String(import.meta.env.PUBLIC_BICHI_APP_NAME || '').trim() || 'Bichipishi';
+  return `[${n}]`;
+}
+
 export type AppSettings = {
   thresholds: {
     diskWarn: number;
@@ -83,7 +88,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     smtpPass: '',
     mailFrom: '',
     mailTo: '',
-    subjectPrefix: '[Bichipishi]',
+    subjectPrefix: defaultEmailSubjectPrefix(),
     notifyMinSeverity: 'warning',
     emailCooldownMinutes: 30,
   },

@@ -13,12 +13,16 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=production
+      # Mismo nombre que la UI (asuntos de correo, textos API). Opcional: .env → PUBLIC_BICHI_APP_NAME
+      - BICHI_APP_NAME=${PUBLIC_BICHI_APP_NAME:-Bichipishi}
       # Cron “real” en contenedor: fichero estilo crontab (edita ./config/cron.extra en el host).
       - CRON_EXTRA_FILE=/app/cron.extra
       # Lista explícita (coma) o vacío para predeterminado: Linux/BSD/Windows '*' = servicios reales del SO.
       # macOS: lista por patrones ps. Límite: BICHI_SERVICES_MAX=300
     volumes:
       - ./config/cron.extra:/app/cron.extra:ro
+      # SQLite rendimiento + settings: persisten al recrear el contenedor
+      - bichi-api-data:/app/data
     # Opcional: LOG_FILE, OPENCLAW_LOG_PATH, BICHI_DOCKER_SOCKET…
     # Docker del host (métricas de contenedores): descomenta
     #   - /var/run/docker.sock:/var/run/docker.sock
@@ -31,10 +35,20 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.web
+      args:
+        PUBLIC_BICHI_APP_NAME: ${PUBLIC_BICHI_APP_NAME:-Bichipishi}
+        PUBLIC_BICHI_AVATAR_URL: ${PUBLIC_BICHI_AVATAR_URL:-}
     container_name: bichipishi-web
     ports:
       - "8080:80"
+    environment:
+      # Sin rebuild: reinicia solo `web` tras cambiar .env (sobrescribe public/bichi-brand.js al arrancar).
+      - PUBLIC_BICHI_APP_NAME=${PUBLIC_BICHI_APP_NAME:-}
+      - PUBLIC_BICHI_AVATAR_URL=${PUBLIC_BICHI_AVATAR_URL:-}
     depends_on:
       metrics:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  bichi-api-data:

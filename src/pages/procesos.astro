@@ -9,7 +9,10 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
   <div class="wrapper">
     <div class="page-header">
       <h2 class="page-title">Procesos</h2>
-      <p class="page-desc">Procesos activos del sistema ordenados por consumo de CPU.</p>
+      <p class="page-desc">
+        Lista ordenada por CPU según la API (mismo instantáneo que el dashboard). El recuento total del host puede ser mayor:
+        aquí ves los que más CPU reportan en ese momento, no todo el Monitor de actividad.
+      </p>
     </div>
 
     <div class="page-toolbar">
@@ -23,9 +26,10 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     </div>
 
     <div class="page-stat-strip" id="proc-stats">
-      <div class="page-stat"><span class="page-stat-value skeleton" id="ps-total">—</span><span class="page-stat-label">Total</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ps-shown">—</span><span class="page-stat-label">En lista (top CPU)</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ps-total">—</span><span class="page-stat-label">Procesos en el host</span></div>
       <div class="page-stat"><span class="page-stat-value skeleton" id="ps-high">—</span><span class="page-stat-label">CPU &gt; 60%</span></div>
-      <div class="page-stat"><span class="page-stat-value skeleton" id="ps-avg">—</span><span class="page-stat-label">CPU Medio</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="ps-avg">—</span><span class="page-stat-label">CPU medio (lista)</span></div>
     </div>
 
     <div id="proc-table-wrap" aria-busy="true">
@@ -62,8 +66,13 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
   <script>
     import { fetchMetrics, updateHeader, statusColor } from '../lib/metrics';
     import { processActivityDescription, escHtml } from '../lib/process-hints';
+    import { initCopyableValues } from '../lib/copy-field';
 
     const $ = (id: string) => document.getElementById(id)!;
+
+    function attrEsc(s: string) {
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
     let allProcs: any[] = [];
     let sortBy = 'cpu';
     let dataLoaded = false;
@@ -73,9 +82,12 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         const d = await fetchMetrics();
         updateHeader(d);
         allProcs = d.topCpu || [];
+        const hostTotal =
+          typeof d.processCountTotal === 'number' && d.processCountTotal >= 0 ? d.processCountTotal : allProcs.length;
 
         const set = (id: string, v: string) => { const e = $(id); e.textContent = v; e.classList.remove('skeleton'); };
-        set('ps-total', String(allProcs.length));
+        set('ps-shown', String(allProcs.length));
+        set('ps-total', String(hostTotal));
         set('ps-high', String(allProcs.filter((p: any) => (p.cpu || 0) > 60).length));
         set('ps-avg', allProcs.length ? `${(allProcs.reduce((s: number, p: any) => s + (p.cpu || 0), 0) / allProcs.length).toFixed(1)}%` : '0%');
 
@@ -112,16 +124,20 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         <tbody>${filtered.map((p: any, i: number) => {
           const col = statusColor(p.cpu || 0, 'cpu');
           const act = processActivityDescription(p.comm || '', p.cmd || '', p.desc);
-          return `<tr style="animation:listSlideIn 0.3s ease ${i * 20}ms both">
-            <td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)">${p.pid}</td>
-            <td class="col-name">${escHtml((p.comm || '?').substring(0, 30))}</td>
+          const comm = p.comm || '?';
+          const cmd = p.cmd || '—';
+          const tip = `PID ${p.pid} · ${comm}${p.cmd ? ` · ${cmd.slice(0, 500)}${cmd.length > 500 ? '…' : ''}` : ''}`;
+          return `<tr style="animation:listSlideIn 0.3s ease ${i * 20}ms both" title="${attrEsc(tip)}">
+            <td class="col-pid js-copy-val" data-copy-text="${attrEsc(String(p.pid))}" style="font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)">${p.pid}</td>
+            <td class="col-name col-name--full js-copy-val" data-copy-text="${attrEsc(comm)}">${escHtml(comm)}</td>
             <td class="col-activity">${escHtml(act)}</td>
             <td class="col-metric" style="color:${col}">${(p.cpu ?? 0).toFixed(1)}%</td>
             <td class="col-bar col-proc-bar"><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.min(p.cpu||0,100)}%;background:${col}"></div></div></td>
-            <td class="col-cmd" title="${escHtml(p.cmd || '')}">${escHtml((p.cmd || '—').substring(0, 48))}${(p.cmd && p.cmd.length > 48) ? '…' : ''}</td>
+            <td class="col-cmd col-cmd--full js-copy-val" data-copy-text="${attrEsc(cmd)}">${escHtml(cmd)}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`;
+      initCopyableValues($('proc-table-wrap'));
     }
 
     $('proc-search').addEventListener('input', render);
@@ -136,6 +152,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       });
     });
 
+    initCopyableValues(document.body);
     load();
     setInterval(load, 12000);
   </script>

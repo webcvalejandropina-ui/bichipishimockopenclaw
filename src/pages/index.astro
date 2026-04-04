@@ -1,12 +1,15 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import pineappleImg from '../assets/pineapple.png';
+import { getBuildBrand } from '../lib/brand';
 import { iconToSvg } from '../lib/lucide-svg-string';
 import {
   Cpu, MemoryStick, HardDrive, Clock, Activity,
   RefreshCw, Users, Settings, Package,
-  Check,
+  Copy, Monitor, Server, Globe, Layers, LayoutGrid,
 } from 'lucide';
+
+const iconSm = { width: 16, height: 16, 'stroke-width': 2 };
 
 const i = {
   cpu:     iconToSvg(Cpu,        { width: 18, height: 18 }),
@@ -18,10 +21,24 @@ const i = {
   users:   iconToSvg(Users,      { width: 20, height: 20 }),
   settings:iconToSvg(Settings,   { width: 20, height: 20 }),
   pkg:     iconToSvg(Package,    { width: 20, height: 20 }),
+  copyTip: iconToSvg(Copy,       { width: 16, height: 16, 'stroke-width': 2 }),
+  sysHdr:  iconToSvg(Monitor,    { width: 18, height: 18, 'stroke-width': 2 }),
+  sysDev:  iconToSvg(Monitor,    iconSm),
+  sysHost: iconToSvg(Server,     iconSm),
+  sysOs:   iconToSvg(Layers,     iconSm),
+  sysIp:   iconToSvg(Globe,      iconSm),
+  sysCpu:  iconToSvg(Cpu,        iconSm),
+  sysCores: iconToSvg(LayoutGrid, iconSm),
+  sysMem:  iconToSvg(MemoryStick, iconSm),
+  sysDisk: iconToSvg(HardDrive,  iconSm),
 };
+
+const brand = getBuildBrand();
+const avatarSrc = brand.avatarUrl || pineappleImg.src;
+const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
 ---
 <Layout>
-  <h1 class="sr-only">Monitor del sistema Bichipishi</h1>
+  <h1 class="sr-only">Monitor del sistema {brand.appName}</h1>
 
   <div class="wrapper wrapper--dashboard">
     <section class="dashboard-metrics-bar" aria-label="Resumen rápido">
@@ -58,19 +75,32 @@ const i = {
       </div>
       <div class="kpi-strip">
         <div class="kpi">
-          <span class="kpi-icon" set:html={i.users} />
-          <span class="kpi-value skeleton" id="kpi-proc">&mdash;</span>
-          <span class="kpi-label">Procesos</span>
+          <span class="kpi-icon" set:html={i.users} aria-hidden="true" />
+          <div class="kpi-body">
+            <div class="kpi-row-main">
+              <span class="kpi-value skeleton" id="kpi-proc">&mdash;</span>
+              <span class="kpi-title">Procesos</span>
+            </div>
+            <p class="kpi-meta" id="kpi-proc-meta"></p>
+          </div>
         </div>
         <div class="kpi">
-          <span class="kpi-icon" set:html={i.settings} />
-          <span class="kpi-value skeleton" id="kpi-svc">&mdash;</span>
-          <span class="kpi-label">Servicios</span>
+          <span class="kpi-icon" set:html={i.settings} aria-hidden="true" />
+          <div class="kpi-body">
+            <div class="kpi-row-main">
+              <span class="kpi-value skeleton" id="kpi-svc">&mdash;</span>
+              <span class="kpi-title">Servicios</span>
+            </div>
+          </div>
         </div>
         <div class="kpi">
-          <span class="kpi-icon" set:html={i.pkg} />
-          <span class="kpi-value skeleton" id="kpi-ctnr">&mdash;</span>
-          <span class="kpi-label">Contenedores</span>
+          <span class="kpi-icon" set:html={i.pkg} aria-hidden="true" />
+          <div class="kpi-body">
+            <div class="kpi-row-main">
+              <span class="kpi-value skeleton" id="kpi-ctnr">&mdash;</span>
+              <span class="kpi-title">Contenedores</span>
+            </div>
+          </div>
         </div>
       </div>
       </div>
@@ -79,39 +109,28 @@ const i = {
       </button>
     </section>
 
-    <section class="dashboard-alerts-card card" aria-labelledby="dash-alerts-heading">
+    <section
+      class="dashboard-alerts-card card"
+      id="dashboard-alerts-card"
+      hidden
+      aria-labelledby="dash-alerts-heading"
+    >
       <div class="dashboard-alerts-head">
         <h2 id="dash-alerts-heading">Alertas recientes</h2>
         <a href="/alertas" class="dashboard-alerts-all">Ver todas →</a>
       </div>
-      <ul class="dashboard-alerts-list" id="dash-alerts-list" aria-busy="true" aria-live="polite">
-        <li class="dash-alert dash-alert--skel" aria-hidden="true">
-          <div class="skeleton dash-skel-meta">&nbsp;</div>
-          <div class="skeleton dash-skel-title">&nbsp;</div>
-          <div class="skeleton dash-skel-detail">&nbsp;</div>
-        </li>
-        <li class="dash-alert dash-alert--skel" aria-hidden="true">
-          <div class="skeleton dash-skel-meta">&nbsp;</div>
-          <div class="skeleton dash-skel-title">&nbsp;</div>
-          <div class="skeleton dash-skel-detail dash-skel-detail--short">&nbsp;</div>
-        </li>
-        <li class="dash-alert dash-alert--skel" aria-hidden="true">
-          <div class="skeleton dash-skel-meta">&nbsp;</div>
-          <div class="skeleton dash-skel-title">&nbsp;</div>
-          <div class="skeleton dash-skel-detail">&nbsp;</div>
-        </li>
-      </ul>
+      <ul class="dashboard-alerts-list" id="dash-alerts-list" aria-busy="true" aria-live="polite"></ul>
     </section>
 
     <div class="dashboard-grid">
       <!-- Profile Card (Pineapple) -->
-      <div class="card profile-card profile-card--loading" id="card-profile" aria-busy="true">
+      <div class={`card profile-card profile-card--loading${customAvatarClass}`} id="card-profile" aria-busy="true">
         <div class="pine-avatar-wrap" id="pine-avatar-wrap" data-mood="ok">
           <div class="pine-load-ring" aria-hidden="true"></div>
           <div class="pine-glow"></div>
           <img
-            src={pineappleImg.src}
-            alt="Bichipishi"
+            src={avatarSrc}
+            alt={brand.appName}
             class="pine-avatar"
             id="pine-avatar"
             data-mood="ok"
@@ -205,15 +224,152 @@ const i = {
 
       <!-- Sidebar Card (System Info) -->
       <div class="card sidebar-card" id="card-system">
-        <details class="sidebar-section" open>
-          <summary>Información del Sistema</summary>
-          <div class="section-content">
-            <div class="sys-grid">
-              <div class="sys-item"><span class="sys-key">Host</span><span class="sys-val skeleton" id="sys-host">&mdash;</span></div>
-              <div class="sys-item"><span class="sys-key">CPU</span><span class="sys-val skeleton" id="sys-cpu-model">&mdash;</span></div>
-              <div class="sys-item"><span class="sys-key">Núcleos</span><span class="sys-val skeleton" id="sys-cpu-cores">&mdash;</span></div>
-              <div class="sys-item"><span class="sys-key">RAM</span><span class="sys-val skeleton" id="sys-mem-used">&mdash;</span></div>
-              <div class="sys-item"><span class="sys-key">Disco</span><span class="sys-val skeleton" id="sys-disk-used">&mdash;</span></div>
+        <details class="sidebar-section sidebar-section--sysinfo" open>
+          <summary>
+            <span class="sidebar-section__summary-lead">
+              <span class="sidebar-section__summary-ico" set:html={i.sysHdr} aria-hidden="true" />
+              <span>Información del Sistema</span>
+            </span>
+          </summary>
+          <div class="section-content section-content--sysinfo">
+            <p class="dash-sys-lede">Hover o foco en el valor: detalle completo y copiar · mismo criterio visual que Actividad.</p>
+            <div class="dash-sys-stack">
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysDev} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">Equipo</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-device"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-device-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysHost} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">Hostname</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-host"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-host-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysOs} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">Sistema operativo</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-os"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-os-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysIp} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">IP pública</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-ipv4"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-ipv4-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysCpu} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">CPU</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-cpu-model"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-cpu-model-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysCores} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">Núcleos</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-cpu-cores"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-cpu-cores-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysMem} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">RAM</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-mem-used"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-mem-used-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysDisk} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">Disco</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-disk-used"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-disk-used-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </details>
@@ -344,6 +500,8 @@ const i = {
     } from '../lib/alert-dismiss';
     import { processActivityDescription, serviceActivityDescription, escHtml } from '../lib/process-hints';
     import { recordPerfSample, loadPerfDailyMerged, localDateKey, type DayPerfAgg } from '../lib/perf-daily';
+    import { initCopyableValues, copyTextToClipboard } from '../lib/copy-field';
+    import { resolveBichiBrand, applyBichiBrandToDocument } from '../lib/brand-runtime';
 
     Chart.register(DoughnutController, ArcElement, Tooltip);
 
@@ -477,6 +635,10 @@ const i = {
 
     /* ── Render helpers ── */
 
+    function attrEsc(s: string) {
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
     function renderProcs(procs: any[]) {
       const el = $('proc-list');
       el.removeAttribute('aria-busy');
@@ -488,17 +650,21 @@ const i = {
         if (cpu >= 85) tier = 'act-cpu-crit';
         else if (cpu >= 60) tier = 'act-cpu-warn';
         const act = processActivityDescription(p.comm || '', p.cmd || '', p.desc);
-        const actShort = act.length > 95 ? `${act.slice(0, 92)}…` : act;
-        return `<div class="act-item" style="animation-delay:${i*25}ms">
+        const actShort = act.length > 120 ? `${act.slice(0, 117)}…` : act;
+        const comm = p.comm || '?';
+        const cmd = p.cmd || '';
+        const aria = `Proceso ${comm}, PID ${p.pid}, ${cpu.toFixed(1)} % CPU`;
+        return `<div class="act-item act-item--proc" style="animation-delay:${i*25}ms" aria-label="${attrEsc(aria)}">
           <div class="act-icon ${ok ? 'act-icon--info' : 'act-icon--warn'}">${L.monitorSm}</div>
           <div class="act-info">
-            <div class="act-name">${escHtml((p.comm || '?').substring(0, 24))}</div>
+            <div class="act-name act-name--full js-copy-val" data-copy-text="${attrEsc(comm)}">${escHtml(comm)}</div>
             <div class="act-htop">${escHtml(actShort)}</div>
-            <div class="act-desc">PID ${p.pid} · <span class="act-cpu-metric ${tier}">${cpu.toFixed(1)}%</span></div>
+            <div class="act-desc">PID ${p.pid} · <span class="act-cpu-metric ${tier}">${cpu.toFixed(1)}%</span> · top CPU</div>
           </div>
           <div class="act-check ${ok ? 'done' : ''}">${ok ? L.tickSm : ''}</div>
         </div>`;
       }).join('');
+      initCopyableValues(el);
     }
 
     function renderSvcs(svcs: any[]) {
@@ -552,17 +718,23 @@ const i = {
 
     function renderDashAlerts(d: any) {
       const el = document.getElementById('dash-alerts-list');
-      if (!el) return;
+      const card = document.getElementById('dashboard-alerts-card');
+      if (!el || !card) return;
       el.setAttribute('aria-busy', 'false');
+      const hideCard = () => {
+        card.setAttribute('hidden', '');
+        el.innerHTML = '';
+      };
       if (!d) {
-        el.innerHTML = '<li class="dash-alert dash-alert--empty">Sin conexión a la API</li>';
+        hideCard();
         return;
       }
       const items = buildDashAlertListForHome(d, 6);
       if (!items.length) {
-        el.innerHTML = '<li class="dash-alert dash-alert--empty">No hay alertas activas</li>';
+        hideCard();
         return;
       }
+      card.removeAttribute('hidden');
       el.innerHTML = items
         .map((a) => {
           const sev = a.severity === 'critical' ? 'critical' : 'warning';
@@ -580,6 +752,48 @@ const i = {
         </li>`;
         })
         .join('');
+    }
+
+    const DASH_SYS_FACE_MAX = 42;
+
+    function setDashSysTip(
+      faceId: string,
+      tipId: string,
+      faceText: string,
+      tipFullLine: string,
+      maxFace = DASH_SYS_FACE_MAX,
+    ) {
+      const face = document.getElementById(faceId);
+      const tip = document.getElementById(tipId);
+      const line = tip?.querySelector('[data-dash-tip-line]');
+      if (!face || !tip || !line) return;
+      const full = (tipFullLine || '—').trim() || '—';
+      const show = (faceText || full).trim() || '—';
+      face.textContent = show.length > maxFace ? `${show.slice(0, maxFace - 1)}…` : show;
+      face.classList.remove('skeleton');
+      line.textContent = full;
+    }
+
+    let dashSysTipsWired = false;
+    function wireDashSysTips() {
+      if (dashSysTipsWired) return;
+      dashSysTipsWired = true;
+      document.body.addEventListener('click', (e) => {
+        const t = e.target as HTMLElement;
+        const btn = t.closest('button.dash-sys-tip__copy');
+        if (!btn || !document.getElementById('card-system')?.contains(btn)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const row = btn.closest('.dash-sys-tip__bubble-row');
+        const line = row?.querySelector('[data-dash-tip-line]');
+        const text = line?.textContent?.trim() ?? '';
+        void copyTextToClipboard(text).then((ok) => {
+          if (ok) {
+            btn.classList.add('is-copied');
+            window.setTimeout(() => btn.classList.remove('is-copied'), 1200);
+          }
+        });
+      });
     }
 
     /* ── Fetch metrics ── */
@@ -623,7 +837,17 @@ const i = {
           Array.isArray(d.load) && d.load.length ? d.load[0].toFixed(2) : '—',
         );
         set('cpu-pct-val', String(Math.round(cpu)));
-        set('kpi-proc', String((d.topCpu||[]).length));
+        const nTop = (d.topCpu || []).length;
+        const nTot = typeof d.processCountTotal === 'number' && d.processCountTotal >= 0 ? d.processCountTotal : nTop;
+        set('kpi-proc', String(nTop));
+        const kpiMeta = document.getElementById('kpi-proc-meta');
+        if (kpiMeta) {
+          let sub = '';
+          if (nTot > nTop) sub = `de ${nTot} en el host · top CPU`;
+          else if (nTot) sub = `${nTot} visibles · top CPU`;
+          else if (nTop) sub = `${nTop} en lista · top CPU`;
+          kpiMeta.textContent = sub;
+        }
         set('kpi-svc', String((d.services||[]).length));
         set('kpi-ctnr', String((d.containers||[]).length));
 
@@ -664,18 +888,44 @@ const i = {
           uptimeChart.update('none');
         }
 
-        // System info
-        set('sys-host', d.hostname || '—');
-        set('sys-cpu-model', (d.cpuModel || '').split(' ').slice(0, 4).join(' '));
-        set('sys-cpu-cores', String(d.cpuCores || '—'));
-        set('sys-mem-used', `${d.memUsed} / ${d.memTotal} GB`);
-        set('sys-disk-used', `${Math.round(d.diskUsed || 0)} GB`);
+        // Información del sistema: valor compacto + tooltip (hover/focus) con texto completo y copiar
+        const dev = typeof d.deviceName === 'string' && d.deviceName.trim() ? d.deviceName.trim() : '';
+        const hostOsStr =
+          typeof d.hostOs === 'string' && d.hostOs.trim() ? d.hostOs.trim() : '—';
+        const ips = Array.isArray(d.hostIpv4) ? d.hostIpv4.filter((x: unknown) => typeof x === 'string' && x.trim()) : [];
+        const locals = ips.join(', ');
+        const pub = String(d.publicIp || '').trim();
+        const ipFull =
+          pub && locals
+            ? `Pública: ${pub} · Locales: ${locals}`
+            : pub
+              ? `Pública: ${pub}`
+              : locals || '—';
+        const ipFace = pub || locals || '—';
+
+        const ramStr = `${d.memUsed} / ${d.memTotal} GiB`;
+        const diskTotal = typeof d.diskTotal === 'number' && d.diskTotal > 0 ? d.diskTotal : 0;
+        const diskStr =
+          diskTotal > 0 ? `${d.diskUsed} / ${d.diskTotal} GiB` : `${d.diskUsed} GiB usado`;
+
+        setDashSysTip('sys-device', 'sys-device-tip', dev || d.hostname || '—', dev || d.hostname || '—');
+        setDashSysTip('sys-host', 'sys-host-tip', d.hostname || '—', d.hostname || '—');
+        setDashSysTip('sys-os', 'sys-os-tip', hostOsStr, hostOsStr);
+        setDashSysTip('sys-ipv4', 'sys-ipv4-tip', ipFace, ipFull);
+        setDashSysTip('sys-cpu-model', 'sys-cpu-model-tip', d.cpuModel || '—', d.cpuModel || '—', 30);
+        setDashSysTip('sys-cpu-cores', 'sys-cpu-cores-tip', String(d.cpuCores ?? '—'), String(d.cpuCores ?? '—'));
+        setDashSysTip('sys-mem-used', 'sys-mem-used-tip', ramStr, ramStr);
+        setDashSysTip('sys-disk-used', 'sys-disk-used-tip', diskStr, diskStr);
         const upOk = hasValidSystemUptime(d.uptime);
         const upStr = upOk ? fmtUptime(Number(d.uptime)) : '';
         set('sys-uptime', upStr || '—');
 
-        const pn = $('profile-name');
-        pn.textContent = d.hostname || 'Bichipishi';
+        const pn = $('profile-name') as HTMLElement;
+        const pnm = dev || d.hostname || resolveBichiBrand().appName;
+        pn.textContent = pnm;
+        pn.classList.add('js-copy-val');
+        pn.dataset.copyText = pnm;
+        pn.title = `Clic para copiar · ${pnm}`;
         const pu = $('profile-uptime') as HTMLElement;
         if (upOk) {
           pu.textContent = upStr;
@@ -714,7 +964,7 @@ const i = {
         unlockProfileCard();
         const pnErr = $('profile-name');
         if (pnErr.querySelector?.('.profile-name-filler')) {
-          pnErr.textContent = 'Bichipishi';
+          pnErr.textContent = resolveBichiBrand().appName;
         }
         const puErr = $('profile-uptime') as HTMLElement;
         puErr.classList.remove('skeleton', 'profile-uptime-line');
@@ -742,8 +992,11 @@ const i = {
 
     function mountDashboardMetrics() {
       if (!document.getElementById('refresh-btn')) return;
+      applyBichiBrandToDocument();
       createUptimeChart();
       if (metricsPoll) clearInterval(metricsPoll);
+      wireDashSysTips();
+      initCopyableValues(document.body);
       load();
       metricsPoll = setInterval(load, 12000);
     }

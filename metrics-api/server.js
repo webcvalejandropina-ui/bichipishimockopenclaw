@@ -11,12 +11,78 @@ const cronParser = require('cron-parser');
 const { recordPerfDailySample, queryPerfDailyJson } = require('./perf-db');
 
 const PORT = Number.parseInt(process.env.BICHI_API_PORT || process.env.PORT || '3001', 10) || 3001;
+/** Nombre de la app (UI, correos, textos). En Docker: misma variable que PUBLIC_BICHI_APP_NAME en compose. */
+const APP_DISPLAY_NAME = String(process.env.BICHI_APP_NAME || '').trim() || 'Bichipishi';
+/** Procesos devueltos en `topCpu` (ordenados por % CPU); el total real va en `processCountTotal`. */
+const TOP_CPU_PROCESSES = 48;
 /** Origen permitido CORS (ej. https://tudominio.pages.dev). Por defecto * (solo recomendado en LAN/dev). */
 const CORS_ORIGIN = String(process.env.BICHI_CORS_ORIGIN || '*').trim() || '*';
 /** Si es 1, no se aceptan POST de ajustes ni prueba de correo (API expuesta a Internet sin token). */
 const SETTINGS_WRITE_DISABLED = process.env.BICHI_DISABLE_SETTINGS_WRITE === '1';
 /** Si está definido, POST /api/settings y test-mail exigen Authorization: Bearer <token> o cabecera X-Bichi-Token. */
 const SETTINGS_WRITE_TOKEN = String(process.env.BICHI_SETTINGS_TOKEN || '').trim();
+/** Si es 1, no se consulta servicio externo para IPv4 pública (menos latencia / sin salida a Internet). */
+const SKIP_PUBLIC_IP = process.env.BICHI_SKIP_PUBLIC_IP === '1';
+const PUBLIC_IP_CACHE_MS = 5 * 60 * 1000;
+let publicIpv4Cache = { ip: '', at: 0 };
+
+/**
+ * IPv4 pública del host (sale por la ruta por defecto hacia Internet).
+ * Caché en memoria ~5 min; requiere HTTPS saliente. No usar secretos.
+ */
+async function fetchPublicIpv4() {
+  if (SKIP_PUBLIC_IP) return '';
+  const now = Date.now();
+  if (publicIpv4Cache.ip && now - publicIpv4Cache.at < PUBLIC_IP_CACHE_MS) return publicIpv4Cache.ip;
+
+  const looksV4 = (s) => /^\d{1,3}(\.\d{1,3}){3}$/.test(String(s || '').trim());
+
+  const tryJson = async (url) => {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 3200);
+    try {
+      const r = await fetch(url, {
+        signal: c.signal,
+        headers: { Accept: 'application/json', 'User-Agent': 'bichipishi-metrics-api/1' },
+      });
+      if (!r.ok) return '';
+      const j = await r.json();
+      const ip = String(j?.ip || '').trim();
+      return looksV4(ip) ? ip : '';
+    } catch {
+      return '';
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
+  const tryText = async (url) => {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 3200);
+    try {
+      const r = await fetch(url, {
+        signal: c.signal,
+        headers: { 'User-Agent': 'bichipishi-metrics-api/1' },
+      });
+      if (!r.ok) return '';
+      const ip = (await r.text()).trim();
+      return looksV4(ip) ? ip : '';
+    } catch {
+      return '';
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
+  let ip =
+    (await tryJson('https://api.ipify.org?format=json')) ||
+    (await tryJson('https://api64.ipify.org?format=json')) ||
+    (await tryText('https://ipv4.icanhazip.com')) ||
+    (await tryText('https://ifconfig.me/ip'));
+
+  if (ip) publicIpv4Cache = { ip, at: now };
+  return ip || publicIpv4Cache.ip || '';
+}
 
 function corsHeaders(extra = {}) {
   return {
@@ -48,7 +114,7 @@ const DEFAULT_SETTINGS = {
     smtpPass: '',
     mailFrom: '',
     mailTo: '',
-    subjectPrefix: '[Bichipishi]',
+    subjectPrefix: `[${APP_DISPLAY_NAME}]`,
     notifyMinSeverity: 'warning',
     emailCooldownMinutes: 30,
   },
@@ -184,7 +250,7 @@ async function maybeSendThresholdEmails(alerts, settings) {
   const transporter = createMailTransport(a);
   if (!transporter) return;
 
-  const subj = `${a.subjectPrefix || '[Bichipishi]'} Alertas de umbrales`;
+  const subj = `${a.subjectPrefix || `[${APP_DISPLAY_NAME}]`} Alertas de umbrales`;
   const lines = filtered.map(
     (al) => `- [${al.severity}] ${al.title}: ${al.detail} (${al.host || ''})`,
   );
@@ -207,8 +273,8 @@ async function sendTestMail(settings) {
   await transporter.sendMail({
     from: a.mailFrom || a.smtpUser || a.mailTo,
     to: a.mailTo,
-    subject: `${a.subjectPrefix || '[Bichipishi]'} Prueba de correo`,
-    text: 'Este es un mensaje de prueba desde Bichipishi. Si lo recibes, el SMTP está bien configurado.',
+    subject: `${a.subjectPrefix || `[${APP_DISPLAY_NAME}]`} Prueba de correo`,
+    text: `Este es un mensaje de prueba desde ${APP_DISPLAY_NAME}. Si lo recibes, el SMTP está bien configurado.`,
   });
 }
 
@@ -568,6 +634,310 @@ function normalizeLoad() {
   return [la[0], la[1], la[2]];
 }
 
+/** Entorno C para `vm_stat` / sysctl (evita etiquetas localizadas). */
+const SUBPROC_C_LOCALE = { ...process.env, LANG: 'C', LC_ALL: 'C' };
+
+/**
+ * macOS: Monitor de actividad usa “Memoria usada” ≈ app + cableada + comprimida.
+ * Las páginas especulativas son recuperables y al sumarlas se dispara el % (p. ej. ~99 % con ~90 % reales).
+ * vm_stat en inglés (LANG=C).
+ */
+function darwinMemoryActivityMonitorStyle() {
+  if (process.platform !== 'darwin') return null;
+  try {
+    const pageSize = Number.parseInt(
+      execSync('/usr/sbin/sysctl -n hw.pagesize', { encoding: 'utf8', env: SUBPROC_C_LOCALE }).trim(),
+      10,
+    );
+    const total = Number.parseInt(
+      execSync('/usr/sbin/sysctl -n hw.memsize', { encoding: 'utf8', env: SUBPROC_C_LOCALE }).trim(),
+      10,
+    );
+    if (!Number.isFinite(pageSize) || pageSize <= 0 || !Number.isFinite(total) || total <= 0) return null;
+    const out = execSync('/usr/bin/vm_stat', { encoding: 'utf8', maxBuffer: 256 * 1024, env: SUBPROC_C_LOCALE });
+    const counts = {};
+    for (const line of out.split('\n')) {
+      const idx = line.indexOf(':');
+      if (idx === -1) continue;
+      const key = line.slice(0, idx).trim();
+      const raw = line
+        .slice(idx + 1)
+        .trim()
+        .replace(/\.$/, '')
+        .replace(/,/g, '');
+      const n = Number.parseInt(raw, 10);
+      if (!Number.isNaN(n) && key) counts[key] = n;
+    }
+    const wired = counts['Pages wired down'] || 0;
+    const active = counts['Pages active'] || 0;
+    const compressed =
+      counts['Pages occupied by compressor'] ||
+      counts['Pages stored in compressor'] ||
+      0;
+    const usedPages = wired + active + compressed;
+    if (usedPages <= 0) return null;
+    let used = usedPages * pageSize;
+    if (used > total) used = total;
+    return { total, used, free: Math.max(0, total - used) };
+  } catch {
+    return null;
+  }
+}
+
+function applyDarwinMemIfNeeded(mem) {
+  const dm = darwinMemoryActivityMonitorStyle();
+  if (!dm || !mem) return false;
+  mem.total = dm.total;
+  mem.used = dm.used;
+  mem.free = dm.free;
+  mem.available = dm.free;
+  return true;
+}
+
+/** RAM física según sysctl (macOS); útil si vm_stat falla y `si.mem()` devuelve totales raros. */
+function darwinHwMemsizeBytes() {
+  if (process.platform !== 'darwin') return null;
+  try {
+    const total = Number.parseInt(
+      execSync('/usr/sbin/sysctl -n hw.memsize', { encoding: 'utf8', env: SUBPROC_C_LOCALE }).trim(),
+      10,
+    );
+    return Number.isFinite(total) && total > 0 ? total : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Nombre amistoso del equipo (p. ej. Información del sistema en macOS). */
+function getDeviceDisplayName(osInfo) {
+  if (process.platform === 'darwin') {
+    try {
+      const n = execSync('/usr/sbin/scutil --get ComputerName', {
+        encoding: 'utf8',
+        env: SUBPROC_C_LOCALE,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      if (n) return n;
+    } catch {
+      /* ignore */
+    }
+  }
+  if (process.platform === 'win32') {
+    const n = String(process.env.COMPUTERNAME || '').trim();
+    if (n) return n;
+  }
+  try {
+    const j = JSON.parse(
+      execSync('hostnamectl --json', { encoding: 'utf8', maxBuffer: 64 * 1024, env: SUBPROC_C_LOCALE }),
+    );
+    const pretty = String(j?.StaticHostname || j?.Hostname || '').trim();
+    if (pretty && pretty !== '(none)') return pretty;
+  } catch {
+    /* ignore */
+  }
+  return (osInfo && osInfo.hostname) || os.hostname() || '';
+}
+
+/** Hostname de red local (Bonjour), coherente con Información del sistema en macOS. */
+function getTechnicalHostname(osInfo) {
+  if (process.platform === 'darwin') {
+    try {
+      const lh = execSync('/usr/sbin/scutil --get LocalHostName', {
+        encoding: 'utf8',
+        env: SUBPROC_C_LOCALE,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      if (lh) return `${lh}.local`;
+    } catch {
+      /* ignore */
+    }
+  }
+  return (osInfo && osInfo.hostname) || os.hostname() || '';
+}
+
+function darwinIpconfigIpv4Fallback() {
+  if (process.platform !== 'darwin') return [];
+  const ifaces = ['en0', 'en1', 'en2', 'en3', 'en4', 'en5', 'en6'];
+  const out = [];
+  const seen = new Set();
+  for (const iface of ifaces) {
+    try {
+      const addr = execSync(`/usr/sbin/ipconfig getifaddr ${iface}`, {
+        encoding: 'utf8',
+        env: SUBPROC_C_LOCALE,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      if (addr && /^\d{1,3}(\.\d{1,3}){3}$/.test(addr) && !addr.startsWith('127.') && !seen.has(addr)) {
+        seen.add(addr);
+        out.push(addr);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return out;
+}
+
+/** Toda IPv4 salvo loopback (incluye “internal”, Docker, bridges — a veces es la única forma de ver la IP). */
+function collectHostIpv4NonLoopback() {
+  const ifs = os.networkInterfaces();
+  if (!ifs) return [];
+  const seen = new Set();
+  const out = [];
+  for (const arr of Object.values(ifs)) {
+    if (!Array.isArray(arr)) continue;
+    for (const a of arr) {
+      const fam = a.family;
+      if (fam !== 'IPv4' && fam !== 4) continue;
+      const addr = String(a.address || '').trim();
+      if (!addr || addr.startsWith('127.')) continue;
+      if (seen.has(addr)) continue;
+      seen.add(addr);
+      out.push(addr);
+    }
+  }
+  return out;
+}
+
+/** IPv4 priorizando interfaces habituales (misma lógica que antes, sin filtrar internal). */
+function collectHostIpv4List() {
+  const ifs = os.networkInterfaces();
+  if (!ifs) return [];
+  const prefer = ['en0', 'en1', 'en2', 'eth0', 'wlan0', 'Wi-Fi', 'Ethernet', 'bridge100'];
+  const seen = new Set();
+  const out = [];
+  function addFrom(name) {
+    const arr = ifs[name];
+    if (!Array.isArray(arr)) return;
+    for (const a of arr) {
+      const fam = a.family;
+      if (fam !== 'IPv4' && fam !== 4) continue;
+      const addr = String(a.address || '').trim();
+      if (!addr || addr.startsWith('127.') || seen.has(addr)) continue;
+      seen.add(addr);
+      out.push(addr);
+    }
+  }
+  for (const n of prefer) addFrom(n);
+  for (const n of Object.keys(ifs).sort()) addFrom(n);
+  return out.slice(0, 8);
+}
+
+function linuxDefaultRouteIpv4() {
+  if (process.platform !== 'linux') return [];
+  try {
+    const o = execSync('ip -4 route get 1.1.1.1 2>/dev/null', { encoding: 'utf8', env: SUBPROC_C_LOCALE }).trim();
+    const m = o.match(/\bsrc\s+(\d{1,3}(?:\.\d{1,3}){3})\b/);
+    if (m) return [m[1]];
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
+/** systeminformation: no descartar internal ni link-local (pueden ser la única IP útil). */
+function collectHostIpv4FromSi(siNics) {
+  if (!Array.isArray(siNics) || !siNics.length) return [];
+  const seen = new Set();
+  const out = [];
+  const ordered = [...siNics].sort((a, b) => {
+    const da = a.default ? 1 : 0;
+    const db = b.default ? 1 : 0;
+    return db - da;
+  });
+  for (const nic of ordered) {
+    const addr = String(nic.ip4 || '').trim();
+    if (!addr || addr.startsWith('127.')) continue;
+    if (seen.has(addr)) continue;
+    seen.add(addr);
+    out.push(addr);
+  }
+  return out;
+}
+
+function mergeIpv4Lists(...lists) {
+  const seen = new Set();
+  const out = [];
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const ip of list) {
+      const s = String(ip || '').trim();
+      if (!s || seen.has(s)) continue;
+      seen.add(s);
+      out.push(s);
+    }
+  }
+  return out.slice(0, 12);
+}
+
+function darwinSwVersSync() {
+  if (process.platform !== 'darwin') return null;
+  try {
+    const lines = execSync('/usr/bin/sw_vers', { encoding: 'utf8', env: SUBPROC_C_LOCALE }).split('\n');
+    const o = {};
+    for (const line of lines) {
+      const m = line.match(/^\s*(\w+)\s*:\s*(.+)\s*$/);
+      if (m) o[m[1]] = m[2].trim();
+    }
+    if (o.ProductName || o.ProductVersion) return o;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** GiB binarios (1024³). Totales en entero (p. ej. 8 GB de fábrica → 8). */
+function bytesToGiBTotalInt(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n / 1024 ** 3);
+}
+
+/** GiB en uso con un decimal (RAM/disco usado). */
+function bytesToGiBUsedOneDec(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round((n / 1024 ** 3) * 10) / 10;
+}
+
+function formatHostOsLabel(osInfo) {
+  if (!osInfo) return process.platform;
+  if (process.platform === 'darwin') {
+    let name = String(osInfo.distro || '').trim();
+    let rel = String(osInfo.release || '').trim();
+    let code = String(osInfo.codename || '').trim();
+    if (!name || name === 'unknown' || !rel || rel === 'unknown') {
+      const sw = darwinSwVersSync();
+      if (sw) {
+        if (!name || name === 'unknown') name = sw.ProductName || 'macOS';
+        if (!rel || rel === 'unknown') rel = sw.ProductVersion || '';
+      }
+    }
+    if (!name || name === 'unknown') name = 'macOS';
+    if (/^darwin$/i.test(name)) name = 'macOS';
+    else if (/^darwin\b/i.test(name)) {
+      const rest = name.replace(/^darwin\b/i, '').trim();
+      name = rest || 'macOS';
+    }
+    const ver = rel.split(/\s+/)[0] || '';
+    const codeUse = code && !/^macos$/i.test(code) ? code : '';
+    if (ver && codeUse) return `${name} ${ver} (${codeUse})`;
+    if (ver) return `${name} ${ver}`;
+    return name;
+  }
+  if (process.platform === 'win32') {
+    const a = String(osInfo.distro || '').trim();
+    const b = String(osInfo.release || osInfo.kernel || '').trim();
+    if (a && b) return `${a} · ${b}`;
+    return a || b || 'Windows';
+  }
+  const distro = String(osInfo.distro || '').trim();
+  const rel = String(osInfo.release || '').trim();
+  if (distro && rel) return `${distro} · ${rel}`;
+  if (distro) return distro;
+  return process.platform;
+}
+
 function buildThresholdAlerts(hostname, memPct, diskPct, cpuPct, mem, mainFs, thresholds) {
   const th = coerceThresholds({ ...DEFAULT_SETTINGS.thresholds, ...(thresholds || {}) });
   const now = Date.now();
@@ -601,7 +971,7 @@ function buildThresholdAlerts(hostname, memPct, diskPct, cpuPct, mem, mainFs, th
   }
 
   if (memPct >= th.memCrit) {
-    const msg = `RAM al ${memPct.toFixed(0)}% (${(mem.used / 1e9).toFixed(1)} / ${(mem.total / 1e9).toFixed(1)} GiB)`;
+    const msg = `RAM al ${memPct.toFixed(0)}% (${bytesToGiBUsedOneDec(mem.used)} / ${bytesToGiBTotalInt(mem.total)} GiB)`;
     warnings.push(msg);
     alerts.push({
       severity: 'critical',
@@ -669,6 +1039,8 @@ async function collectMetrics() {
     dockerList,
     dockerImages,
     dockerVolumes,
+    siNics,
+    publicIp,
   ] = await Promise.all([
     si.currentLoad(),
     si.mem(),
@@ -680,7 +1052,22 @@ async function collectMetrics() {
     timed(si.dockerContainers(true), 8000, []),
     loadDockerImagesForMetrics(),
     loadDockerVolumesForMetrics(),
+    si.networkInterfaces().catch(() => []),
+    fetchPublicIpv4().catch(() => ''),
   ]);
+
+  const memMacActivityMonitor = applyDarwinMemIfNeeded(mem);
+  if (process.platform === 'darwin') {
+    const hwT = darwinHwMemsizeBytes();
+    if (hwT) mem.total = hwT;
+  }
+  const gibEnv = Number.parseFloat(String(process.env.BICHI_MEM_TOTAL_GIB || '').trim(), 10);
+  if (Number.isFinite(gibEnv) && gibEnv > 0) {
+    mem.total = Math.round(gibEnv * 1024 ** 3);
+  }
+  if ((mem.total || 0) > 0 && (mem.used || 0) > mem.total) {
+    mem.used = mem.total;
+  }
 
   const cpuPct = Math.min(100, Math.max(0, Number(currentLoad.currentLoad) || 0));
   const memTotal = mem.total || 1;
@@ -691,17 +1078,26 @@ async function collectMetrics() {
     ? Math.min(100, Math.max(0, mainFs.use || ((mainFs.used / mainFs.size) * 100)))
     : 0;
 
-  const hostname = osInfo.hostname || os.hostname();
+  const hostname = getTechnicalHostname(osInfo);
+  const deviceName = getDeviceDisplayName(osInfo) || hostname;
+  const hostIpv4 = mergeIpv4Lists(
+    darwinIpconfigIpv4Fallback(),
+    linuxDefaultRouteIpv4(),
+    collectHostIpv4NonLoopback(),
+    collectHostIpv4FromSi(siNics),
+    collectHostIpv4List(),
+  );
   const cpuBrand = (cpuData.brand || cpuData.manufacturer || 'CPU').trim();
   const cores = cpuData.cores || cpuData.physicalCores || os.cpus().length || 1;
 
   const load = normalizeLoad();
 
   const list = Array.isArray(procData.list) ? procData.list : [];
+  const processCountTotal = list.filter((p) => p && (p.pid || p.pid === 0)).length;
   const topCpu = list
     .filter((p) => p && (p.pid || p.pid === 0))
     .sort((a, b) => (Number(b.cpu) || 0) - (Number(a.cpu) || 0))
-    .slice(0, 14)
+    .slice(0, TOP_CPU_PROCESSES)
     .map((p) => ({
       comm: (p.name || p.command || '?').toString().split(/[\s\\/]/).pop() || '?',
       desc: '',
@@ -733,7 +1129,7 @@ async function collectMetrics() {
 
   const userSettings = mergeWithDefaults(loadUserSettingsRaw());
   const { warnings, alerts } = buildThresholdAlerts(
-    hostname,
+    deviceName || hostname,
     memPct,
     diskPct,
     cpuPct,
@@ -753,20 +1149,26 @@ async function collectMetrics() {
     console.error('[bichi] perf sqlite:', e && e.message ? e.message : e);
   }
 
-  const osParts = [osInfo.platform, osInfo.distro, osInfo.release].map((s) => (s || '').toString().trim()).filter(Boolean);
-  const hostOsLabel = osParts.length ? osParts.join(' · ') : process.platform;
+  const hostOsLabel = formatHostOsLabel(osInfo);
 
   return {
     platform: process.platform,
     cpu: cpuPct,
     mem: memPct,
     disk: diskPct,
-    memUsed: Math.round(((mem.used || 0) / 1e9) * 10) / 10,
-    memTotal: Math.round(((mem.total || 0) / 1e9) * 10) / 10,
-    diskUsed: mainFs ? Math.round(((mainFs.used || 0) / 1e9) * 10) / 10 : 0,
-    diskTotal: mainFs ? Math.round(((mainFs.size || 0) / 1e9) * 10) / 10 : 0,
+    memUsed: bytesToGiBUsedOneDec(mem.used || 0),
+    memTotal: bytesToGiBTotalInt(mem.total || 0),
+    memNote: memMacActivityMonitor
+      ? 'macOS: “Memoria usada” aproximada como Monitor de actividad (vm_stat: activas + cableadas + comprimidas; GiB = 1024³).'
+      : '',
+    diskUsed: mainFs ? bytesToGiBUsedOneDec(mainFs.used || 0) : 0,
+    diskTotal: mainFs ? bytesToGiBTotalInt(mainFs.size || 0) : 0,
     hostOs: hostOsLabel,
     hostname,
+    deviceName,
+    hostIpv4,
+    publicIp: String(publicIp || '').trim(),
+    processCountTotal,
     cpuModel: cpuBrand,
     cpuCores: cores,
     load,
@@ -1023,7 +1425,7 @@ function getOpenClawDemoFill() {
         'Recuerda revisar Docker y cron antes de culpar a la red.',
       ],
       systemPromptPreview:
-        'Eres el copiloto del entorno Bichipishi. Prioriza seguridad, cita rutas absolutas y resume antes de ejecutar comandos destructivos.',
+        `Eres el copiloto del entorno ${APP_DISPLAY_NAME}. Prioriza seguridad, cita rutas absolutas y resume antes de ejecutar comandos destructivos.`,
       boundaries: ['No exfiltra secretos', 'No desactiva backups sin confirmación explícita'],
     },
     agentsPreview: [

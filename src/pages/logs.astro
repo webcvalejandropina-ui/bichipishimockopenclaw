@@ -1,6 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { getBuildBrand } from '../lib/brand';
 import { iconToSvg } from '../lib/lucide-svg-string';
+
+const brand = getBuildBrand();
 import { RefreshCw, Trash2, Download } from 'lucide';
 
 const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
@@ -49,7 +52,7 @@ const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
             <span class="log-terminal-dot yellow"></span>
             <span class="log-terminal-dot green"></span>
           </div>
-          <span class="log-terminal-title">system.log — bichipishi</span>
+          <span class="log-terminal-title" data-bichi-log-title>system.log — {brand.appName.toLowerCase()}</span>
         </div>
         <div class="log-terminal-body" id="sys-log-body"></div>
       </div>

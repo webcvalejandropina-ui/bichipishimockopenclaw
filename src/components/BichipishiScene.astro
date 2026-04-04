@@ -1,4 +1,8 @@
-<div class="pine-stage" aria-label="Bichipishi" id="pine-stage-desktop">
+---
+import { getBuildBrand } from '../lib/brand';
+const { appName } = getBuildBrand();
+---
+<div class="pine-stage" aria-label={appName} id="pine-stage-desktop">
   <!-- Desktop: full detailed SVG pineapple -->
   <div class="glow-orb"></div>
   <div class="star sp1"></div>

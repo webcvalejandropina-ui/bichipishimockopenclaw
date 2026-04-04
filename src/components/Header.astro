@@ -1,12 +1,15 @@
 ---
 import { iconToSvg } from '../lib/lucide-svg-string';
+import { BICHI_DEFAULT_APP_NAME } from '../lib/brand';
 import { Sun, Moon, Clock, Menu, X, Bell } from 'lucide';
 
 interface Props {
   activePage?: string;
+  /** Nombre visible en la cabecera (también se re-sincroniza con marca runtime en Layout). */
+  appName?: string;
 }
 
-const { activePage = 'dashboard' } = Astro.props;
+const { activePage = 'dashboard', appName = BICHI_DEFAULT_APP_NAME } = Astro.props;
 
 const icons = {
   sun: iconToSvg(Sun, { width: 18, height: 18 }),
@@ -36,7 +39,7 @@ const navItems = [
       <span id="menu-icon-open" set:html={icons.menu} />
       <span id="menu-icon-close" style="display:none" set:html={icons.close} />
     </button>
-    <a href="/" class="brand-pill">Bichipishi</a>
+    <a href="/" class="brand-pill" data-bichi-brand>{appName}</a>
   </div>
 
   <nav class="header-center">
@@ -78,7 +81,7 @@ const navItems = [
   <div class="mobile-drawer-backdrop" id="mobile-drawer-backdrop"></div>
   <nav class="mobile-drawer-nav" id="mobile-drawer-nav">
     <div class="mobile-drawer-header">
-      <span class="brand-pill" style="border:none;padding:0">Bichipishi</span>
+      <span class="brand-pill" style="border:none;padding:0" data-bichi-brand>{appName}</span>
     </div>
     {navItems.map(item => (
       <a href={item.href} class={`mobile-nav-link${activePage === item.id ? ' active' : ''}`}>

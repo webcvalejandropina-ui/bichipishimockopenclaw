@@ -1,18 +1,24 @@
 ---
 import '../styles/global.css';
 import Header from '../components/Header.astro';
+import { getBuildBrand } from '../lib/brand';
 
 interface Props {
   activePage?: string;
 }
 
 const { activePage = 'dashboard' } = Astro.props;
+const brand = getBuildBrand();
+const brandJson = JSON.stringify(brand);
 ---
 <!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <meta name="theme-color" content="#FEF7E5" id="meta-theme" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32" />
@@ -21,7 +27,11 @@ const { activePage = 'dashboard' } = Astro.props;
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" />
-    <title>Bichipishi · Monitor</title>
+    <title>{brand.appName} · Monitor</title>
+    <script is:inline define:vars={{ brandJson }}>
+      window.__BICHI_BUILD__ = JSON.parse(brandJson);
+    </script>
+    <script is:inline src="/bichi-brand.js"></script>
     <script is:inline>
       (function(){
         var s = localStorage.getItem('bichi-theme');
@@ -35,7 +45,11 @@ const { activePage = 'dashboard' } = Astro.props;
     </script>
   </head>
   <body>
-    <Header activePage={activePage} />
+    <Header activePage={activePage} appName={brand.appName} />
+    <script>
+      import { applyBichiBrandToDocument } from '../lib/brand-runtime';
+      applyBichiBrandToDocument();
+    </script>
     <slot />
   </body>
 </html>
