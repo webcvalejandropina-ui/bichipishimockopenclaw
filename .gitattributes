@@ -1,0 +1,2 @@
+# Scripts de arranque en Windows: finales CRLF para que .cmd funcione bien al clonar
+*.cmd text eol=crlf

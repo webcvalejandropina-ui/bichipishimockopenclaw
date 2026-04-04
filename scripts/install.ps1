@@ -8,6 +8,12 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
+docker info 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Abre Docker Desktop y espera a que arranque; luego vuelve a ejecutar este script." -ForegroundColor Red
+    exit 1
+}
+
 docker compose version | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Necesitas «docker compose» (incluido en Docker Desktop reciente)." -ForegroundColor Red

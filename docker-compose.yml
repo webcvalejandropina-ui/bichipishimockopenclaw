@@ -45,9 +45,11 @@ services:
       # Sin rebuild: reinicia solo `web` tras cambiar .env (sobrescribe public/bichi-brand.js al arrancar).
       - PUBLIC_BICHI_APP_NAME=${PUBLIC_BICHI_APP_NAME:-}
       - PUBLIC_BICHI_AVATAR_URL=${PUBLIC_BICHI_AVATAR_URL:-}
+    # service_started: en Windows el healthcheck a veces tarda mucho y bloquea la web.
+    # La web puede tardar unos segundos en tener datos; recarga si hace falta.
     depends_on:
       metrics:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
 
 volumes:

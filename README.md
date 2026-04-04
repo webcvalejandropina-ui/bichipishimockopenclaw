@@ -1,52 +1,92 @@
 # Bichipishi — monitor de tu ordenador
 
-Es una **página web** que enseña CPU, RAM, disco, procesos, Docker (si lo tienes), etc. **No tienes que saber programar** para usarla en tu máquina.
+Página web que muestra CPU, RAM, disco, procesos, Docker (si lo tienes), etc. **No hace falta saber programar.**
 
-**Código en GitHub:** [github.com/webcvalejandropina-ui/bichipishimockopenclaw](https://github.com/webcvalejandropina-ui/bichipishimockopenclaw)
-
----
-
-## Guía muy fácil (léeme primero)
-
-### ¿Qué necesitas?
-
-Solo una cosa: **Docker** (un programa que arranca todo solo).
-
-- **Windows:** instala [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/). Ábrelo y espera a que diga que está listo.
-- **Mac:** instala [Docker Desktop para Mac](https://docs.docker.com/desktop/setup/install/mac-install/).
-- **Linux (Ubuntu, Debian, Fedora, etc.):** instala [Docker Engine](https://docs.docker.com/engine/install/) (y el plugin **Compose**; en muchas distros viene con `docker compose`).
-
-Si no tienes Docker, el resto no funcionará: instálalo antes.
+**Código:** [github.com/webcvalejandropina-ui/bichipishimockopenclaw](https://github.com/webcvalejandropina-ui/bichipishimockopenclaw)
 
 ---
 
-### Windows — copia y pega en PowerShell
+## Windows (lo más fácil)
 
-1. Descarga el proyecto (sustituye la carpeta si quieres):
+### Paso 0 — Docker Desktop
 
-```powershell
-cd $HOME\Desktop
+1. Instálalo desde aquí: [Docker Desktop para Windows](https://docs.docker.com/desktop/setup/install/windows-install/)
+2. **Ábrelo** desde el menú Inicio.
+3. Espera hasta que diga que el motor está en marcha (icono de ballena en la bandeja, sin errores).
+
+Sin esto, nada de lo siguiente funciona.
+
+---
+
+### Paso 1 — Tener la carpeta del proyecto
+
+**Opción A — Sin Git (recomendado si no sabes qué es Git):**
+
+1. En GitHub, botón verde **Code** → **Download ZIP**
+2. Descomprime el ZIP (clic derecho → “Extraer todo…”)
+3. Entra en la carpeta que sale (algo como `bichipishimockopenclaw-main`). Si el ZIP se llama `main`, la carpeta puede ser `bichipishimockopenclaw-main`.
+
+**Opción B — Con Git:**
+
+Abre **PowerShell** o **cmd**, luego:
+
+```text
+cd %USERPROFILE%\Desktop
 git clone https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git
 cd bichipishimockopenclaw
 ```
 
-2. Si Windows dice que no puede ejecutar scripts, una sola vez:
+---
 
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-```
+### Paso 2 — Doble clic
 
-3. Arranca todo:
+Dentro de esa carpeta, **doble clic** en el archivo:
 
-```powershell
-.\scripts\install.ps1
-```
+**`install.cmd`**
 
-La primera vez **tarda varios minutos** (descarga imágenes). No cierres la ventana hasta que termine.
+Se abrirá una ventana negra. **La primera vez puede tardar muchos minutos** (descarga e instalación). No la cierres hasta que ponga **LISTO**.
+
+Si Windows pregunta si confías en el archivo, es normal al ejecutar un `.cmd` por primera vez.
 
 ---
 
-### Mac o Linux — copia y pega en la terminal
+### Paso 3 — Abrir el navegador
+
+Entra en:
+
+**http://localhost:8080**
+
+---
+
+### Parar en Windows
+
+Doble clic en **`parar.cmd`** (en la misma carpeta).
+
+---
+
+### Windows — si falla
+
+| Qué pasa | Qué hacer |
+|----------|-----------|
+| Dice que no encuentra `docker` | Instala Docker Desktop y **ábrelo** antes de `install.cmd`. |
+| Dice que Docker no responde | Docker cerrado: abre Docker Desktop y espera 1–2 minutos. |
+| La página no carga | Comprueba que no tengas otra cosa usando el puerto **8080**. Reinicia y vuelve a ejecutar `install.cmd`. |
+| La página carga pero sin datos | Espera 30 segundos y **recarga** (F5). El servicio de métricas puede tardar en arrancar. |
+| Sigue mal | Abre PowerShell en la carpeta del proyecto y ejecuta: `docker compose ps` — deben salir dos contenedores. Si no, copia el error y abre un *issue* en GitHub. |
+
+**Sin usar install.cmd** (mismo efecto, a mano en PowerShell o cmd, dentro de la carpeta del proyecto):
+
+```text
+copy .env.example .env
+docker compose up --build -d
+```
+
+---
+
+## Mac o Linux
+
+1. Instala [Docker](https://docs.docker.com/get-docker/) (Docker Desktop en Mac, o Docker Engine en Linux).
+2. En la terminal:
 
 ```bash
 cd ~/Desktop
@@ -55,127 +95,46 @@ cd bichipishimockopenclaw
 sh scripts/install.sh
 ```
 
-(Si tu sistema usa carpeta “Escritorio” en español, puede ser `~/Escritorio`. Elige la carpeta que prefieras.)
+3. Navegador: **http://localhost:8080**
+
+Para parar: `docker compose down`
 
 ---
 
-### Abrir el panel
+## Cambiar nombre o foto (opcional)
 
-En el navegador (Chrome, Edge, Firefox…) entra en:
+Edita el archivo **`.env`** en la raíz del proyecto (si no existe, cópialo desde `.env.example`).
 
-**http://localhost:8080**
+- `PUBLIC_BICHI_APP_NAME` — nombre en la barra superior.
+- `PUBLIC_BICHI_AVATAR_URL` — URL de una imagen que sustituye a la piña.
 
-Ahí está el dashboard. La dirección **`localhost`** significa “esta misma máquina”.
-
----
-
-### Parar todo
-
-En la misma carpeta del proyecto:
-
-**Windows (PowerShell):**
-
-```powershell
-docker compose down
-```
-
-**Mac / Linux:**
-
-```bash
-docker compose down
-```
+Luego: `docker compose restart web` (o vuelve a ejecutar `install.cmd` en Windows).
 
 ---
 
-### Si algo sale mal (lo más típico)
+## Móvil
 
-| Problema | Qué hacer |
-|----------|-----------|
-| “No se reconoce docker” | Docker Desktop (Windows/Mac) no está instalado o **no está abierto**. Ábrelo y vuelve a intentar. |
-| “Puerto en uso” / no carga la página | Otra app usa el puerto **8080** o **3001**. Cierra esa app o cambia los puertos en `docker-compose.yml` (avanzado). |
-| La página carga pero **no hay datos** | Espera unos segundos y pulsa actualizar. Si sigue vacío, en PowerShell o terminal: `docker compose ps` y mira que los dos servicios estén “Up”. |
-| PowerShell no ejecuta `install.ps1` | Ejecuta `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` y prueba otra vez. |
-
-**Plan B (mismo resultado, a mano)**
-
-*Mac o Linux:*
-
-```bash
-cp .env.example .env
-docker compose up --build -d
-```
-
-*Windows (PowerShell):*
-
-```powershell
-Copy-Item .env.example .env
-docker compose up --build -d
-```
+Misma WiFi que el PC: en el móvil abre `http://IP-DEL-PC:8080` (la IP la ves en Windows con `ipconfig`, en Mac/Linux con ajustes de red).
 
 ---
 
-## Cambiar el nombre o la foto del muñeco (opcional)
+## Desarrolladores
 
-1. Abre el archivo **`.env`** en la raíz del proyecto (si no existe, copia `.env.example` y renómbralo a `.env`).
-2. Puedes editar:
-   - **`PUBLIC_BICHI_APP_NAME`** — el nombre que sale arriba (por defecto Bichipishi).
-   - **`PUBLIC_BICHI_AVATAR_URL`** — enlace a una imagen por internet que sustituye a la piña.
-3. Guarda el archivo. En Docker: **`docker compose restart web`** (y si no ves el cambio en todo, `docker compose build web` y vuelve a `up`).
+Necesitas Node y pnpm. Ver `package.json` y ejecutar `pnpm dev` tras `pnpm install` y `npm install` en `metrics-api/`.
 
 ---
 
-## Móvil y tablet
+## Archivos útiles
 
-Puedes abrir **http://TU-IP-LOCAL:8080** desde el móvil si el PC y el móvil están en la misma WiFi (sustituye `TU-IP-LOCAL` por la IP de tu ordenador, p. ej. `192.168.1.10`). La interfaz se adapta a pantallas pequeñas.
-
----
-
-## Para desarrolladores (hot reload)
-
-Necesitas **Node** y **pnpm**. En la carpeta del proyecto:
-
-```bash
-cp .env.example .env
-pnpm install
-cd metrics-api && npm install && cd ..
-pnpm dev
-```
-
-- Web: **http://localhost:4322**
-- API: puerto **3001**
+| Archivo | Para qué |
+|---------|----------|
+| **`install.cmd`** | Windows: doble clic para arrancar todo |
+| **`parar.cmd`** | Windows: doble clic para parar |
+| `scripts/install.sh` | Mac / Linux |
+| `docker-compose.yml` | Define los dos servicios (web + métricas) |
 
 ---
 
-## Qué hace Docker aquí (resumen)
+## Licencia
 
-Suben **dos cajas** (contenedores):
-
-1. **web** — sirve la página en el puerto **8080**.
-2. **metrics** — el programa que lee el sistema y responde por **3001**.
-
-Los datos guardados (histórico, ajustes) pueden quedarse en un volumen aunque reinicies. Detalle técnico: carpeta de datos de la API dentro del contenedor en `/app/data`.
-
----
-
-## Más opciones (producción, sin Docker, API en Internet)
-
-- Variables y seguridad: mira **`.env.example`** y los comentarios en **`docker-compose.yml`**.
-- Build estático + API aparte, CORS, SQLite: secciones equivalentes a las que ya tenías; si las necesitas, consulta el historial del repo o pregunta en issues.
-
----
-
-## Estructura rápida del repo
-
-| Carpeta / archivo | Para qué |
-|-------------------|----------|
-| `src/` | Interfaz web |
-| `metrics-api/` | Servidor que lee el sistema |
-| `docker-compose.yml` | Orden para levantar web + API |
-| `scripts/install.sh` | Instalación fácil (Mac/Linux) |
-| `scripts/install.ps1` | Instalación fácil (Windows) |
-
----
-
-## Licencia y repo
-
-Uso bajo la licencia del proyecto. **No subas** tu archivo **`.env`** a internet (está en `.gitignore`).
+No subas tu **`.env`** a internet (ya está ignorado por Git).
