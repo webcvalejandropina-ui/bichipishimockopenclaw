@@ -45,11 +45,9 @@ services:
       # Sin rebuild: reinicia solo `web` tras cambiar .env (sobrescribe public/bichi-brand.js al arrancar).
       - PUBLIC_BICHI_APP_NAME=${PUBLIC_BICHI_APP_NAME:-}
       - PUBLIC_BICHI_AVATAR_URL=${PUBLIC_BICHI_AVATAR_URL:-}
-    # service_started: en Windows el healthcheck a veces tarda mucho y bloquea la web.
-    # La web puede tardar unos segundos en tener datos; recarga si hace falta.
+    # Forma corta: compatible con docker-compose antiguo y Docker Desktop actual.
     depends_on:
-      metrics:
-        condition: service_started
+      - metrics
     restart: unless-stopped
 
 volumes:

@@ -40,13 +40,16 @@ cd bichipishimockopenclaw
 
 ### Paso 2 — Doble clic
 
-Dentro de esa carpeta, **doble clic** en el archivo:
+Dentro de esa carpeta, **doble clic** en:
 
 **`install.cmd`**
 
-Se abrirá una ventana negra. **La primera vez puede tardar muchos minutos** (descarga e instalación). No la cierres hasta que ponga **LISTO**.
+- No pide cambiar políticas de PowerShell: por dentro usa `ExecutionPolicy Bypass` solo para este arranque.
+- Se abrirá una ventana azul/negra. **La primera vez puede tardar muchos minutos.** No la cierres hasta que ponga **LISTO** o **ERROR**.
 
-Si Windows pregunta si confías en el archivo, es normal al ejecutar un `.cmd` por primera vez.
+**Si se cierra sola o falla:** en la misma carpeta se crea **`install-bichipishi-log.txt`**. Ábrelo y lee las últimas líneas (o envía ese archivo para depurar).
+
+**Plan B:** clic derecho en **`install.ps1`** → **Ejecutar con PowerShell** (si `install.cmd` no hace nada).
 
 ---
 
@@ -72,7 +75,8 @@ Doble clic en **`parar.cmd`** (en la misma carpeta).
 | Dice que Docker no responde | Docker cerrado: abre Docker Desktop y espera 1–2 minutos. |
 | La página no carga | Comprueba que no tengas otra cosa usando el puerto **8080**. Reinicia y vuelve a ejecutar `install.cmd`. |
 | La página carga pero sin datos | Espera 30 segundos y **recarga** (F5). El servicio de métricas puede tardar en arrancar. |
-| Sigue mal | Abre PowerShell en la carpeta del proyecto y ejecuta: `docker compose ps` — deben salir dos contenedores. Si no, copia el error y abre un *issue* en GitHub. |
+| Sigue mal | Abre **`install-bichipishi-log.txt`** en la carpeta del proyecto. Si dice que no existe `docker compose`, en Docker Desktop: **Settings → General → Use Docker Compose V2**. |
+| Acabas de instalar Docker | **Reinicia Windows** una vez; a veces el PATH no se actualiza hasta reiniciar. |
 
 **Sin usar install.cmd** (mismo efecto, a mano en PowerShell o cmd, dentro de la carpeta del proyecto):
 
@@ -128,7 +132,9 @@ Necesitas Node y pnpm. Ver `package.json` y ejecutar `pnpm dev` tras `pnpm insta
 
 | Archivo | Para qué |
 |---------|----------|
-| **`install.cmd`** | Windows: doble clic para arrancar todo |
+| **`install.cmd`** | Windows: doble clic (llama a `install.ps1` con permisos seguros) |
+| **`install.ps1`** | Mismo instalador; el `.cmd` solo lo lanza con `Bypass` |
+| **`install-bichipishi-log.txt`** | Se genera al instalar: registro de errores |
 | **`parar.cmd`** | Windows: doble clic para parar |
 | `scripts/install.sh` | Mac / Linux |
 | `docker-compose.yml` | Define los dos servicios (web + métricas) |
