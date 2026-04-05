@@ -87,4 +87,13 @@ Para ver datos del equipo real con ese modo, rellena **`BICHI_HOST_*`** en **`.e
 
 ---
 
+## Si falla en Windows
+
+| Error | Qué hacer |
+|-------|-----------|
+| `spawnSync … cmd.exe ENOENT` | Usa la **última versión** del repo: el arranque llama a **npm** vía `node …/npm-cli.js` y a **Docker** sin depender de `cmd.exe`. Si persiste, reinstala **Node.js LTS** desde [nodejs.org](https://nodejs.org) (carpeta `nodejs` con `npm-cli.js`). |
+| `docker compose` no encontrado | Abre **Docker Desktop** y comprueba `docker version` en la misma terminal. |
+
+---
+
 No subas **`.env`** (está en `.gitignore`).

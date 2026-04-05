@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
+import { dockerCompose } from './lib/run-cmd.mjs';
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PID_FILE = path.join(REPO_ROOT, '.bichi-api.pid');
 
-function sh(cmd) {
-  execSync(cmd, { stdio: 'inherit', cwd: REPO_ROOT, shell: true, env: process.env });
-}
-
 async function main() {
-  sh('docker compose down');
+  try {
+    dockerCompose(['down'], REPO_ROOT);
+  } catch {
+    /* compose down puede fallar si no hay proyecto */
+  }
 
   try {
     const s = fs.readFileSync(PID_FILE, 'utf8').trim();

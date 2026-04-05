@@ -4,10 +4,15 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, execSync, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { spawn, spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { primarySiteHost, REPO_ROOT } from './lib/site-env.mjs';
+import {
+  npmCiOmitDev,
+  dockerCompose,
+  dockerInspectOk,
+  dockerRmForce,
+} from './lib/run-cmd.mjs';
 
 const PID_FILE = path.join(REPO_ROOT, '.bichi-api.pid');
 const LOG_FILE = path.join(REPO_ROOT, '.bichi-api.log');
@@ -40,16 +45,12 @@ async function apiOk() {
 }
 
 function maybeDownFullDocker() {
+  if (!dockerInspectOk('bichipishi-metrics')) return;
+  console.log('Bajando stack anterior (API en contenedor) para usar la API en el equipo…');
   try {
-    execSync('docker inspect bichipishi-metrics', { stdio: 'ignore', cwd: REPO_ROOT, shell: true });
-    console.log('Bajando stack anterior (API en contenedor) para usar la API en el equipo…');
-    try {
-      sh('docker compose -f docker-compose.full-docker.yml down');
-    } catch {
-      sh('docker rm -f bichipishi-metrics');
-    }
+    dockerCompose(['-f', 'docker-compose.full-docker.yml', 'down'], REPO_ROOT);
   } catch {
-    /* no full stack */
+    dockerRmForce('bichipishi-metrics', REPO_ROOT);
   }
 }
 
@@ -116,7 +117,7 @@ async function ensureApi() {
   const nm = path.join(REPO_ROOT, 'metrics-api', 'node_modules');
   if (!fs.existsSync(nm)) {
     console.log('Instalando dependencias de metrics-api…');
-    sh('npm ci --omit=dev', path.join(REPO_ROOT, 'metrics-api'));
+    npmCiOmitDev(path.join(REPO_ROOT, 'metrics-api'));
   }
 
   console.log('Iniciando metrics-api en el equipo (puerto 3001)…');
@@ -150,7 +151,7 @@ async function main() {
   await ensureApi();
   ensureHosts();
   console.log('Levantando contenedor web (Docker)…');
-  sh('docker compose up --build -d');
+  dockerCompose(['up', '--build', '-d'], REPO_ROOT);
 
   const host = primarySiteHost();
   const port = readWebPort();
