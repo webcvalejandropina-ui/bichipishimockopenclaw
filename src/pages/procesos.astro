@@ -64,7 +64,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
   </div>
 
   <script>
-    import { fetchMetrics, updateHeader, statusColor } from '../lib/metrics';
+    import { fetchMetrics, updateHeader, statusColor, metricsRepresentHost } from '../lib/metrics';
     import { processActivityDescription, escHtml } from '../lib/process-hints';
     import { initCopyableValues } from '../lib/copy-field';
 
@@ -81,6 +81,16 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       try {
         const d = await fetchMetrics();
         updateHeader(d);
+        if (!metricsRepresentHost(d)) {
+          $('proc-table-wrap').removeAttribute('aria-busy');
+          const note =
+            typeof d.hostMetricsNote === 'string' && d.hostMetricsNote.trim()
+              ? d.hostMetricsNote.trim()
+              : 'Con la API en Docker sin datos del equipo no listamos procesos como si fueran de tu PC. Usa pnpm bichi.';
+          $('proc-table-wrap').innerHTML = `<div class="page-empty" style="white-space:pre-line">${escHtml(note)}</div>`;
+          dataLoaded = false;
+          return;
+        }
         allProcs = d.topCpu || [];
         const hostTotal =
           typeof d.processCountTotal === 'number' && d.processCountTotal >= 0 ? d.processCountTotal : allProcs.length;

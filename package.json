@@ -22,6 +22,7 @@
     "build": "astro build",
     "serve": "node metrics-api/server.js",
     "preview": "pnpm run build && node metrics-api/server.js",
+    "bichi": "node scripts/bichi-up.mjs",
     "bichi:up": "node scripts/bichi-up.mjs",
     "bichi:down": "node scripts/bichi-down.mjs",
     "docker:up": "node scripts/bichi-up.mjs",

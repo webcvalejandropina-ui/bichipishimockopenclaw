@@ -1200,6 +1200,8 @@ async function collectMetrics() {
   let hostOsLabel = formatHostOsLabel(osInfo);
   let uptimeOut = Math.floor(os.uptime());
   let hostMetricsNote = '';
+  /** API en Docker sin BICHI_HOST_* ni montajes /host → no representa el PC del usuario (p. ej. Windows). */
+  let misleadingDocker = false;
   if (isRunningInDocker()) {
     const osRelFile =
       envTrim('BICHI_HOST_OS_RELEASE_FILE') ||
@@ -1229,60 +1231,83 @@ async function collectMetrics() {
 
     const hasHostId = !!(hHost || hnFromHostFile);
     const hasOsId = !!(hOs || osFromHostFile);
-    if (!hasHostId || !hasOsId) {
+    misleadingDocker = !hasHostId || !hasOsId;
+    if (misleadingDocker) {
       hostMetricsNote =
-        'API en Docker: equipo y SO suelen ser del contenedor. Rellena BICHI_HOST_HOSTNAME y BICHI_HOST_OS en .env, o en Linux monta /host/etc/hostname y /host/etc/os-release. RAM: BICHI_MEM_TOTAL_GIB. Ver README.';
+        'La API corre en un contenedor Linux: aquí no mostramos CPU/RAM/disco como si fueran tu PC. Para métricas reales en Windows/Mac: pnpm bichi (API en el host). Modo «todo Docker» solo para servidor o si rellenas BICHI_HOST_HOSTNAME y BICHI_HOST_OS en .env.';
     }
   }
 
   const userSettings = mergeWithDefaults(loadUserSettingsRaw());
-  const { warnings, alerts } = buildThresholdAlerts(
-    deviceName || hostname,
-    memPct,
-    diskPct,
-    cpuPct,
-    mem,
-    mainFs,
-    userSettings.thresholds,
-  );
+  let warnings;
+  let alerts;
+  if (misleadingDocker) {
+    warnings = [];
+    alerts = [];
+  } else {
+    const b = buildThresholdAlerts(
+      deviceName || hostname,
+      memPct,
+      diskPct,
+      cpuPct,
+      mem,
+      mainFs,
+      userSettings.thresholds,
+    );
+    warnings = b.warnings;
+    alerts = b.alerts;
+  }
 
   const mailP = maybeSendThresholdEmails(alerts, userSettings);
   if (mailP && typeof mailP.catch === 'function') {
     mailP.catch((e) => console.error('[bichi] alert mail:', e && e.message ? e.message : e));
   }
 
-  try {
-    recordPerfDailySample(DATA_DIR, cpuPct, memPct, diskPct);
-  } catch (e) {
-    console.error('[bichi] perf sqlite:', e && e.message ? e.message : e);
+  if (!misleadingDocker) {
+    try {
+      recordPerfDailySample(DATA_DIR, cpuPct, memPct, diskPct);
+    } catch (e) {
+      console.error('[bichi] perf sqlite:', e && e.message ? e.message : e);
+    }
   }
+
+  const metricsRepresentHost = !misleadingDocker;
+  const outCpu = misleadingDocker ? null : cpuPct;
+  const outMem = misleadingDocker ? null : memPct;
+  const outDisk = misleadingDocker ? null : diskPct;
+  const outTopCpu = misleadingDocker ? [] : topCpu;
+  const outServices = misleadingDocker ? [] : services;
+  const outLoad = misleadingDocker ? [] : load;
+  const outUptime = misleadingDocker ? -1 : uptimeOut;
+  const outProcTotal = misleadingDocker ? 0 : processCountTotal;
 
   return {
     platform: process.platform,
-    cpu: cpuPct,
-    mem: memPct,
-    disk: diskPct,
-    memUsed: bytesToGiBUsedOneDec(mem.used || 0),
-    memTotal: bytesToGiBTotalInt(mem.total || 0),
+    metricsRepresentHost,
+    cpu: outCpu,
+    mem: outMem,
+    disk: outDisk,
+    memUsed: misleadingDocker ? null : bytesToGiBUsedOneDec(mem.used || 0),
+    memTotal: misleadingDocker ? null : bytesToGiBTotalInt(mem.total || 0),
     memNote: memMacActivityMonitor
       ? 'macOS: “Memoria usada” aproximada como Monitor de actividad (vm_stat: activas + cableadas + comprimidas; GiB = 1024³).'
       : '',
-    diskUsed: mainFs ? bytesToGiBUsedOneDec(mainFs.used || 0) : 0,
-    diskTotal: mainFs ? bytesToGiBTotalInt(mainFs.size || 0) : 0,
+    diskUsed: misleadingDocker || !mainFs ? null : bytesToGiBUsedOneDec(mainFs.used || 0),
+    diskTotal: misleadingDocker || !mainFs ? null : bytesToGiBTotalInt(mainFs.size || 0),
     hostOs: hostOsLabel,
     hostname,
     deviceName,
     hostMetricsNote,
     hostIpv4,
     publicIp: String(publicIp || '').trim(),
-    processCountTotal,
+    processCountTotal: outProcTotal,
     cpuModel: cpuBrand,
     cpuCores: cores,
-    load,
-    uptime: uptimeOut,
+    load: outLoad,
+    uptime: outUptime,
     timestamp: Date.now(),
-    topCpu,
-    services,
+    topCpu: outTopCpu,
+    services: outServices,
     containers,
     dockerImages: dockerImagesSafe,
     dockerVolumes: dockerVolumesSafe,

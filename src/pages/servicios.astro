@@ -54,7 +54,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
   </div>
 
   <script>
-    import { fetchMetrics, updateHeader } from '../lib/metrics';
+    import { fetchMetrics, updateHeader, metricsRepresentHost } from '../lib/metrics';
     import { serviceActivityDescription, escHtml } from '../lib/process-hints';
     import { iconToSvg } from '../lib/lucide-svg-string';
     import { Settings } from 'lucide';
@@ -69,6 +69,16 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       try {
         const d = await fetchMetrics();
         updateHeader(d);
+        if (!metricsRepresentHost(d)) {
+          $('svc-grid').removeAttribute('aria-busy');
+          const note =
+            typeof d.hostMetricsNote === 'string' && d.hostMetricsNote.trim()
+              ? d.hostMetricsNote.trim()
+              : 'Con la API en Docker sin datos del equipo no listamos servicios como los de tu PC. Usa pnpm bichi.';
+          $('svc-grid').innerHTML = `<div class="page-empty" style="white-space:pre-line">${escHtml(note)}</div>`;
+          dataLoaded = false;
+          return;
+        }
         allSvcs = d.services || [];
 
         const set = (id: string, v: string) => { const e = $(id); e.textContent = v; e.classList.remove('skeleton'); };

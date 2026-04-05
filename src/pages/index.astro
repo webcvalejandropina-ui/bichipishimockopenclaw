@@ -484,6 +484,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
     import {
       fetchMetrics,
       updateHeader,
+      metricsRepresentHost,
       statusColor,
       fmtUptime,
       healthLevel,
@@ -845,26 +846,32 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         lastMetricsForAlerts = d;
         updateHeader(d);
 
-        const cpu = d.cpu, mem = d.mem, disk = d.disk;
-        recordPerfSample({ cpu, mem, disk });
+        const hostOk = metricsRepresentHost(d);
+        const cpu = hostOk && d.cpu != null ? Number(d.cpu) : NaN;
+        const mem = hostOk && d.mem != null ? Number(d.mem) : NaN;
+        const disk = hostOk && d.disk != null ? Number(d.disk) : NaN;
+        if (hostOk && Number.isFinite(cpu) && Number.isFinite(mem) && Number.isFinite(disk)) {
+          recordPerfSample({ cpu, mem, disk });
+        }
         let perfMerged: Record<string, DayPerfAgg> = {};
         try {
           perfMerged = await loadPerfDailyMerged();
         } catch {
           perfMerged = {};
         }
-        updateWeekCpuBars(perfMerged, Number(cpu) || 0);
+        updateWeekCpuBars(perfMerged, Number.isFinite(cpu) ? cpu : 0);
 
         const set = (id: string, v: string) => { const e = $(id); e.textContent = v; e.classList.remove('skeleton'); };
 
-        set('qb-cpu', `${Math.round(cpu)}%`);
-        set('qb-ram', `${Math.round(mem)}%`);
-        set('qb-disk', `${Math.round(disk)}%`);
+        const pct = (n: number) => (Number.isFinite(n) ? `${Math.round(n)}%` : '—');
+        set('qb-cpu', pct(cpu));
+        set('qb-ram', pct(mem));
+        set('qb-disk', pct(disk));
         set(
           'qb-load',
-          Array.isArray(d.load) && d.load.length ? d.load[0].toFixed(2) : '—',
+          hostOk && Array.isArray(d.load) && d.load.length ? d.load[0].toFixed(2) : '—',
         );
-        set('cpu-pct-val', String(Math.round(cpu)));
+        set('cpu-pct-val', Number.isFinite(cpu) ? String(Math.round(cpu)) : '—');
         const nTop = (d.topCpu || []).length;
         const nTot = typeof d.processCountTotal === 'number' && d.processCountTotal >= 0 ? d.processCountTotal : nTop;
         set('kpi-proc', String(nTop));
@@ -880,19 +887,25 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         set('kpi-ctnr', String((d.containers||[]).length));
 
         // Status bars
-        ($('bar-cpu') as HTMLElement).style.width = `${cpu}%`;
-        ($('bar-cpu') as HTMLElement).style.background = statusColor(cpu, 'cpu');
-        $('bar-cpu-val').textContent = `${Math.round(cpu)}%`;
-        ($('bar-mem') as HTMLElement).style.width = `${mem}%`;
-        ($('bar-mem') as HTMLElement).style.background = statusColor(mem, 'mem');
-        $('bar-mem-val').textContent = `${Math.round(mem)}%`;
-        ($('bar-disk') as HTMLElement).style.width = `${disk}%`;
-        ($('bar-disk') as HTMLElement).style.background = statusColor(disk, 'disk');
-        $('bar-disk-val').textContent = `${Math.round(disk)}%`;
+        const barW = (n: number) => (Number.isFinite(n) ? `${n}%` : '0%');
+        const barC = (n: number, t: 'cpu' | 'mem' | 'disk') =>
+          Number.isFinite(n) ? statusColor(n, t) : 'var(--bar-bg)';
+        ($('bar-cpu') as HTMLElement).style.width = barW(cpu);
+        ($('bar-cpu') as HTMLElement).style.background = barC(cpu, 'cpu');
+        $('bar-cpu-val').textContent = pct(cpu);
+        ($('bar-mem') as HTMLElement).style.width = barW(mem);
+        ($('bar-mem') as HTMLElement).style.background = barC(mem, 'mem');
+        $('bar-mem-val').textContent = pct(mem);
+        ($('bar-disk') as HTMLElement).style.width = barW(disk);
+        ($('bar-disk') as HTMLElement).style.background = barC(disk, 'disk');
+        $('bar-disk-val').textContent = pct(disk);
 
         // Health pct
-        const avg = Math.round(100 - (cpu + mem + disk) / 3);
-        set('health-pct', `${Math.max(0, avg)}%`);
+        const avg =
+          Number.isFinite(cpu) && Number.isFinite(mem) && Number.isFinite(disk)
+            ? Math.round(100 - (cpu + mem + disk) / 3)
+            : null;
+        set('health-pct', avg != null ? `${Math.max(0, avg)}%` : '—');
 
         const hostOsEl = document.getElementById('activity-host-os');
         if (hostOsEl) {
@@ -915,10 +928,11 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
 
         // Uptime chart
         if (uptimeChart?.canvas?.isConnected) {
-          const pct = Math.min(100, Math.max(0, 100 - cpu * 0.3));
-          uptimeChart.data.datasets[0].data = [pct, 100 - pct];
+          const chartCpu = Number.isFinite(cpu) ? cpu : 0;
+          const pct = Math.min(100, Math.max(0, 100 - chartCpu * 0.3));
+          uptimeChart.data.datasets[0].data = hostOk ? [pct, 100 - pct] : [5, 95];
           uptimeChart.data.datasets[0].backgroundColor = ['#F5C542', themeTrack()];
-          (uptimeChart as any)._centerValue = pct;
+          (uptimeChart as any)._centerValue = hostOk ? pct : 0;
           uptimeChart.update('none');
         }
 
@@ -937,10 +951,15 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
               : locals || '—';
         const ipFace = pub || locals || '—';
 
-        const ramStr = `${d.memUsed} / ${d.memTotal} GiB`;
+        const ramStr =
+          d.memUsed != null && d.memTotal != null ? `${d.memUsed} / ${d.memTotal} GiB` : '—';
         const diskTotal = typeof d.diskTotal === 'number' && d.diskTotal > 0 ? d.diskTotal : 0;
         const diskStr =
-          diskTotal > 0 ? `${d.diskUsed} / ${d.diskTotal} GiB` : `${d.diskUsed} GiB usado`;
+          !hostOk || d.diskUsed == null
+            ? '—'
+            : diskTotal > 0
+              ? `${d.diskUsed} / ${d.diskTotal} GiB`
+              : `${d.diskUsed} GiB usado`;
 
         setDashSysTip('sys-device', 'sys-device-tip', dev || d.hostname || '—', dev || d.hostname || '—');
         setDashSysTip('sys-host', 'sys-host-tip', d.hostname || '—', d.hostname || '—');
@@ -985,7 +1004,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         const running = (d.services||[]).filter((s: any) => s.running).length + (d.topCpu||[]).length;
         $('activity-count').textContent = `${running}/${total}`;
 
-        prevCpu = cpu;
+        prevCpu = Number.isFinite(cpu) ? cpu : 0;
         void bichiCronRefresh?.();
       } catch (e) {
         console.error('Metrics error', e);

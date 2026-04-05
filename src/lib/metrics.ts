@@ -25,6 +25,11 @@ export function hasValidSystemUptime(seconds: unknown): boolean {
 
 export type HealthLevel = 'ok' | 'warn' | 'crit';
 
+/** false cuando la API va en Docker sin BICHI_HOST_* (no representa el PC del usuario). */
+export function metricsRepresentHost(data: unknown): boolean {
+  return !(data && typeof data === 'object' && (data as { metricsRepresentHost?: boolean }).metricsRepresentHost === false);
+}
+
 export function healthLevel(cpu: number, mem: number, disk: number): HealthLevel {
   const worst = Math.max(
     cpu >= 85 ? 2 : cpu >= 60 ? 1 : 0,
@@ -208,18 +213,25 @@ export function setAlertsBadgeCount(count: number) {
 }
 
 export function updateHeader(data: any) {
-  const cpu = data.cpu, mem = data.mem, disk = data.disk;
-  const level = healthLevel(cpu, mem, disk);
+  const hostOk = metricsRepresentHost(data);
+  const cpu = Number(data?.cpu);
+  const mem = Number(data?.mem);
+  const disk = Number(data?.disk);
+  const level = hostOk && Number.isFinite(cpu) && Number.isFinite(mem) && Number.isFinite(disk)
+    ? healthLevel(cpu, mem, disk)
+    : 'ok';
   const openclaw =
     data && typeof data.openclawAvailable === 'boolean' ? data.openclawAvailable : false;
 
   const badge = $('health-badge') as HTMLElement | null;
   if (badge) {
-    badge.dataset.health = level;
-    const labels: Record<string, string> = { ok: 'Estable', warn: 'Atención', crit: 'Crítico' };
+    badge.dataset.health = hostOk ? level : 'na';
+    const labels: Record<string, string> = { ok: 'Estable', warn: 'Atención', crit: 'Crítico', na: '—' };
     const text = $('health-badge-text');
-    if (text) text.textContent = labels[level];
-    badge.title = `Estado del host: ${labels[level]} (CPU ${Math.round(cpu)}%)`;
+    if (text) text.textContent = hostOk ? labels[level] : '—';
+    badge.title = hostOk
+      ? `Estado del host: ${labels[level]} (CPU ${Math.round(cpu)}%)`
+      : 'Métricas del PC no disponibles: la API está en Docker sin datos del equipo. Usa pnpm bichi.';
   }
 
   const pill = document.getElementById('uptime-pill') as HTMLElement | null;
@@ -247,12 +259,12 @@ export function updateHeader(data: any) {
 
   const pine = $('pine-avatar') as HTMLElement | null;
   if (pine) {
-    pine.dataset.mood = openclaw ? level : 'ok';
+    pine.dataset.mood = openclaw && hostOk ? level : 'ok';
     pine.dataset.openclaw = openclaw ? '1' : '0';
   }
   const mouth = $('pine-mouth') as HTMLElement | null;
   if (mouth) {
-    mouth.dataset.mood = openclaw ? level : 'ok';
+    mouth.dataset.mood = openclaw && hostOk ? level : 'ok';
     mouth.dataset.openclaw = openclaw ? '1' : '0';
   }
 

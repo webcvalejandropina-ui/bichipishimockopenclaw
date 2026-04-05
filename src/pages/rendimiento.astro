@@ -158,7 +158,7 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
   </style>
 
   <script>
-    import { fetchMetrics, updateHeader } from '../lib/metrics';
+    import { fetchMetrics, updateHeader, metricsRepresentHost } from '../lib/metrics';
     import {
       type DayPerfAgg,
       fmtPct,
@@ -246,10 +246,13 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
       try {
         const d = await fetchMetrics();
         updateHeader(d);
-        const cpu = Number(d.cpu) || 0;
-        const mem = Number(d.mem) || 0;
-        const disk = Number(d.disk) || 0;
-        recordPerfSample({ cpu, mem, disk });
+        const hostOk = metricsRepresentHost(d);
+        const cpu = hostOk && d.cpu != null ? Number(d.cpu) : NaN;
+        const mem = hostOk && d.mem != null ? Number(d.mem) : NaN;
+        const disk = hostOk && d.disk != null ? Number(d.disk) : NaN;
+        if (hostOk && Number.isFinite(cpu) && Number.isFinite(mem) && Number.isFinite(disk)) {
+          recordPerfSample({ cpu, mem, disk });
+        }
         mergedMap = filterPerfMapUpToToday(await loadPerfDailyMerged());
 
         const set = (id: string, v: string) => {
@@ -257,9 +260,10 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
           e.textContent = v;
           e.classList.remove('skeleton');
         };
-        set('pl-cpu', fmtPct(cpu));
-        set('pl-mem', fmtPct(mem));
-        set('pl-disk', fmtPct(disk));
+        const pctOrDash = (n: number) => (Number.isFinite(n) ? fmtPct(n) : '—');
+        set('pl-cpu', pctOrDash(cpu));
+        set('pl-mem', pctOrDash(mem));
+        set('pl-disk', pctOrDash(disk));
 
         renderReport();
         renderTable();

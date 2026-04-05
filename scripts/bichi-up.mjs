@@ -162,8 +162,8 @@ async function main() {
   console.log('── Listo ──');
   console.log(`  Abre: ${base}/`);
   console.log(`  Misma app: http://127.0.0.1${p}/  ·  http://localtest.me${p}/`);
-  console.log('  (Las métricas van por /api → Nginx → tu PC :3001; hace falta este script, no solo Docker.)');
-  console.log('  Parar: pnpm run bichi:down');
+  console.log('  (API en tu PC :3001 + web en Docker. Comando corto: pnpm bichi)');
+  console.log('  Parar: pnpm bichi:down');
   console.log('');
 }
 

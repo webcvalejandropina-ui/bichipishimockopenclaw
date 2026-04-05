@@ -1,5 +1,6 @@
-# Opcional: API + web dentro de Docker (portátil / servidor sin Node en el host).
-# Los datos serán del contenedor Linux salvo que rellenes BICHI_HOST_* en .env.
+# Opcional: API + web en Docker. En Windows/Mac no es el modo recomendado para “mi PC”:
+# sin BICHI_HOST_* el dashboard NO muestra CPU/RAM/disco del contenedor como si fueran tu equipo.
+# Uso típico en casa: pnpm bichi (API en el host).
 #
 # Uso: docker compose -f docker-compose.full-docker.yml up --build -d
 # Antes: docker compose down  (para liberar el puerto 80)

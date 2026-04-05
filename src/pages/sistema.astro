@@ -153,7 +153,14 @@ const icons = {
   </div>
 
   <script>
-    import { fetchMetrics, updateHeader, fmtUptime, statusColor } from '../lib/metrics';
+    import {
+      fetchMetrics,
+      updateHeader,
+      fmtUptime,
+      statusColor,
+      metricsRepresentHost,
+      hasValidSystemUptime,
+    } from '../lib/metrics';
     import { initCopyableValues } from '../lib/copy-field';
 
     const $ = (id: string) => document.getElementById(id)!;
@@ -225,6 +232,7 @@ const icons = {
       try {
         const d = await fetchMetrics();
         updateHeader(d);
+        const hostOk = metricsRepresentHost(d);
 
         const set = (id: string, v: string) => {
           const e = $(id);
@@ -247,14 +255,18 @@ const icons = {
           }
         }
 
-        set('st-cpu', `${Math.round(d.cpu)}%`);
-        set('st-mem', `${Math.round(d.mem)}%`);
-        set('st-disk', `${Math.round(d.disk)}%`);
-        set('st-uptime', fmtUptime(d.uptime));
+        const pct = (v: unknown) => (hostOk && v != null && Number.isFinite(Number(v)) ? `${Math.round(Number(v))}%` : '—');
+        set('st-cpu', pct(d.cpu));
+        set('st-mem', pct(d.mem));
+        set('st-disk', pct(d.disk));
+        set('st-uptime', hostOk && hasValidSystemUptime(d.uptime) ? fmtUptime(d.uptime) : '—');
 
-        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="cpu"]'), d.cpu, 'cpu');
-        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="mem"]'), d.mem, 'mem');
-        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="disk"]'), d.disk, 'disk');
+        const hc = hostOk && d.cpu != null ? Number(d.cpu) : 0;
+        const hm = hostOk && d.mem != null ? Number(d.mem) : 0;
+        const hd = hostOk && d.disk != null ? Number(d.disk) : 0;
+        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="cpu"]'), hc, 'cpu');
+        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="mem"]'), hm, 'mem');
+        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="disk"]'), hd, 'disk');
 
         const hostOs = typeof d.hostOs === 'string' && d.hostOs.trim() ? d.hostOs.trim() : '—';
         const devName = typeof d.deviceName === 'string' && d.deviceName.trim() ? d.deviceName.trim() : '';
@@ -292,18 +304,30 @@ const icons = {
 
         setCopyable('si-cpu-model', d.cpuModel || '—');
         setCopyable('si-cpu-cores', String(d.cpuCores ?? '—'));
-        set('si-cpu-pct', `${Math.round(d.cpu)}%`);
-        ($('si-cpu-pct') as HTMLElement).style.color = statusColor(d.cpu, 'cpu');
-        setCopyable('si-load', d.load ? d.load.map((l: number) => l.toFixed(2)).join(' / ') : '—');
+        set('si-cpu-pct', pct(d.cpu));
+        ($('si-cpu-pct') as HTMLElement).style.color =
+          hostOk && d.cpu != null ? statusColor(Number(d.cpu), 'cpu') : 'var(--muted)';
+        setCopyable(
+          'si-load',
+          hostOk && Array.isArray(d.load) && d.load.length ? d.load.map((l: number) => l.toFixed(2)).join(' / ') : '—',
+        );
 
-        setCopyable('si-mem-total', `${d.memTotal} GiB`);
-        setCopyable('si-mem-used', `${d.memUsed} GiB`);
-        set('si-mem-pct', `${Math.round(d.mem)}%`);
-        ($('si-mem-pct') as HTMLElement).style.color = statusColor(d.mem, 'mem');
-        const memPct = Math.min(100, Math.max(0, d.mem));
+        setCopyable(
+          'si-mem-total',
+          d.memTotal != null ? `${d.memTotal} GiB` : '—',
+        );
+        setCopyable(
+          'si-mem-used',
+          d.memUsed != null ? `${d.memUsed} GiB` : '—',
+        );
+        set('si-mem-pct', pct(d.mem));
+        ($('si-mem-pct') as HTMLElement).style.color =
+          hostOk && d.mem != null ? statusColor(Number(d.mem), 'mem') : 'var(--muted)';
+        const memPct = hostOk && d.mem != null ? Math.min(100, Math.max(0, Number(d.mem))) : 0;
         ($('si-mem-bar') as HTMLElement).style.width = `${memPct}%`;
-        ($('si-mem-bar') as HTMLElement).style.background = statusColor(d.mem, 'mem');
-        $('si-mem-foot').textContent = `${Math.round(memPct)}%`;
+        ($('si-mem-bar') as HTMLElement).style.background =
+          hostOk && d.mem != null ? statusColor(Number(d.mem), 'mem') : 'var(--bar-bg)';
+        $('si-mem-foot').textContent = hostOk && d.mem != null ? `${Math.round(memPct)}%` : '—';
 
         const memNoteEl = document.getElementById('si-mem-note');
         if (memNoteEl) {
@@ -334,16 +358,18 @@ const icons = {
         }
 
         const diskTotal = typeof d.diskTotal === 'number' && d.diskTotal > 0 ? d.diskTotal : null;
-        setCopyable('si-disk-used', `${d.diskUsed} GiB`);
+        setCopyable('si-disk-used', d.diskUsed != null ? `${d.diskUsed} GiB` : '—');
         setCopyable('si-disk-total', diskTotal != null ? `${diskTotal} GiB` : '—');
-        set('si-disk-pct', `${Math.round(d.disk)}%`);
-        ($('si-disk-pct') as HTMLElement).style.color = statusColor(d.disk, 'disk');
-        const diskPct = Math.min(100, Math.max(0, d.disk));
+        set('si-disk-pct', pct(d.disk));
+        ($('si-disk-pct') as HTMLElement).style.color =
+          hostOk && d.disk != null ? statusColor(Number(d.disk), 'disk') : 'var(--muted)';
+        const diskPct = hostOk && d.disk != null ? Math.min(100, Math.max(0, Number(d.disk))) : 0;
         ($('si-disk-bar') as HTMLElement).style.width = `${diskPct}%`;
-        ($('si-disk-bar') as HTMLElement).style.background = statusColor(d.disk, 'disk');
-        $('si-disk-foot').textContent = `${Math.round(diskPct)}%`;
+        ($('si-disk-bar') as HTMLElement).style.background =
+          hostOk && d.disk != null ? statusColor(Number(d.disk), 'disk') : 'var(--bar-bg)';
+        $('si-disk-foot').textContent = hostOk && d.disk != null ? `${Math.round(diskPct)}%` : '—';
 
-        setCopyable('si-uptime', fmtUptime(d.uptime));
+        setCopyable('si-uptime', hasValidSystemUptime(d.uptime) ? fmtUptime(d.uptime) : '—');
       } catch (e) {
         console.error(e);
       }
