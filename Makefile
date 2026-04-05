@@ -1,23 +1,23 @@
-# Requiere Docker con "docker compose"
+# Requiere Docker + bash (macOS/Linux). En Windows usa pnpm run docker:up o dos terminales (ver README).
 .PHONY: install up down logs build-web dev help
 
 help:
-	@echo "make install  — .env si falta + docker compose up --build -d"
-	@echo "make up       — docker compose up -d"
-	@echo "make down     — docker compose down"
-	@echo "make logs     — docker compose logs -f"
-	@echo "make build-web— docker compose build web"
-	@echo "make dev      — pnpm + API (ver README)"
+	@echo "make install   — .env si falta + bash scripts/bichi-docker-up.sh (API host + UI Docker)"
+	@echo "make up        — bash scripts/bichi-docker-up.sh"
+	@echo "make down      — bash scripts/bichi-docker-down.sh"
+	@echo "make logs      — docker compose logs -f"
+	@echo "make build-web — docker compose build web"
+	@echo "make dev       — pnpm + API (ver README)"
 
 install:
 	@test -f .env || cp .env.example .env
-	docker compose up --build -d
+	bash scripts/bichi-docker-up.sh
 
 up:
-	docker compose up -d
+	bash scripts/bichi-docker-up.sh
 
 down:
-	docker compose down
+	bash scripts/bichi-docker-down.sh
 
 logs:
 	docker compose logs -f

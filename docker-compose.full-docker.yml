@@ -1,0 +1,56 @@
+# Opcional: API + web dentro de Docker (portátil / servidor sin Node en el host).
+# Los datos serán del contenedor Linux salvo que rellenes BICHI_HOST_* en .env.
+#
+# Uso: docker compose -f docker-compose.full-docker.yml up --build -d
+# Antes: docker compose down  (para liberar el puerto 80)
+
+name: bichipishi
+
+services:
+  metrics:
+    build: ./metrics-api
+    container_name: bichipishi-metrics
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+      - BICHI_APP_NAME=${PUBLIC_BICHI_APP_NAME:-Bichipishi}
+      - CRON_EXTRA_FILE=/app/cron.extra
+      - BICHI_HOST_HOSTNAME=${BICHI_HOST_HOSTNAME:-}
+      - BICHI_HOST_DEVICE_NAME=${BICHI_HOST_DEVICE_NAME:-}
+      - BICHI_HOST_OS=${BICHI_HOST_OS:-}
+      - BICHI_MEM_TOTAL_GIB=${BICHI_MEM_TOTAL_GIB:-}
+      - BICHI_MEM_USED_GIB=${BICHI_MEM_USED_GIB:-}
+      - BICHI_HOST_UPTIME_SEC=${BICHI_HOST_UPTIME_SEC:-}
+      - BICHI_HOST_CPU_MODEL=${BICHI_HOST_CPU_MODEL:-}
+      - BICHI_HOST_CPU_CORES=${BICHI_HOST_CPU_CORES:-}
+      - OPENCLAW_LOG_PATH=${OPENCLAW_LOG_PATH:-}
+      - OPENCLAW_FORCE=${OPENCLAW_FORCE:-}
+    volumes:
+      - ./config/cron.extra:/app/cron.extra:ro
+      - bichi-api-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        PUBLIC_BICHI_APP_NAME: ${PUBLIC_BICHI_APP_NAME:-Bichipishi}
+        PUBLIC_BICHI_AVATAR_URL: ${PUBLIC_BICHI_AVATAR_URL:-}
+    container_name: bichipishi-web
+    ports:
+      - "${BICHI_WEB_PORT:-80}:80"
+    env_file:
+      - config/site.env
+    environment:
+      - PUBLIC_BICHI_APP_NAME=${PUBLIC_BICHI_APP_NAME:-}
+      - PUBLIC_BICHI_AVATAR_URL=${PUBLIC_BICHI_AVATAR_URL:-}
+      - BICHI_NGINX_PROFILE=docker-api
+    depends_on:
+      - metrics
+    restart: unless-stopped
+
+volumes:
+  bichi-api-data:

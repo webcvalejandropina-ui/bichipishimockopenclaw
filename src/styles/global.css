@@ -1686,6 +1686,16 @@ html:not([data-theme='dark']) .dash-sys-tip__bubble-text {
   font-size: 12px; font-weight: 800;
   font-family: var(--font-display);
   margin-top: 14px;
+  text-decoration: none;
+  transition: filter 0.15s ease;
+}
+a.status-task-label:hover {
+  filter: brightness(1.08);
+  color: #1a1a2e;
+}
+a.status-task-label:focus-visible {
+  outline: 2px solid var(--accent2, #f5c542);
+  outline-offset: 2px;
 }
 
 /* ═══ CALENDAR CARD ═══ */

@@ -22,8 +22,10 @@
     "build": "astro build",
     "serve": "node metrics-api/server.js",
     "preview": "pnpm run build && node metrics-api/server.js",
-    "docker:up": "docker compose up --build",
-    "docker:down": "docker compose down"
+    "docker:up": "bash scripts/bichi-docker-up.sh",
+    "docker:down": "bash scripts/bichi-docker-down.sh",
+    "docker:full-docker": "docker compose -f docker-compose.full-docker.yml up --build -d",
+    "docker:full-docker:down": "docker compose -f docker-compose.full-docker.yml down"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

@@ -219,7 +219,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
             <span class="status-val" id="bar-disk-val">&mdash;</span>
           </div>
         </div>
-        <span class="status-task-label">Sistema</span>
+        <a href="/sistema" class="status-task-label">Sistema</a>
       </div>
 
       <!-- Sidebar Card (System Info) -->
@@ -698,14 +698,42 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
       }).join('')}</div>`;
     }
 
-    function renderWarns(warns: string[]) {
+    /** Misma lista que la tarjeta «Alertas recientes» (no descartadas). Sin ítems: pestaña oculta y panel vacío. */
+    function renderActivityAlertsTab(d: any) {
       const el = $('warn-list');
+      const tabWarn = document.getElementById('tab-warn');
       el.removeAttribute('aria-busy');
-      if (!warns?.length) { el.innerHTML = '<div class="act-empty">Sin alertas — todo estable</div>'; return; }
-      el.innerHTML = warns.map((w, idx) => {
-        const crit = /error|fail|fatal|crit/i.test(w);
-        return `<div class="warn-item${crit ? ' crit' : ''}" style="animation-delay:${idx * 25}ms"><div class="warn-msg">${escHtml(w)}</div></div>`;
-      }).join('');
+      const hideTab = () => {
+        el.innerHTML = '';
+        if (!tabWarn) return;
+        tabWarn.hidden = true;
+        tabWarn.setAttribute('aria-hidden', 'true');
+        if (tabWarn.classList.contains('active')) {
+          document.getElementById('tab-proc')?.click();
+        }
+      };
+      const showTab = () => {
+        if (!tabWarn) return;
+        tabWarn.hidden = false;
+        tabWarn.removeAttribute('aria-hidden');
+      };
+      if (!d) {
+        hideTab();
+        return;
+      }
+      const items = buildDashAlertListForHome(d, 50);
+      if (!items.length) {
+        hideTab();
+        return;
+      }
+      showTab();
+      el.innerHTML = items
+        .map((a, idx) => {
+          const line = [a.title, a.detail].filter(Boolean).join(': ') || a.title || a.detail;
+          const crit = a.severity === 'critical';
+          return `<div class="warn-item${crit ? ' crit' : ''}" style="animation-delay:${idx * 25}ms"><div class="warn-msg">${escHtml(line)}</div></div>`;
+        })
+        .join('');
     }
 
     function fmtAlertAge(atMs: number) {
@@ -949,7 +977,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         renderProcs(d.topCpu);
         renderSvcs(d.services);
         renderCtrs(d.containers);
-        renderWarns(d.warnings);
+        renderActivityAlertsTab(d);
         renderDashAlerts(d);
         setAlertsBadgeCount(countUndismissedAlertsFromMetrics(d));
 
@@ -980,6 +1008,11 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         $('profile-badge').classList.remove('profile-badge--boot');
         renderDashAlerts(null);
         setAlertsBadgeCount(0);
+        const tabWarnErr = document.getElementById('tab-warn');
+        if (tabWarnErr) {
+          tabWarnErr.hidden = false;
+          tabWarnErr.removeAttribute('aria-hidden');
+        }
         $('proc-list').removeAttribute('aria-busy');
         $('svc-list').removeAttribute('aria-busy');
         $('ctnr-list').removeAttribute('aria-busy');
@@ -1018,6 +1051,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
       const id = li?.getAttribute('data-alert-id');
       if (id) rememberDismissedAlertId(id);
       if (lastMetricsForAlerts) {
+        renderActivityAlertsTab(lastMetricsForAlerts);
         renderDashAlerts(lastMetricsForAlerts);
         setAlertsBadgeCount(countUndismissedAlertsFromMetrics(lastMetricsForAlerts));
       }

@@ -21,6 +21,10 @@ pnpm-debug.log*
 .env
 .env.production
 
+# script bichi-docker-up.sh (API en host)
+.bichi-api.pid
+.bichi-api.log
+
 # API: Docker usa npm ci + package-lock.json (no pnpm en metrics-api)
 metrics-api/pnpm-lock.yaml
 

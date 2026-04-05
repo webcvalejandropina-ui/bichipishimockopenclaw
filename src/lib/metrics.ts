@@ -116,8 +116,10 @@ function bichiApiBaseUrl(): string {
 }
 
 /**
- * Llama a la API: si existe `PUBLIC_BICHI_API_URL`, primero ahí (HTTPS); luego relativo `/api/...`
- * (proxy Vite / mismo origen), mismo host:puerto, y loopback. Nunca embebe credenciales en el cliente.
+ * Llama a la API: `PUBLIC_BICHI_API_URL` (producción en otro dominio), luego ruta relativa `/api/...`.
+ * En build de producción (Docker + Nginx) solo esas dos: nunca se prueba `:3001` en el host del navegador,
+ * porque ese puerto no está publicado y podría existir otra API en 127.0.0.1:3001 con datos distintos.
+ * En `astro dev`, se añaden fallbacks a `host:3001` y loopback para la API en el PC.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const port = bichiApiPort();
@@ -125,11 +127,13 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   const urls: string[] = [];
   if (base) urls.push(`${base}${path}`);
   urls.push(path);
-  if (typeof globalThis !== 'undefined' && 'location' in globalThis) {
-    const host = (globalThis as unknown as Window).location?.hostname;
-    if (host) urls.push(`http://${host}:${port}${path}`);
+  if (import.meta.env.DEV) {
+    if (typeof globalThis !== 'undefined' && 'location' in globalThis) {
+      const host = (globalThis as unknown as Window).location?.hostname;
+      if (host) urls.push(`http://${host}:${port}${path}`);
+    }
+    urls.push(`http://127.0.0.1:${port}${path}`, `http://localhost:${port}${path}`);
   }
-  urls.push(`http://127.0.0.1:${port}${path}`, `http://localhost:${port}${path}`);
   const uniq = [...new Set(urls)];
 
   let last: Response | undefined;

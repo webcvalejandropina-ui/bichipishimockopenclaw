@@ -1,0 +1,7 @@
+# Normalmente NO hace falta copiar nada: bash scripts/bichi-docker-up.sh
+# ejecuta scripts/bichi-ensure-hosts.sh y escribe en /etc/hosts con sudo.
+#
+# Referencia manual (equivalente a lo que añade el script):
+#   127.0.0.1 bichipishi.home
+#
+# Desactivar la sincronización automática: BICHI_SKIP_HOSTS=1 bash scripts/bichi-docker-up.sh

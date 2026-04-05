@@ -4,7 +4,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const os = require('os');
 const { promisify } = require('util');
-const { spawnSync, execSync, execFile } = require('child_process');
+const { spawnSync, execSync, execFile, execFileSync } = require('child_process');
 const execFileAsync = promisify(execFile);
 const si = require('systeminformation');
 const cronParser = require('cron-parser');
@@ -786,14 +786,20 @@ function getDeviceDisplayName(osInfo) {
     const n = String(process.env.COMPUTERNAME || '').trim();
     if (n) return n;
   }
-  try {
-    const j = JSON.parse(
-      execSync('hostnamectl --json', { encoding: 'utf8', maxBuffer: 64 * 1024, env: SUBPROC_C_LOCALE }),
-    );
-    const pretty = String(j?.StaticHostname || j?.Hostname || '').trim();
-    if (pretty && pretty !== '(none)') return pretty;
-  } catch {
-    /* ignore */
+  if (process.platform === 'linux') {
+    try {
+      const out = execFileSync('hostnamectl', ['--json'], {
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024,
+        env: SUBPROC_C_LOCALE,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      const j = JSON.parse(out);
+      const pretty = String(j?.StaticHostname || j?.Hostname || '').trim();
+      if (pretty && pretty !== '(none)') return pretty;
+    } catch {
+      /* sin systemd / Alpine en Docker: hostnamectl no existe */
+    }
   }
   return (osInfo && osInfo.hostname) || os.hostname() || '';
 }
