@@ -1,16 +1,17 @@
-# Instalación y arranque rápidos (Docker; `make dev` usa pnpm).
+# Requiere Docker con "docker compose"
 .PHONY: install up down logs build-web dev help
 
 help:
-	@echo "make install  — igual que sh scripts/install.sh (build + up -d; admite docker-compose legado)"
+	@echo "make install  — .env si falta + docker compose up --build -d"
 	@echo "make up       — docker compose up -d"
 	@echo "make down     — docker compose down"
 	@echo "make logs     — docker compose logs -f"
-	@echo "make build-web— solo reconstruye el servicio web (tras cambiar marca en .env)"
-	@echo "make dev      — pnpm + API en paralelo (ver README)"
+	@echo "make build-web— docker compose build web"
+	@echo "make dev      — pnpm + API (ver README)"
 
 install:
-	sh scripts/install.sh
+	@test -f .env || cp .env.example .env
+	docker compose up --build -d
 
 up:
 	docker compose up -d

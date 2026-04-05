@@ -21,9 +21,6 @@ pnpm-debug.log*
 .env
 .env.production
 
-# Log del instalador Windows (local)
-install-bichipishi-log.txt
-
 # API: Docker usa npm ci + package-lock.json (no pnpm en metrics-api)
 metrics-api/pnpm-lock.yaml
 

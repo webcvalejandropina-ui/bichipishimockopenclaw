@@ -1,146 +1,76 @@
-# Bichipishi — monitor de tu ordenador
+# Bichipishi
 
-Página web que muestra CPU, RAM, disco, procesos, Docker (si lo tienes), etc. **No hace falta saber programar.**
+Monitor del sistema en el navegador (CPU, RAM, disco, procesos, Docker, etc.).
 
-**Código:** [github.com/webcvalejandropina-ui/bichipishimockopenclaw](https://github.com/webcvalejandropina-ui/bichipishimockopenclaw)
-
----
-
-## Windows (lo más fácil)
-
-### Paso 0 — Docker Desktop
-
-1. Instálalo desde aquí: [Docker Desktop para Windows](https://docs.docker.com/desktop/setup/install/windows-install/)
-2. **Ábrelo** desde el menú Inicio.
-3. Espera hasta que diga que el motor está en marcha (icono de ballena en la bandeja, sin errores).
-
-Sin esto, nada de lo siguiente funciona.
+**Código:** https://github.com/webcvalejandropina-ui/bichipishimockopenclaw
 
 ---
 
-### Paso 1 — Tener la carpeta del proyecto
+## Cómo arrancarlo (igual en Windows, Mac y Linux)
 
-**Opción A — Sin Git (recomendado si no sabes qué es Git):**
+1. Instala **[Docker](https://docs.docker.com/get-docker/)** y el comando **`docker compose`** (viene con Docker Desktop y con Docker Engine reciente).
 
-1. En GitHub, botón verde **Code** → **Download ZIP**
-2. Descomprime el ZIP (clic derecho → “Extraer todo…”)
-3. Entra en la carpeta que sale (algo como `bichipishimockopenclaw-main`). Si el ZIP se llama `main`, la carpeta puede ser `bichipishimockopenclaw-main`.
+2. Descarga el proyecto y entra en la carpeta:
 
-**Opción B — Con Git:**
-
-Abre **PowerShell** o **cmd**, luego:
-
-```text
-cd %USERPROFILE%\Desktop
+```bash
 git clone https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git
 cd bichipishimockopenclaw
 ```
 
----
+(Sin Git: en GitHub → **Code** → **Download ZIP**, descomprime y abre una terminal dentro de esa carpeta.)
 
-### Paso 2 — Doble clic
+3. Crea el archivo de configuración local:
 
-Dentro de esa carpeta, **doble clic** en:
+```bash
+cp .env.example .env
+```
 
-**`install.cmd`**
-
-- No pide cambiar políticas de PowerShell: por dentro usa `ExecutionPolicy Bypass` solo para este arranque.
-- Se abrirá una ventana azul/negra. **La primera vez puede tardar muchos minutos.** No la cierres hasta que ponga **LISTO** o **ERROR**.
-
-**Si se cierra sola o falla:** en la misma carpeta se crea **`install-bichipishi-log.txt`**. Ábrelo y lee las últimas líneas (o envía ese archivo para depurar).
-
-**Plan B:** clic derecho en **`install.ps1`** → **Ejecutar con PowerShell** (si `install.cmd` no hace nada).
-
----
-
-### Paso 3 — Abrir el navegador
-
-Entra en:
-
-**http://localhost:8080**
-
----
-
-### Parar en Windows
-
-Doble clic en **`parar.cmd`** (en la misma carpeta).
-
----
-
-### Windows — si falla
-
-| Qué pasa | Qué hacer |
-|----------|-----------|
-| Dice que no encuentra `docker` | Instala Docker Desktop y **ábrelo** antes de `install.cmd`. |
-| Dice que Docker no responde | Docker cerrado: abre Docker Desktop y espera 1–2 minutos. |
-| La página no carga | Comprueba que no tengas otra cosa usando el puerto **8080**. Reinicia y vuelve a ejecutar `install.cmd`. |
-| La página carga pero sin datos | Espera 30 segundos y **recarga** (F5). El servicio de métricas puede tardar en arrancar. |
-| Sigue mal | Abre **`install-bichipishi-log.txt`** en la carpeta del proyecto. Si dice que no existe `docker compose`, en Docker Desktop: **Settings → General → Use Docker Compose V2**. |
-| Acabas de instalar Docker | **Reinicia Windows** una vez; a veces el PATH no se actualiza hasta reiniciar. |
-
-**Sin usar install.cmd** (mismo efecto, a mano en PowerShell o cmd, dentro de la carpeta del proyecto):
+En **Windows (cmd)**:
 
 ```text
 copy .env.example .env
+```
+
+4. Levanta todo:
+
+```bash
 docker compose up --build -d
 ```
 
+La primera vez puede tardar bastante.
+
+5. Abre el navegador en **http://localhost:8080**
+
 ---
 
-## Mac o Linux
-
-1. Instala [Docker](https://docs.docker.com/get-docker/) (Docker Desktop en Mac, o Docker Engine en Linux).
-2. En la terminal:
+## Parar
 
 ```bash
-cd ~/Desktop
-git clone https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git
-cd bichipishimockopenclaw
-sh scripts/install.sh
+docker compose down
 ```
 
-3. Navegador: **http://localhost:8080**
+---
 
-Para parar: `docker compose down`
+## Opcional
+
+| Qué | Dónde |
+|-----|--------|
+| Cambiar nombre o imagen del avatar | `.env` → `PUBLIC_BICHI_APP_NAME`, `PUBLIC_BICHI_AVATAR_URL` |
+| Más variables (RAM en Docker, CORS, etc.) | `.env.example` y `docker-compose.yml` |
+
+Tras cambiar `.env` en Docker: `docker compose up -d --build` (o al menos `docker compose build web` si solo tocaste la web).
 
 ---
 
-## Cambiar nombre o foto (opcional)
+## Desarrollo (sin Docker para la web)
 
-Edita el archivo **`.env`** en la raíz del proyecto (si no existe, cópialo desde `.env.example`).
-
-- `PUBLIC_BICHI_APP_NAME` — nombre en la barra superior.
-- `PUBLIC_BICHI_AVATAR_URL` — URL de una imagen que sustituye a la piña.
-
-Luego: `docker compose restart web` (o vuelve a ejecutar `install.cmd` en Windows).
+Necesitas Node y pnpm. `pnpm install`, `npm install` en `metrics-api/`, luego `pnpm dev`. Web en **http://localhost:4322**, API en **3001**.
 
 ---
 
-## Móvil
+## Makefile (si usas `make`)
 
-Misma WiFi que el PC: en el móvil abre `http://IP-DEL-PC:8080` (la IP la ves en Windows con `ipconfig`, en Mac/Linux con ajustes de red).
+- `make install` → copia `.env` si no existe y ejecuta `docker compose up --build -d`
+- `make down` → `docker compose down`
 
----
-
-## Desarrolladores
-
-Necesitas Node y pnpm. Ver `package.json` y ejecutar `pnpm dev` tras `pnpm install` y `npm install` en `metrics-api/`.
-
----
-
-## Archivos útiles
-
-| Archivo | Para qué |
-|---------|----------|
-| **`install.cmd`** | Windows: doble clic (llama a `install.ps1` con permisos seguros) |
-| **`install.ps1`** | Mismo instalador; el `.cmd` solo lo lanza con `Bypass` |
-| **`install-bichipishi-log.txt`** | Se genera al instalar: registro de errores |
-| **`parar.cmd`** | Windows: doble clic para parar |
-| `scripts/install.sh` | Mac / Linux |
-| `docker-compose.yml` | Define los dos servicios (web + métricas) |
-
----
-
-## Licencia
-
-No subas tu **`.env`** a internet (ya está ignorado por Git).
+No subas tu archivo **`.env`** (está en `.gitignore`).
