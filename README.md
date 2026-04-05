@@ -6,40 +6,43 @@ Monitor del sistema en el navegador (CPU, RAM, disco, procesos, Docker, etc.).
 
 ---
 
-## Cómo arrancarlo (igual en Windows, Mac y Linux)
+## Arranque con Docker
 
-1. Instala **[Docker](https://docs.docker.com/get-docker/)** y el comando **`docker compose`** (viene con Docker Desktop y con Docker Engine reciente).
+1. Instala **[Docker](https://docs.docker.com/get-docker/)** y **`docker compose`**.
 
-2. Descarga el proyecto y entra en la carpeta:
+2. Clona o descarga el ZIP del repo y entra en la carpeta.
 
-```bash
-git clone https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git
-cd bichipishimockopenclaw
-```
-
-(Sin Git: en GitHub → **Code** → **Download ZIP**, descomprime y abre una terminal dentro de esa carpeta.)
-
-3. Crea el archivo de configuración local:
+3. Configuración:
 
 ```bash
 cp .env.example .env
 ```
 
-En **Windows (cmd)**:
+(En Windows: `copy .env.example .env`)
 
-```text
-copy .env.example .env
-```
+4. **Importante en Docker:** edita **`.env`** y rellena **`BICHI_HOST_HOSTNAME`**, **`BICHI_HOST_OS`** y **`BICHI_MEM_TOTAL_GIB`** con datos de **tu PC** (o monta en `docker-compose.yml` **`/etc/os-release`** y **`/etc/hostname`** del anfitrión en **`/host/etc/...`** si usas Linux nativo).  
+   Sin eso, la API (Linux en el contenedor) mostrará identidad y SO del contenedor.
 
-4. Levanta todo:
+5. Levanta el stack:
 
 ```bash
 docker compose up --build -d
 ```
 
-La primera vez puede tardar bastante.
+6. **Hosts y URL:** añade en el archivo **hosts** del sistema:
 
-5. Abre el navegador en **http://localhost:8080**
+```text
+127.0.0.1 bichipishi.local
+```
+
+- **Windows:** `C:\Windows\System32\drivers\etc\hosts` (editor como administrador)  
+- **Mac / Linux:** `/etc/hosts`
+
+Abre **http://bichipishi.local:8080** (o el puerto que hayas puesto en **`BICHI_WEB_PORT`** en `.env`).
+
+También sigue valiendo **http://localhost:8080**.
+
+La API **no** usa el puerto 3001 en el host: todo va por **Nginx** con la ruta **`/api`**.
 
 ---
 
@@ -51,26 +54,25 @@ docker compose down
 
 ---
 
-## Opcional
+## OpenClaw dentro de Docker
 
-| Qué | Dónde |
-|-----|--------|
-| Cambiar nombre o imagen del avatar | `.env` → `PUBLIC_BICHI_APP_NAME`, `PUBLIC_BICHI_AVATAR_URL` |
-| Más variables (RAM en Docker, CORS, etc.) | `.env.example` y `docker-compose.yml` |
+El binario `openclaw` no suele existir en el contenedor. Opciones:
 
-Tras cambiar `.env` en Docker: `docker compose up -d --build` (o al menos `docker compose build web` si solo tocaste la web).
+- Monta en `docker-compose.yml` (servicio `metrics`) un archivo de log **de tu máquina** y define **`OPENCLAW_LOG_PATH`** con la ruta **dentro del contenedor**.
+- O **`OPENCLAW_FORCE=1`** en `.env` si solo quieres la interfaz.
 
 ---
 
-## Desarrollo (sin Docker para la web)
+## Desarrollo sin Docker (web en caliente)
 
-Necesitas Node y pnpm. `pnpm install`, `npm install` en `metrics-api/`, luego `pnpm dev`. Web en **http://localhost:4322**, API en **3001**.
+`pnpm install`, `npm install` en `metrics-api/`, `pnpm dev`. Web **http://localhost:4322**, API **3001**.
 
 ---
 
-## Makefile (si usas `make`)
+## Makefile
 
-- `make install` → copia `.env` si no existe y ejecuta `docker compose up --build -d`
-- `make down` → `docker compose down`
+`make install` → `.env` + `docker compose up --build -d` · `make down` → `docker compose down`
 
-No subas tu archivo **`.env`** (está en `.gitignore`).
+---
+
+No subas **`.env`**.

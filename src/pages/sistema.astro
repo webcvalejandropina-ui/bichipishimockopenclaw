@@ -86,6 +86,7 @@ const icons = {
           <div class="sys-item sys-item--full"><span class="sys-key">Red (IPv4)</span><span class="sys-val skeleton sys-val--wrap" id="si-ipv4">—</span></div>
           <div class="sys-item sys-item--full"><span class="sys-key">Última lectura</span><span class="sys-val skeleton" id="si-updated">—</span></div>
         </div>
+        <p class="sys-mem-note" id="si-host-note" hidden></p>
       </div>
 
       <div class="sys-panel">
@@ -313,6 +314,22 @@ const icons = {
           } else {
             memNoteEl.textContent = '';
             memNoteEl.setAttribute('hidden', '');
+          }
+        }
+
+        const hostNoteEl = document.getElementById('si-host-note');
+        if (hostNoteEl) {
+          const hnote =
+            typeof (d as { hostMetricsNote?: string }).hostMetricsNote === 'string'
+              ? String((d as { hostMetricsNote?: string }).hostMetricsNote).trim()
+              : '';
+          if (hnote) {
+            hostNoteEl.textContent = hnote;
+            (hostNoteEl as HTMLElement).style.whiteSpace = 'pre-line';
+            hostNoteEl.removeAttribute('hidden');
+          } else {
+            hostNoteEl.textContent = '';
+            hostNoteEl.setAttribute('hidden', '');
           }
         }
 

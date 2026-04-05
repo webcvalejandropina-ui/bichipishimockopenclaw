@@ -207,7 +207,7 @@ export function updateHeader(data: any) {
   const cpu = data.cpu, mem = data.mem, disk = data.disk;
   const level = healthLevel(cpu, mem, disk);
   const openclaw =
-    data && typeof data.openclawAvailable === 'boolean' ? data.openclawAvailable : true;
+    data && typeof data.openclawAvailable === 'boolean' ? data.openclawAvailable : false;
 
   const badge = $('health-badge') as HTMLElement | null;
   if (badge) {
@@ -254,9 +254,7 @@ export function updateHeader(data: any) {
 
   const role = $('profile-role');
   if (role) {
-    role.textContent = openclaw
-      ? 'Monitor del sistema'
-      : 'OpenClaw no detectado — métricas locales';
+    role.textContent = 'Monitor del sistema';
   }
 }
 

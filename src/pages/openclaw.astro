@@ -8,52 +8,52 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
 ---
 <Layout activePage="openclaw">
   <div class="wrapper oc-page">
-    <div class="oc-top">
-      <div class="page-header oc-header">
-        <div class="oc-title-row">
-          <span class="oc-title-icon" set:html={iBot} aria-hidden="true" />
-          <div>
-            <h2 class="page-title">OpenClaw</h2>
-            <p class="page-desc">
-              Vista consolidada: salida del CLI (<code>openclaw</code> con <code>--json</code> donde aplica), cron del host
-              (misma fuente que <code>/api/cron</code>) y diagnósticos. Override del binario:
-              <code>OPENCLAW_BIN</code>. Desactivar sondas: <code>OPENCLAW_SNAPSHOT_DISABLE=1</code>. Quitar el bloque de
-              personalidad de ejemplo: <code>OPENCLAW_DEMO_FILL=0</code>.
-            </p>
+    <div id="oc-chrome" hidden>
+      <div class="oc-top">
+        <div class="page-header oc-header">
+          <div class="oc-title-row">
+            <span class="oc-title-icon" set:html={iBot} aria-hidden="true" />
+            <div>
+              <h2 class="page-title">OpenClaw</h2>
+              <p class="page-desc">
+                Vista consolidada: salida del CLI (<code>openclaw</code> con <code>--json</code> donde aplica), cron del host
+                (misma fuente que <code>/api/cron</code>) y diagnósticos. Override del binario:
+                <code>OPENCLAW_BIN</code>. Desactivar sondas: <code>OPENCLAW_SNAPSHOT_DISABLE=1</code>. Quitar el bloque de
+                personalidad de ejemplo: <code>OPENCLAW_DEMO_FILL=0</code>.
+              </p>
+            </div>
           </div>
         </div>
+        <button type="button" class="page-filter-btn oc-refresh" id="oc-snap-refresh" style="display:flex;align-items:center;gap:6px">
+          <span set:html={iRefresh} /> Actualizar todo
+        </button>
       </div>
-      <button type="button" class="page-filter-btn oc-refresh" id="oc-snap-refresh" style="display:flex;align-items:center;gap:6px">
-        <span set:html={iRefresh} /> Actualizar todo
-      </button>
-    </div>
 
-    <div class="oc-meta-strip page-stat-strip" id="oc-meta">
-      <div class="page-stat">
-        <span class="page-stat-value skeleton" id="ocm-available">—</span>
-        <span class="page-stat-label">CLI detectada</span>
+      <div class="oc-meta-strip page-stat-strip" id="oc-meta">
+        <div class="page-stat">
+          <span class="page-stat-value skeleton" id="ocm-available">—</span>
+          <span class="page-stat-label">CLI detectada</span>
+        </div>
+        <div class="page-stat">
+          <span class="page-stat-value skeleton oc-meta-bin" id="ocm-binary">—</span>
+          <span class="page-stat-label">Binario</span>
+        </div>
+        <div class="page-stat">
+          <span class="page-stat-value skeleton" id="ocm-at">—</span>
+          <span class="page-stat-label">Última captura</span>
+        </div>
+        <div class="page-stat">
+          <span class="page-stat-value skeleton" id="ocm-cron">—</span>
+          <span class="page-stat-label">Jobs cron host</span>
+        </div>
       </div>
-      <div class="page-stat">
-        <span class="page-stat-value skeleton oc-meta-bin" id="ocm-binary">—</span>
-        <span class="page-stat-label">Binario</span>
-      </div>
-      <div class="page-stat">
-        <span class="page-stat-value skeleton" id="ocm-at">—</span>
-        <span class="page-stat-label">Última captura</span>
-      </div>
-      <div class="page-stat">
-        <span class="page-stat-value skeleton" id="ocm-cron">—</span>
-        <span class="page-stat-label">Jobs cron host</span>
-      </div>
-    </div>
 
-    <p class="oc-hint" id="oc-global-msg" hidden></p>
+      <p class="oc-hint" id="oc-global-msg" hidden></p>
+    </div>
 
     <div id="oc-sections" class="oc-sections oc-sections--loading" aria-busy="true">
-      <div class="oc-load" aria-hidden="true">
+      <div class="oc-load oc-load--neutral" aria-hidden="true">
         <div class="oc-load-spinner"></div>
-        <p class="oc-load-title">Recopilando OpenClaw</p>
-        <p class="oc-load-sub">Sondas del CLI, cron del host y bloques de identidad…</p>
         <div class="oc-load-bars">
           <div class="oc-load-bar oc-load-bar--a"></div>
           <div class="oc-load-bar oc-load-bar--b"></div>
@@ -120,6 +120,9 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
       background: var(--bg-card);
       box-shadow: var(--shadow-card);
       text-align: center;
+    }
+    .oc-load--neutral .oc-load-spinner {
+      margin-bottom: 20px;
     }
     .oc-load-spinner {
       width: 40px;
@@ -410,11 +413,14 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
 
     const $ = (id: string) => document.getElementById(id)!;
 
-    function ocLoadingMarkup(): string {
-      return `<div class="oc-load" aria-hidden="true">
+    function ocLoadingMarkup(opts?: { withCopy?: boolean }): string {
+      const copy = opts?.withCopy
+        ? `<p class="oc-load-title">Recopilando OpenClaw</p>
+        <p class="oc-load-sub">Sondas del CLI, cron del host y diagnósticos…</p>`
+        : '';
+      return `<div class="oc-load${opts?.withCopy ? '' : ' oc-load--neutral'}" aria-hidden="true">
         <div class="oc-load-spinner"></div>
-        <p class="oc-load-title">Recopilando OpenClaw</p>
-        <p class="oc-load-sub">Sondas del CLI, cron del host y bloques de identidad…</p>
+        ${copy}
         <div class="oc-load-bars">
           <div class="oc-load-bar oc-load-bar--a"></div>
           <div class="oc-load-bar oc-load-bar--b"></div>
@@ -681,18 +687,28 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
     }
 
     async function load() {
-      const meta = $('oc-meta');
+      const chrome = document.getElementById('oc-chrome');
       const msg = $('oc-global-msg');
       const el = $('oc-sections');
       el.setAttribute('aria-busy', 'true');
       el.classList.add('oc-sections--loading');
       el.innerHTML = ocLoadingMarkup();
-      msg.hidden = true;
+      if (chrome) chrome.setAttribute('hidden', '');
+      if (msg) msg.hidden = true;
 
       try {
         const r = await apiFetch('/api/openclaw');
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const data = await r.json();
+
+        if (!data.available) {
+          el.removeAttribute('aria-busy');
+          el.classList.remove('oc-sections--loading');
+          el.innerHTML = ocLoadingMarkup();
+          return;
+        }
+
+        if (chrome) chrome.removeAttribute('hidden');
 
         const av = $('ocm-available');
         av.textContent = data.available ? 'Sí' : 'No';
@@ -712,7 +728,7 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
         cj.textContent = String(n);
         cj.classList.remove('skeleton');
 
-        if (data.message && data.disabled) {
+        if (data.message && data.disabled && msg) {
           msg.textContent = data.message;
           msg.hidden = false;
         }
@@ -720,10 +736,11 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
         renderAll(data);
       } catch (e) {
         console.error(e);
+        if (chrome) chrome.removeAttribute('hidden');
         el.removeAttribute('aria-busy');
         el.classList.remove('oc-sections--loading');
         el.innerHTML =
-          '<div class="oc-section"><p class="oc-err-note">No se pudo cargar <code>/api/openclaw</code>. ¿Está la metrics-api en marcha?</p></div>';
+          '<div class="oc-section"><p class="oc-err-note">No se pudo conectar con el servicio de métricas. Comprueba que la API esté en marcha y vuelve a intentarlo.</p></div>';
       }
     }
 

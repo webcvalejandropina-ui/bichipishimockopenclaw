@@ -870,8 +870,14 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         if (hostOsEl) {
           const plat = d.platform === 'win32' ? 'Windows' : d.platform === 'darwin' ? 'macOS' : d.platform === 'linux' ? 'Linux' : (d.platform || '');
           const label = d.hostOs || plat || '';
-          if (label) {
-            hostOsEl.textContent = `Host API · ${label}`;
+          const note =
+            typeof (d as { hostMetricsNote?: string }).hostMetricsNote === 'string'
+              ? String((d as { hostMetricsNote?: string }).hostMetricsNote).trim()
+              : '';
+          const lines = [label ? `Host API · ${label}` : '', note].filter(Boolean);
+          if (lines.length) {
+            hostOsEl.textContent = lines.join('\n');
+            (hostOsEl as HTMLElement).style.whiteSpace = 'pre-line';
             hostOsEl.removeAttribute('hidden');
           } else {
             hostOsEl.textContent = '';

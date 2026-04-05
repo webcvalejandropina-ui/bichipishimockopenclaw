@@ -1,7 +1,6 @@
-# Stack completo (UI + API) en cualquier SO con Docker Desktop / Engine + Compose v2.
-# Uso: docker compose up --build
-# UI (todo en uno, /api proxificado): http://localhost:8080
-# API directa (opcional): http://localhost:3001/api/metrics
+# UI + API. Acceso recomendado: http://bichipishi.local:${BICHI_WEB_PORT:-8080}
+# Añade en el sistema: 127.0.0.1 bichipishi.local  (ver README)
+# La API solo va por la red Docker + Nginx (/api); el puerto 3001 no se publica en el host.
 
 name: bichipishi
 
@@ -9,26 +8,32 @@ services:
   metrics:
     build: ./metrics-api
     container_name: bichipishi-metrics
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     environment:
       - NODE_ENV=production
-      # Mismo nombre que la UI (asuntos de correo, textos API). Opcional: .env → PUBLIC_BICHI_APP_NAME
       - BICHI_APP_NAME=${PUBLIC_BICHI_APP_NAME:-Bichipishi}
-      # Cron “real” en contenedor: fichero estilo crontab (edita ./config/cron.extra en el host).
       - CRON_EXTRA_FILE=/app/cron.extra
-      # Lista explícita (coma) o vacío para predeterminado: Linux/BSD/Windows '*' = servicios reales del SO.
-      # macOS: lista por patrones ps. Límite: BICHI_SERVICES_MAX=300
+      # Datos del PC real cuando la API corre en Docker (rellena en .env):
+      - BICHI_HOST_HOSTNAME=${BICHI_HOST_HOSTNAME:-}
+      - BICHI_HOST_DEVICE_NAME=${BICHI_HOST_DEVICE_NAME:-}
+      - BICHI_HOST_OS=${BICHI_HOST_OS:-}
+      - BICHI_MEM_TOTAL_GIB=${BICHI_MEM_TOTAL_GIB:-}
+      - BICHI_MEM_USED_GIB=${BICHI_MEM_USED_GIB:-}
+      - BICHI_HOST_UPTIME_SEC=${BICHI_HOST_UPTIME_SEC:-}
+      - BICHI_HOST_CPU_MODEL=${BICHI_HOST_CPU_MODEL:-}
+      - BICHI_HOST_CPU_CORES=${BICHI_HOST_CPU_CORES:-}
+      - OPENCLAW_LOG_PATH=${OPENCLAW_LOG_PATH:-}
+      - OPENCLAW_FORCE=${OPENCLAW_FORCE:-}
     volumes:
       - ./config/cron.extra:/app/cron.extra:ro
-      # SQLite rendimiento + settings: persisten al recrear el contenedor
       - bichi-api-data:/app/data
-    # Opcional: LOG_FILE, OPENCLAW_LOG_PATH, BICHI_DOCKER_SOCKET…
-    # Docker del host (métricas de contenedores): descomenta
-    #   - /var/run/docker.sock:/var/run/docker.sock
-    # Linux: crontab del host en /etc/crontab
-    #   - /etc/crontab:/etc/crontab:ro
-    # Windows (Docker Desktop): ruta del socket según tu cliente
+      # Motor Docker del anfitrión (contenedores reales en la UI)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Linux anfitrión: descomenta para identificar hostname y SO sin duplicarlos en .env
+      # (en Docker Desktop macOS/Windows suele ser el SO de la VM, no el del Mac/PC)
+      # - /etc/os-release:/host/etc/os-release:ro
+      # - /etc/hostname:/host/etc/hostname:ro
     restart: unless-stopped
 
   web:
@@ -40,12 +45,10 @@ services:
         PUBLIC_BICHI_AVATAR_URL: ${PUBLIC_BICHI_AVATAR_URL:-}
     container_name: bichipishi-web
     ports:
-      - "8080:80"
+      - "${BICHI_WEB_PORT:-8080}:80"
     environment:
-      # Sin rebuild: reinicia solo `web` tras cambiar .env (sobrescribe public/bichi-brand.js al arrancar).
       - PUBLIC_BICHI_APP_NAME=${PUBLIC_BICHI_APP_NAME:-}
       - PUBLIC_BICHI_AVATAR_URL=${PUBLIC_BICHI_AVATAR_URL:-}
-    # Forma corta: compatible con docker-compose antiguo y Docker Desktop actual.
     depends_on:
       - metrics
     restart: unless-stopped

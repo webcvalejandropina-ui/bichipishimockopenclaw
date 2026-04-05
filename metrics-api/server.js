@@ -96,6 +96,58 @@ const DIST_DIR = process.env.DIST_DIR || path.join(__dirname, '..', 'dist');
 const DATA_DIR = path.join(__dirname, 'data');
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
 
+/** La API en Docker ve el contenedor Linux, no el PC anfitrión. */
+function isRunningInDocker() {
+  try {
+    if (fs.existsSync('/.dockerenv')) return true;
+    const cg = fs.readFileSync('/proc/self/cgroup', 'utf8');
+    return /(docker|containerd|kubepods)/i.test(cg);
+  } catch {
+    return false;
+  }
+}
+
+function envTrim(key) {
+  return String(process.env[key] || '').trim();
+}
+
+/** PRETTY_NAME (o NAME+VERSION) desde os-release del anfitrión montado en el contenedor. */
+function readHostOsReleasePretty(filePath) {
+  if (!filePath) return '';
+  try {
+    if (!fs.existsSync(filePath)) return '';
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const m = {};
+    for (const line of raw.split(/\r?\n/)) {
+      const eq = line.indexOf('=');
+      if (eq <= 0) continue;
+      const k = line.slice(0, eq).trim();
+      let v = line.slice(eq + 1).trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      m[k] = v;
+    }
+    if (m.PRETTY_NAME) return String(m.PRETTY_NAME).trim();
+    const name = String(m.NAME || '').trim();
+    const ver = String(m.VERSION || m.VERSION_ID || '').trim();
+    if (name && ver) return `${name} ${ver}`;
+    return name || ver || '';
+  } catch {
+    return '';
+  }
+}
+
+/** Primera línea de /etc/hostname del anfitrión montado en el contenedor. */
+function readHostHostnameFile(filePath) {
+  if (!filePath) return '';
+  try {
+    if (!fs.existsSync(filePath)) return '';
+    const line = fs.readFileSync(filePath, 'utf8').split(/\r?\n/)[0];
+    return String(line || '').trim();
+  } catch {
+    return '';
+  }
+}
+
 const DEFAULT_SETTINGS = {
   thresholds: {
     diskWarn: 80,
@@ -442,6 +494,14 @@ function timed(promise, ms, fallback) {
 function checkOpenClawAvailable() {
   if (process.env.OPENCLAW_FORCE === '1') return true;
   if (process.env.OPENCLAW_FORCE === '0') return false;
+  const logPath = envTrim('OPENCLAW_LOG_PATH');
+  if (logPath) {
+    try {
+      if (fs.existsSync(logPath)) return true;
+    } catch {
+      /* ignore */
+    }
+  }
   const bin = String(process.env.OPENCLAW_BIN || process.env.OPENCLAW_BINARY || 'openclaw').trim() || 'openclaw';
   try {
     const r = spawnSync(bin, ['--version'], {
@@ -1065,6 +1125,10 @@ async function collectMetrics() {
   if (Number.isFinite(gibEnv) && gibEnv > 0) {
     mem.total = Math.round(gibEnv * 1024 ** 3);
   }
+  const usedGibEnv = Number.parseFloat(envTrim('BICHI_MEM_USED_GIB'), 10);
+  if (isRunningInDocker() && Number.isFinite(usedGibEnv) && usedGibEnv >= 0 && (mem.total || 0) > 0) {
+    mem.used = Math.min(mem.total, Math.round(usedGibEnv * 1024 ** 3));
+  }
   if ((mem.total || 0) > 0 && (mem.used || 0) > mem.total) {
     mem.used = mem.total;
   }
@@ -1078,8 +1142,8 @@ async function collectMetrics() {
     ? Math.min(100, Math.max(0, mainFs.use || ((mainFs.used / mainFs.size) * 100)))
     : 0;
 
-  const hostname = getTechnicalHostname(osInfo);
-  const deviceName = getDeviceDisplayName(osInfo) || hostname;
+  let hostname = getTechnicalHostname(osInfo);
+  let deviceName = getDeviceDisplayName(osInfo) || hostname;
   const hostIpv4 = mergeIpv4Lists(
     darwinIpconfigIpv4Fallback(),
     linuxDefaultRouteIpv4(),
@@ -1087,8 +1151,8 @@ async function collectMetrics() {
     collectHostIpv4FromSi(siNics),
     collectHostIpv4List(),
   );
-  const cpuBrand = (cpuData.brand || cpuData.manufacturer || 'CPU').trim();
-  const cores = cpuData.cores || cpuData.physicalCores || os.cpus().length || 1;
+  let cpuBrand = (cpuData.brand || cpuData.manufacturer || 'CPU').trim();
+  let cores = cpuData.cores || cpuData.physicalCores || os.cpus().length || 1;
 
   const load = normalizeLoad();
 
@@ -1127,6 +1191,44 @@ async function collectMetrics() {
   const dockerVolumesSafe = Array.isArray(dockerVolumes) ? dockerVolumes : [];
   const dockerImagesTotalBytes = dockerImagesSafe.reduce((s, im) => s + (im.size || 0), 0);
 
+  let hostOsLabel = formatHostOsLabel(osInfo);
+  let uptimeOut = Math.floor(os.uptime());
+  let hostMetricsNote = '';
+  if (isRunningInDocker()) {
+    const osRelFile =
+      envTrim('BICHI_HOST_OS_RELEASE_FILE') ||
+      (fs.existsSync('/host/etc/os-release') ? '/host/etc/os-release' : '');
+    const hnFile =
+      envTrim('BICHI_HOST_HOSTNAME_FILE') ||
+      (fs.existsSync('/host/etc/hostname') ? '/host/etc/hostname' : '');
+    const osFromHostFile = readHostOsReleasePretty(osRelFile);
+    const hnFromHostFile = readHostHostnameFile(hnFile);
+
+    const hHost = envTrim('BICHI_HOST_HOSTNAME');
+    const hDev = envTrim('BICHI_HOST_DEVICE_NAME');
+    const hOs = envTrim('BICHI_HOST_OS');
+    if (hHost) hostname = hHost;
+    else if (hnFromHostFile) hostname = hnFromHostFile;
+    if (hDev) deviceName = hDev;
+    else if (hHost) deviceName = hHost;
+    else if (hnFromHostFile) deviceName = hnFromHostFile;
+    if (hOs) hostOsLabel = hOs;
+    else if (osFromHostFile) hostOsLabel = osFromHostFile;
+    const upt = Number.parseInt(envTrim('BICHI_HOST_UPTIME_SEC'), 10);
+    if (Number.isFinite(upt) && upt >= 0) uptimeOut = upt;
+    const hCpu = envTrim('BICHI_HOST_CPU_MODEL');
+    if (hCpu) cpuBrand = hCpu;
+    const hCores = Number.parseInt(envTrim('BICHI_HOST_CPU_CORES'), 10);
+    if (Number.isFinite(hCores) && hCores > 0) cores = hCores;
+
+    const hasHostId = !!(hHost || hnFromHostFile);
+    const hasOsId = !!(hOs || osFromHostFile);
+    if (!hasHostId || !hasOsId) {
+      hostMetricsNote =
+        'API en Docker: equipo y SO suelen ser del contenedor. Rellena BICHI_HOST_HOSTNAME y BICHI_HOST_OS en .env, o en Linux monta /host/etc/hostname y /host/etc/os-release. RAM: BICHI_MEM_TOTAL_GIB. Ver README.';
+    }
+  }
+
   const userSettings = mergeWithDefaults(loadUserSettingsRaw());
   const { warnings, alerts } = buildThresholdAlerts(
     deviceName || hostname,
@@ -1149,8 +1251,6 @@ async function collectMetrics() {
     console.error('[bichi] perf sqlite:', e && e.message ? e.message : e);
   }
 
-  const hostOsLabel = formatHostOsLabel(osInfo);
-
   return {
     platform: process.platform,
     cpu: cpuPct,
@@ -1166,13 +1266,14 @@ async function collectMetrics() {
     hostOs: hostOsLabel,
     hostname,
     deviceName,
+    hostMetricsNote,
     hostIpv4,
     publicIp: String(publicIp || '').trim(),
     processCountTotal,
     cpuModel: cpuBrand,
     cpuCores: cores,
     load,
-    uptime: Math.floor(os.uptime()),
+    uptime: uptimeOut,
     timestamp: Date.now(),
     topCpu,
     services,
@@ -1475,6 +1576,18 @@ async function collectOpenClawFullSnapshot() {
       disabled: true,
       message: 'OPENCLAW_SNAPSHOT_DISABLE=1',
       openclawFill: fill,
+    };
+  }
+
+  if (!checkOpenClawAvailable()) {
+    return {
+      at: Date.now(),
+      available: false,
+      binary: getOpenClawBin(),
+      platform: process.platform,
+      probes: {},
+      openclawFill: null,
+      cronSystem: { jobs: [], hint: '' },
     };
   }
 
