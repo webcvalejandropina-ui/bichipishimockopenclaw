@@ -1,7 +1,6 @@
-# Normalmente NO hace falta copiar nada: bash scripts/bichi-docker-up.sh
-# ejecuta scripts/bichi-ensure-hosts.sh y escribe en /etc/hosts con sudo.
-#
-# Referencia manual (equivalente a lo que añade el script):
+# Opcional: el script node scripts/ensure-hosts.mjs escribe esto en hosts por ti.
+# Manual (mismo efecto que la segunda parte de BICHI_SITE_HOST):
 #   127.0.0.1 bichipishi.home
 #
-# Desactivar la sincronización automática: BICHI_SKIP_HOSTS=1 bash scripts/bichi-docker-up.sh
+# Sin tocar hosts ya puedes usar:
+#   http://bichipishi.127.0.0.1.nip.io/  (por defecto, primer nombre en site.env)

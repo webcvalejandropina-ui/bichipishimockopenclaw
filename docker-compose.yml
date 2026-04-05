@@ -1,7 +1,7 @@
-# UI en Docker + API en el host (puerto 3001). Dominio: config/site.env → BICHI_SITE_HOST (defecto bichipishi.home)
+# UI en Docker + API en el host (3001). Nginx hace proxy /api → host.docker.internal:3001
 #
-# Arranque: bash scripts/bichi-docker-up.sh
-# Hosts: 127.0.0.1 <primer host de BICHI_SITE_HOST>  (ver config/site.env)
+# Arranque (Windows/Mac/Linux): pnpm run bichi:up  — no basta solo "docker compose up"
+# Dominios: config/site.env → BICHI_SITE_HOST (defecto nip.io + bichipishi.home)
 #
 # Todo en Docker: docker-compose.full-docker.yml
 

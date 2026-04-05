@@ -1,23 +1,23 @@
-# Requiere Docker + bash (macOS/Linux). En Windows usa pnpm run docker:up o dos terminales (ver README).
+# Requiere Docker + Node. Mismo comando en Windows (PowerShell/CMD): pnpm run bichi:up
 .PHONY: install up down logs build-web dev help
 
 help:
-	@echo "make install   — .env si falta + bash scripts/bichi-docker-up.sh (API host + UI Docker)"
-	@echo "make up        — bash scripts/bichi-docker-up.sh"
-	@echo "make down      — bash scripts/bichi-docker-down.sh"
+	@echo "make install   — .env si falta + node scripts/bichi-up.mjs (API en el PC + UI Docker)"
+	@echo "make up        — node scripts/bichi-up.mjs"
+	@echo "make down      — node scripts/bichi-down.mjs"
 	@echo "make logs      — docker compose logs -f"
 	@echo "make build-web — docker compose build web"
 	@echo "make dev       — pnpm + API (ver README)"
 
 install:
 	@test -f .env || cp .env.example .env
-	bash scripts/bichi-docker-up.sh
+	node scripts/bichi-up.mjs
 
 up:
-	bash scripts/bichi-docker-up.sh
+	node scripts/bichi-up.mjs
 
 down:
-	bash scripts/bichi-docker-down.sh
+	node scripts/bichi-down.mjs
 
 logs:
 	docker compose logs -f
