@@ -13,7 +13,7 @@ function pickStr(x: unknown): string {
   return s;
 }
 
-/** Resuelve marca: runtime (Docker) > build (.env) > defecto. */
+/** Resuelve marca: runtime (bichi-brand.js) > build (.env) > defecto. */
 export function resolveBichiBrand(): ResolvedBichiBrand {
   if (typeof window === 'undefined') {
     return { appName: BICHI_DEFAULT_APP_NAME, avatarUrl: '' };

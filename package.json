@@ -2,7 +2,7 @@
   "name": "bichipishimockopenclaw",
   "version": "1.0.1",
   "private": true,
-  "description": "Bichipishi — dashboard de métricas del sistema (Astro + API Node). Repo público.",
+  "description": "Bichipishi — dashboard de métricas del sistema (Astro + API Node/Bun). Repo público.",
   "repository": {
     "type": "git",
     "url": "https://github.com/webcvalejandropina-ui/bichipishimockopenclaw.git"
@@ -11,24 +11,26 @@
     "url": "https://github.com/webcvalejandropina-ui/bichipishimockopenclaw/issues"
   },
   "homepage": "https://github.com/webcvalejandropina-ui/bichipishimockopenclaw#readme",
+  "workspaces": ["metrics-api"],
   "engines": {
     "node": ">=18.17.0"
   },
   "scripts": {
-    "start": "pnpm run dev",
-    "dev": "concurrently -k -n api,astro -c cyan,magenta \"pnpm run dev:api\" \"pnpm run dev:astro\"",
-    "dev:api": "node metrics-api/server.js",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:bun": "bun scripts/deploy.mjs",
+    "start": "bun metrics-api/server.js",
+    "start:node": "node metrics-api/server.js",
+    "dev": "bun scripts/dev.mjs",
+    "dev:node": "node scripts/dev.mjs",
+    "dev:api": "bun metrics-api/server.js",
     "dev:astro": "astro dev --host",
-    "build": "astro build",
-    "serve": "node metrics-api/server.js",
-    "preview": "pnpm run build && node metrics-api/server.js",
-    "bichi": "node scripts/bichi-up.mjs",
-    "bichi:up": "node scripts/bichi-up.mjs",
-    "bichi:down": "node scripts/bichi-down.mjs",
-    "docker:up": "node scripts/bichi-up.mjs",
-    "docker:down": "node scripts/bichi-down.mjs",
-    "docker:full-docker": "docker compose -f docker-compose.full-docker.yml up --build -d",
-    "docker:full-docker:down": "docker compose -f docker-compose.full-docker.yml down"
+    "hosts:check": "node scripts/check-bichipishi-host.mjs",
+    "proxy:dev": "caddy run --config ./config/caddy-bichipishi-dev.caddyfile",
+    "proxy:prod": "caddy run --config ./config/caddy-bichipishi-prod.caddyfile",
+    "build:astro": "astro build",
+    "build": "astro build && bun metrics-api/server.js",
+    "build:node": "astro build && node metrics-api/server.js",
+    "preview": "astro build && bun metrics-api/server.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
@@ -40,11 +42,5 @@
   "devDependencies": {
     "concurrently": "^9.2.1",
     "dotenv": "^16.6.1"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp"
-    ]
   }
 }

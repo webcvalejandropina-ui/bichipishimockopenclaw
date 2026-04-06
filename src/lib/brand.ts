@@ -3,7 +3,7 @@ export const BICHI_DEFAULT_APP_NAME = 'Bichipishi';
 
 /**
  * Marca embebida en el build (Astro / Vite).
- * En Docker, el contenedor web puede sobrescribir con `PUBLIC_*` al arrancar (`bichi-brand.js`).
+ * `public/bichi-brand.js` puede ajustarse en runtime si hace falta (marca).
  */
 export function getBuildBrand(): { appName: string; avatarUrl: string } {
   const appName =

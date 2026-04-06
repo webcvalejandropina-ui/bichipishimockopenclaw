@@ -1,0 +1,16 @@
+# 1) Dominio local (sin puerto en el navegador: http://bichipishi.home/ )
+#    Comprueba: bun run hosts:check
+#    Añade a /etc/hosts:
+#      sudo sh -c 'grep -q "bichipishi.home" /etc/hosts || echo "127.0.0.1 bichipishi.home" >> /etc/hosts'
+#
+#    Brave / Chrome: si sigue "DNS_PROBE" con el hosts bien, desactiva "DNS seguro"
+#    (Secure DNS) en Ajustes → Privacidad; si no, el navegador puede ignorar /etc/hosts.
+#
+# 2) Proxy en el puerto 80 (obligatorio para no poner :4322 ni :3001 en la URL):
+#      brew install caddy
+#      bun dev
+#      sudo caddy run --config ./config/caddy-bichipishi-dev.caddyfile
+#    Producción local (servidor ya en 3001):
+#      sudo caddy run --config ./config/caddy-bichipishi-prod.caddyfile
+#
+127.0.0.1 bichipishi.home

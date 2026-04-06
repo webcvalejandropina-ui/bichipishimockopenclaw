@@ -122,7 +122,8 @@ function bichiApiBaseUrl(): string {
 
 /**
  * Llama a la API: `PUBLIC_BICHI_API_URL` (producción en otro dominio), luego ruta relativa `/api/...`.
- * En build de producción (Docker + Nginx) solo esas dos: nunca se prueba `:3001` en el host del navegador,
+ * En build de producción (mismo origen vía metrics-api sirviendo dist/) solo esas dos;
+ * no se prueba `:3001` aparte salvo en dev:
  * porque ese puerto no está publicado y podría existir otra API en 127.0.0.1:3001 con datos distintos.
  * En `astro dev`, se añaden fallbacks a `host:3001` y loopback para la API en el PC.
  */
@@ -231,7 +232,7 @@ export function updateHeader(data: any) {
     if (text) text.textContent = hostOk ? labels[level] : '—';
     badge.title = hostOk
       ? `Estado del host: ${labels[level]} (CPU ${Math.round(cpu)}%)`
-      : 'Métricas del PC no disponibles: la API está en Docker sin datos del equipo. Usa pnpm bichi.';
+      : 'Métricas del PC no disponibles (API en contenedor sin identidad de host). Usa bun run deploy.';
   }
 
   const pill = document.getElementById('uptime-pill') as HTMLElement | null;

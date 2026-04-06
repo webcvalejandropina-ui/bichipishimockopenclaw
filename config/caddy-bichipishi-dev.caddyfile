@@ -1,0 +1,8 @@
+# Desarrollo: HTTP en el puerto 80 -> Astro (4322). /api lo proxea Vite a la metrics-api.
+# Requiere: brew install caddy  y  sudo (en macOS/Linux el puerto 80 suele ser privilegiado).
+# Arranque: sudo caddy run --config ./config/caddy-bichipishi-dev.caddyfile
+# (desde la raíz del repo, con bun dev ya en marcha)
+
+bichipishi.home:80 {
+	reverse_proxy 127.0.0.1:4322
+}

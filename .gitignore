@@ -1,8 +1,7 @@
-# Raíz: solo pnpm (pnpm-lock.yaml). Evita locks duplicados si alguien usa npm/bun por error.
-/package-lock.json
-bun.lock
+# Raíz: bun.lock y package-lock.json pueden convivir (Bun vs npm).
+/pnpm-lock.yaml
 
-# build output
+# build output (web estática servida por metrics-api)
 dist/
 
 # generated types
@@ -16,23 +15,23 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+bun-debug.log*
 
 # environment variables
 .env
 .env.production
 
-# script bichi-docker-up.sh (API en host)
-.bichi-api.pid
-.bichi-api.log
-
-# API: Docker usa npm ci + package-lock.json (no pnpm en metrics-api)
 metrics-api/pnpm-lock.yaml
+metrics-api/package-lock.json
 
-# credenciales / ajustes locales de la API + SQLite de rendimiento (generado en runtime)
-metrics-api/data/settings.json
-metrics-api/data/perf.sqlite
-metrics-api/data/perf.sqlite-shm
-metrics-api/data/perf.sqlite-wal
+# Datos persistentes (raíz del repo; SQLite + ajustes)
+/data/settings.json
+/data/perf.sqlite
+/data/perf.sqlite-shm
+/data/perf.sqlite-wal
+
+# Ubicación antigua (migración automática en deploy)
+metrics-api/data/
 
 # macOS-specific files
 .DS_Store

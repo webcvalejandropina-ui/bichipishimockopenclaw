@@ -1,49 +1,68 @@
 # Bichipishi
 
-Monitor en el navegador con **métricas reales de tu PC** (Windows, Mac o Linux).
+Monitor del sistema en el navegador con **métricas reales del equipo** donde corre la app.
 
 **Repo:** https://github.com/webcvalejandropina-ui/bichipishimockopenclaw
 
 ---
 
-## Uso normal (2 comandos)
+## Requisitos
 
-Necesitas **Docker Desktop** y **Node.js 18+**.
+- **[Bun](https://bun.sh) 1.1+** (Linux, macOS y Windows). Un solo runtime para la web (Astro), el script de deploy y la API.
+- Sin Docker: un solo proceso evita confundir métricas del contenedor con las del PC.
+
+---
+
+## Estructura del proyecto
+
+| Carpeta / archivo | Qué es |
+|-------------------|--------|
+| **`dist/`** | Web estática (`bun run build`). La sirve el mismo proceso que la API. |
+| **`metrics-api/`** | Servidor Bun: rutas `/api/...` + ficheros de `dist/`. |
+| **`data/`** | SQLite de rendimiento (`perf.sqlite`) y **`settings.json`**. Misma ruta en cada arranque salvo `BICHI_DATA_DIR`. |
+
+---
+
+## Ponerlo en marcha (recomendado)
 
 ```bash
-pnpm install
-pnpm bichi
+cp .env.example .env   # opcional
+bun install
+bun run deploy
 ```
 
-Abre **http://bichipishi.127.0.0.1.nip.io/** o **http://127.0.0.1/** (mismo puerto; si no es 80, añade `:PUERTO` del `.env`).
+**`bun run deploy`** hace, en orden: `bun install` (raíz + workspace `metrics-api`) → `bun run build` (Astro → `dist/`) → migra `metrics-api/data/*` a **`data/`** si aún no existen → arranca el servidor.
 
-**Parar:** `pnpm bichi:down`
+Abre **http://127.0.0.1:3001/** (o el puerto de `BICHI_API_PORT` en `.env`). Web y API van **en el mismo origen**.
 
-`pnpm bichi` arranca la **API en tu equipo** (puerto 3001) y la **web en Docker**. Si solo levantas contenedores sin ese comando, la web puede cargar **sin datos** o con datos que **no son tu Windows**.
+| Comando | Uso |
+|---------|-----|
+| **`bun start`** | Solo servidor (si ya construiste antes). |
+| **`bun run dev`** | Desarrollo: Astro en caliente + API en otro puerto. |
+
+---
+
+## Datos y consistencia
+
+- **SQLite** y **settings** viven en **`data/`** (ignorados por git salvo `data/.gitkeep`).
+- Si venías de una versión antigua con `metrics-api/data/`, el primer **`bun run deploy`** copia esos archivos a **`data/`** sin machacar los nuevos.
+
+---
+
+## Desarrollo sin `deploy`
+
+```bash
+bun run dev
+```
+
+Web en **http://localhost:4322**, API en **3001** (proxy de Vite).
 
 ---
 
 ## Windows
 
-Mismo flujo: **PowerShell** o **CMD**, `pnpm install`, `pnpm bichi`.  
-Si pide permisos para el archivo **hosts** (`bichipishi.home`), ejecuta la terminal **como administrador** una vez, o usa solo la URL **nip.io** de arriba.
+Instala Bun con el instalador oficial. Los scripts de `package.json` no dependen de bash: `bun run deploy`, `bun start` y `bun run dev` funcionan en PowerShell o CMD. Si el puerto está ocupado, el servidor muestra ayuda con `netstat` / `taskkill`.
 
 ---
 
-## No quiero “métricas falsas”
-
-Si la API corre **dentro de Docker** (`docker-compose.full-docker.yml`) **sin** rellenar en `.env` cosas como `BICHI_HOST_HOSTNAME` y `BICHI_HOST_OS`, el panel **no muestra** CPU/RAM/disco/procesos/servicios **como si fueran tu PC** (son del contenedor Linux). Sí puedes ver **contenedores Docker** reales vía el socket.
-
-Para ver **tu Windows/Mac/Linux de verdad:** usa **`pnpm bichi`** (recomendado).
-
----
-
-## Otros
-
-| Objetivo | Comando |
-|----------|---------|
-| Desarrollo (Astro + API) | `pnpm dev` |
-| Puerto 80 ocupado | En `.env`: `BICHI_WEB_PORT=8080` |
-| Sin tocar hosts | `BICHI_SKIP_HOSTS=1 pnpm bichi` o solo URL nip.io / 127.0.0.1 |
-
-No subas **`.env`**.
+No subas **`.env`** ni el contenido de **`data/`** con secretos.

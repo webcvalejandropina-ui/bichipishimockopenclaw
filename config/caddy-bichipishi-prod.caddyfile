@@ -1,0 +1,7 @@
+# Producción local: HTTP :80 -> servidor único (dist + API).
+# Exporta el puerto si no es 3001: export BICHI_API_PORT=3002
+#   sudo -E caddy run --config ./config/caddy-bichipishi-prod.caddyfile
+
+bichipishi.home:80 {
+	reverse_proxy 127.0.0.1:{$BICHI_API_PORT:3001}
+}

@@ -1,32 +1,25 @@
-# Requiere Docker + Node. Mismo comando en Windows (PowerShell/CMD): pnpm run bichi:up
-.PHONY: install up down logs build-web dev help
+# Sin Docker: web en dist/, API en metrics-api/, datos en data/. Requiere Bun.
+.PHONY: install deploy dev help proxy-dev proxy-prod
 
 help:
-	@echo "make install   — .env si falta + node scripts/bichi-up.mjs (API en el PC + UI Docker)"
-	@echo "make up        — node scripts/bichi-up.mjs"
-	@echo "make down      — node scripts/bichi-down.mjs"
-	@echo "make logs      — docker compose logs -f"
-	@echo "make build-web — docker compose build web"
-	@echo "make dev       — pnpm + API (ver README)"
+	@echo "make install — .env si falta + bun run deploy"
+	@echo "make deploy  — bun run deploy (build + servidor)"
+	@echo "make dev     — bun run dev"
+	@echo "make proxy-dev  — sudo caddy :80 -> Astro (tras make dev)"
+	@echo "make proxy-prod — sudo caddy :80 -> API (tras servidor en 3001)"
 
 install:
 	@test -f .env || cp .env.example .env
-	node scripts/bichi-up.mjs
+	bun run deploy
 
-up:
-	node scripts/bichi-up.mjs
-
-down:
-	node scripts/bichi-down.mjs
-
-logs:
-	docker compose logs -f
-
-build-web:
-	docker compose build web
+deploy:
+	bun run deploy
 
 dev:
-	@command -v pnpm >/dev/null || { echo "Instala pnpm (corepack enable)"; exit 1; }
-	pnpm install
-	cd metrics-api && npm install
-	cd .. && pnpm dev
+	bun run dev
+
+proxy-dev:
+	sudo caddy run --config ./config/caddy-bichipishi-dev.caddyfile
+
+proxy-prod:
+	sudo caddy run --config ./config/caddy-bichipishi-prod.caddyfile

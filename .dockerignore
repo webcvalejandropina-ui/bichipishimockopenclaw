@@ -1,8 +1,0 @@
-node_modules
-dist
-.astro
-.git
-.gitignore
-**/.DS_Store
-*.md
-metrics-api/node_modules

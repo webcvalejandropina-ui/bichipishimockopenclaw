@@ -1,16 +1,56 @@
 /**
  * Histórico de rendimiento (CPU/RAM/disco) por día en SQLite.
- * Mantiene ≥7 días consultables; conserva hasta ~120 días.
+ * Con Bun usa bun:sqlite; con Node usa better-sqlite3 (Linux, macOS, Windows).
  */
 
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
 
 const RETENTION_DAYS = 120;
 const MIN_QUERY_DAYS = 7;
 
+const isBun = Boolean(process.versions.bun);
+
 let db;
+
+function openAdapter(file) {
+  if (isBun) {
+    const { Database } = require('bun:sqlite');
+    const raw = new Database(file, { create: true });
+    raw.exec('PRAGMA journal_mode = WAL;');
+    return {
+      exec(sql) {
+        raw.exec(sql);
+      },
+      run(sql, ...params) {
+        raw.run(sql, ...params);
+      },
+      get(sql, ...params) {
+        return raw.query(sql).get(...params);
+      },
+      all(sql, ...params) {
+        return raw.query(sql).all(...params);
+      },
+    };
+  }
+  const BetterSqlite = require('better-sqlite3');
+  const raw = new BetterSqlite(file);
+  raw.pragma('journal_mode = WAL');
+  return {
+    exec(sql) {
+      raw.exec(sql);
+    },
+    run(sql, ...params) {
+      raw.prepare(sql).run(...params);
+    },
+    get(sql, ...params) {
+      return raw.prepare(sql).get(...params);
+    },
+    all(sql, ...params) {
+      return raw.prepare(sql).all(...params);
+    },
+  };
+}
 
 function localDayKey(d = new Date()) {
   const y = d.getFullYear();
@@ -23,9 +63,8 @@ function openDb(dataDir) {
   if (db) return db;
   fs.mkdirSync(dataDir, { recursive: true });
   const file = path.join(dataDir, 'perf.sqlite');
-  db = new Database(file);
-  db.pragma('journal_mode = WAL');
-  db.exec(`
+  const a = openAdapter(file);
+  a.exec(`
     CREATE TABLE IF NOT EXISTS perf_daily (
       day TEXT PRIMARY KEY,
       samples INTEGER NOT NULL,
@@ -38,12 +77,13 @@ function openDb(dataDir) {
       last_at INTEGER NOT NULL
     );
   `);
+  db = a;
   return db;
 }
 
 function pruneOlderThan(dataDir, cutoffDayStr) {
   const database = openDb(dataDir);
-  database.prepare('DELETE FROM perf_daily WHERE day < ?').run(cutoffDayStr);
+  database.run('DELETE FROM perf_daily WHERE day < ?', cutoffDayStr);
 }
 
 /**
@@ -56,34 +96,37 @@ function recordPerfDailySample(dataDir, cpu, mem, disk) {
   const m = Math.min(100, Math.max(0, Number(mem) || 0));
   const d = Math.min(100, Math.max(0, Number(disk) || 0));
   const now = Date.now();
-  const row = database.prepare('SELECT * FROM perf_daily WHERE day = ?').get(day);
+  const row = database.get('SELECT * FROM perf_daily WHERE day = ?', day);
   if (!row) {
-    database
-      .prepare(
-        `INSERT INTO perf_daily (day, samples, sum_cpu, max_cpu, sum_mem, max_mem, sum_disk, max_disk, last_at)
-         VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(day, c, c, m, m, d, d, now);
+    database.run(
+      `INSERT INTO perf_daily (day, samples, sum_cpu, max_cpu, sum_mem, max_mem, sum_disk, max_disk, last_at)
+       VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+      day,
+      c,
+      c,
+      m,
+      m,
+      d,
+      d,
+      now,
+    );
   } else {
     const samples = row.samples + 1;
-    database
-      .prepare(
-        `UPDATE perf_daily SET
-          samples = ?, sum_cpu = ?, max_cpu = ?, sum_mem = ?, max_mem = ?,
-          sum_disk = ?, max_disk = ?, last_at = ?
-         WHERE day = ?`,
-      )
-      .run(
-        samples,
-        row.sum_cpu + c,
-        Math.max(row.max_cpu, c),
-        row.sum_mem + m,
-        Math.max(row.max_mem, m),
-        row.sum_disk + d,
-        Math.max(row.max_disk, d),
-        now,
-        day,
-      );
+    database.run(
+      `UPDATE perf_daily SET
+        samples = ?, sum_cpu = ?, max_cpu = ?, sum_mem = ?, max_mem = ?,
+        sum_disk = ?, max_disk = ?, last_at = ?
+       WHERE day = ?`,
+      samples,
+      row.sum_cpu + c,
+      Math.max(row.max_cpu, c),
+      row.sum_mem + m,
+      Math.max(row.max_mem, m),
+      row.sum_disk + d,
+      Math.max(row.max_disk, d),
+      now,
+      day,
+    );
   }
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - RETENTION_DAYS);
@@ -97,12 +140,11 @@ function queryPerfDailyJson(dataDir, requestedDays) {
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - days);
   const startStr = localDayKey(start);
-  const rows = database
-    .prepare(
-      `SELECT day, samples, sum_cpu, max_cpu, sum_mem, max_mem, sum_disk, max_disk, last_at
-       FROM perf_daily WHERE day >= ? ORDER BY day DESC`,
-    )
-    .all(startStr);
+  const rows = database.all(
+    `SELECT day, samples, sum_cpu, max_cpu, sum_mem, max_mem, sum_disk, max_disk, last_at
+     FROM perf_daily WHERE day >= ? ORDER BY day DESC`,
+    startStr,
+  );
   const out = {};
   for (const r of rows) {
     out[r.day] = {

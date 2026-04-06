@@ -1,6 +1,0 @@
-# Opcional: el script node scripts/ensure-hosts.mjs escribe esto en hosts por ti.
-# Manual (mismo efecto que la segunda parte de BICHI_SITE_HOST):
-#   127.0.0.1 bichipishi.home
-#
-# Sin tocar hosts ya puedes usar:
-#   http://bichipishi.127.0.0.1.nip.io/  (por defecto, primer nombre en site.env)

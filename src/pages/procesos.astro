@@ -86,7 +86,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
           const note =
             typeof d.hostMetricsNote === 'string' && d.hostMetricsNote.trim()
               ? d.hostMetricsNote.trim()
-              : 'Con la API en Docker sin datos del equipo no listamos procesos como si fueran de tu PC. Usa pnpm bichi.';
+              : 'Con la API en contenedor sin datos del equipo no listamos procesos como los del host. Usa bun run deploy.';
           $('proc-table-wrap').innerHTML = `<div class="page-empty" style="white-space:pre-line">${escHtml(note)}</div>`;
           dataLoaded = false;
           return;

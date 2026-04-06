@@ -13,6 +13,9 @@ const apiPort =
   process.env.PUBLIC_BICHI_API_PORT ||
   '3001';
 const apiProxyTarget = `http://127.0.0.1:${String(apiPort).trim()}`;
+const publicHost = String(process.env.BICHI_PUBLIC_HOST || 'bichipishi.home').trim() || 'bichipishi.home';
+/** Puerto que ve el navegador para HMR (80 con Caddy; 4322 si entras solo por Astro). */
+const hmrClientPort = Number.parseInt(String(process.env.BICHI_HMR_CLIENT_PORT || '80'), 10) || 80;
 
 export default defineConfig({
   server: {
@@ -23,6 +26,12 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     server: {
+      allowedHosts: [publicHost, 'localhost', '127.0.0.1'],
+      hmr: {
+        protocol: 'ws',
+        host: publicHost,
+        clientPort: hmrClientPort,
+      },
       proxy: {
         '/api': {
           target: apiProxyTarget,

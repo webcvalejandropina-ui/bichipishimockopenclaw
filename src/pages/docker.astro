@@ -296,7 +296,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         if (!filtered.length) {
           const msg =
             allImgs.length === 0
-              ? 'No hay imágenes en la respuesta de la API (reinicia metrics-api y comprueba Docker).'
+              ? 'No hay imágenes en la respuesta de la API (reinicia el servidor y comprueba Docker).'
               : 'Sin imágenes que coincidan';
           grid.innerHTML = `<div class="page-empty" style="grid-column:1/-1">${msg}</div>`;
           return;
@@ -337,7 +337,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         if (!filtered.length) {
           const msg =
             allVols.length === 0
-              ? 'No hay volúmenes en la respuesta de la API (reinicia metrics-api y comprueba Docker).'
+              ? 'No hay volúmenes en la respuesta de la API (reinicia el servidor y comprueba Docker).'
               : 'Sin volúmenes que coincidan';
           grid.innerHTML = `<div class="page-empty" style="grid-column:1/-1">${msg}</div>`;
           return;

@@ -5,7 +5,8 @@
   "description": "API HTTP: métricas del host (systeminformation) y logs opcionales desde archivo/journalctl",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:bun": "bun server.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",

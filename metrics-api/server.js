@@ -11,8 +11,11 @@ const cronParser = require('cron-parser');
 const { recordPerfDailySample, queryPerfDailyJson } = require('./perf-db');
 
 const PORT = Number.parseInt(process.env.BICHI_API_PORT || process.env.PORT || '3001', 10) || 3001;
-/** Nombre de la app (UI, correos, textos). En Docker: misma variable que PUBLIC_BICHI_APP_NAME en compose. */
+/** Nombre de la app (UI, correos, textos). Opcional: BICHI_APP_NAME o PUBLIC_BICHI_APP_NAME en .env */
 const APP_DISPLAY_NAME = String(process.env.BICHI_APP_NAME || '').trim() || 'Bichipishi';
+/** URL amigable en consola; override con BICHI_PUBLIC_HOST. En local suele hacer falta /etc/hosts (config/bichipishi.hosts). */
+const PUBLIC_HOST_HINT =
+  String(process.env.BICHI_PUBLIC_HOST || 'bichipishi.home').trim() || 'bichipishi.home';
 /** Procesos devueltos en `topCpu` (ordenados por % CPU); el total real va en `processCountTotal`. */
 const TOP_CPU_PROCESSES = 48;
 /** Origen permitido CORS (ej. https://tudominio.pages.dev). Por defecto * (solo recomendado en LAN/dev). */
@@ -92,9 +95,17 @@ function corsHeaders(extra = {}) {
     ...extra,
   };
 }
-const DIST_DIR = process.env.DIST_DIR || path.join(__dirname, '..', 'dist');
-const DATA_DIR = path.join(__dirname, 'data');
+const REPO_ROOT = path.join(__dirname, '..');
+const DIST_DIR = process.env.DIST_DIR || path.join(REPO_ROOT, 'dist');
+/** SQLite (perf) + settings.json: raíz del repo por defecto (`data/`), consistente con `bun run deploy`. */
+const DATA_DIR = process.env.BICHI_DATA_DIR || path.join(REPO_ROOT, 'data');
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
+
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+} catch (e) {
+  console.error('[bichi] no se pudo crear DATA_DIR:', DATA_DIR, e && e.message ? e.message : e);
+}
 
 /** La API en Docker ve el contenedor Linux, no el PC anfitrión. */
 function isRunningInDocker() {
@@ -1234,7 +1245,7 @@ async function collectMetrics() {
     misleadingDocker = !hasHostId || !hasOsId;
     if (misleadingDocker) {
       hostMetricsNote =
-        'La API corre en un contenedor Linux: aquí no mostramos CPU/RAM/disco como si fueran tu PC. Para métricas reales en Windows/Mac: pnpm bichi (API en el host). Modo «todo Docker» solo para servidor o si rellenas BICHI_HOST_HOSTNAME y BICHI_HOST_OS en .env.';
+        'La API corre en un contenedor Linux: aquí no mostramos CPU/RAM/disco como si fueran tu PC. Para métricas reales: ejecuta la API en el host (bun run deploy o bun start desde el repo).';
     }
   }
 
@@ -1329,7 +1340,7 @@ function systemLogsEmptyHint() {
   if (process.platform === 'darwin') {
     return 'En macOS no hay journalctl por defecto. Define LOG_FILE (p. ej. /var/log/system.log o un log propio) o monta un archivo en Docker.';
   }
-  return 'Sin LOG_FILE: en Linux usa journald, instala journalctl en el contenedor o monta un archivo de log (véase docker-compose).';
+  return 'Sin LOG_FILE: en Linux usa journald o monta un archivo de log (véase README).';
 }
 
 function readTailLines(filePath, maxLines) {
@@ -1770,8 +1781,18 @@ function listEtcCrontabLines() {
   }
 }
 
+/** Rutas relativas respecto a la raíz del repo (no al cwd), para que funcione con deploy/cron desde metrics-api/. */
+function resolveCronExtraFilePath() {
+  const raw = envTrim('CRON_EXTRA_FILE');
+  if (raw) {
+    return path.isAbsolute(raw) ? raw : path.join(REPO_ROOT, raw);
+  }
+  const def = path.join(REPO_ROOT, 'config', 'cron.extra');
+  return fs.existsSync(def) ? def : '';
+}
+
 function listExtraCronFileLines() {
-  const p = process.env.CRON_EXTRA_FILE;
+  const p = resolveCronExtraFilePath();
   if (!p || !fs.existsSync(p)) return [];
   try {
     return fs.readFileSync(p, 'utf8').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -1786,12 +1807,16 @@ function occurrencesForMonth(expr, year, month1to12) {
   const start = new Date(year, m0, 1, 0, 0, 0, 0);
   const end = new Date(year, m0 + 1, 0, 23, 59, 59, 999);
   const out = new Set();
+  /* Hasta ~31×24×60 disparos/mes (cada minuto); 400 cortaba @hourly a ~16 días. */
+  const maxSteps = Math.min(120_000, Math.max(5000, end.getDate() * 24 * 60 + 500));
   try {
     const interval = cronParser.parseExpression(expr, { currentDate: start });
     let n = 0;
-    while (n++ < 400) {
-      const next = interval.next();
-      const d = next.toDate();
+    while (n++ < maxSteps) {
+      const step = interval.next();
+      const cronDate = step && typeof step.toDate === 'function' ? step : step && step.value;
+      if (!cronDate || typeof cronDate.toDate !== 'function') break;
+      const d = cronDate.toDate();
       if (d > end) break;
       if (d >= start) out.add(ymdLocal(d));
     }
@@ -2185,8 +2210,9 @@ server.on('error', (err) => {
   if (err && err.code === 'EADDRINUSE') {
     console.error(
       `\nPuerto ${PORT} en uso. Cierra el otro proceso (p. ej. otra metrics-api) o usa otro puerto:\n` +
-        `  BICHI_API_PORT=3002 pnpm run dev\n` +
-        `  macOS/Linux: lsof -i :${PORT}  →  kill <PID>\n`,
+        `  BICHI_API_PORT=3002 bun run dev\n` +
+        `  macOS/Linux: lsof -i :${PORT}  →  kill <PID>\n` +
+        `  Windows: netstat -ano | findstr :${PORT}  →  taskkill /PID <pid> /F\n`,
     );
     process.exit(1);
   }
@@ -2194,13 +2220,19 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Métricas API http://0.0.0.0:${PORT}`);
+  const distOk = fs.existsSync(path.join(DIST_DIR, 'index.html'));
+  console.log(`Bichipishi http://127.0.0.1:${PORT}/  (acceso directo al proceso)`);
+  if (PUBLIC_HOST_HINT) {
+    console.log(`           http://${PUBLIC_HOST_HINT}/  (puerto 80; Caddy: config/caddy-bichipishi-prod.caddyfile)`);
+  }
+  console.log(`  Web estática: ${DIST_DIR}${distOk ? '' : ' (ejecuta bun run build:astro antes)'}`);
+  console.log(`  Datos: ${DATA_DIR}`);
   console.log(
-    `  GET /api/metrics  GET /api/openclaw  GET /api/logs  GET /api/cron?year=&month=  GET|POST /api/settings  POST /api/settings/test-mail`,
+    `  API: /api/metrics · /api/openclaw · /api/logs · /api/cron · /api/settings · /api/perf/daily`,
   );
-  console.log(`  CORS Access-Control-Allow-Origin: ${CORS_ORIGIN} (ajusta BICHI_CORS_ORIGIN en producción)`);
-  if (SETTINGS_WRITE_DISABLED) console.log('  Escritura de ajustes: DESACTIVADA (BICHI_DISABLE_SETTINGS_WRITE=1)');
-  else if (SETTINGS_WRITE_TOKEN) console.log('  Escritura de ajustes: requiere BICHI_SETTINGS_TOKEN');
+  console.log(`  CORS: ${CORS_ORIGIN} (producción: BICHI_CORS_ORIGIN)`);
+  if (SETTINGS_WRITE_DISABLED) console.log('  Ajustes POST: desactivados (BICHI_DISABLE_SETTINGS_WRITE=1)');
+  else if (SETTINGS_WRITE_TOKEN) console.log('  Ajustes POST: requieren BICHI_SETTINGS_TOKEN');
 });
 
 module.exports = server;

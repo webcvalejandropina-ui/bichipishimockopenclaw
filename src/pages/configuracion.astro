@@ -11,7 +11,7 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
     <div class="page-header">
       <h2 class="page-title">Configuración</h2>
       <p class="page-desc">
-        Ajustes persistidos por la API en <code>metrics-api/data/settings.json</code> (umbrales y SMTP). No subas credenciales a repositorios públicos.
+        Ajustes persistidos por la API en <code>data/settings.json</code> (umbrales y SMTP). No subas credenciales a repositorios públicos.
       </p>
     </div>
 
@@ -187,7 +187,7 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
             El fichero de ajustes puede contener contraseñas SMTP. Restringe permisos en el servidor (p. ej. solo el usuario que ejecuta la API) y usa contraseñas de aplicación si tu proveedor lo ofrece.
           </p>
           <p class="cfg-legal">
-            Ruta por defecto: <code class="cfg-code">metrics-api/data/settings.json</code>
+            Ruta por defecto: <code class="cfg-code">data/settings.json</code> (raíz del repo; override con <code class="cfg-code">BICHI_DATA_DIR</code>)
             — añádela a <code class="cfg-code">.gitignore</code> si aún no está ignorada.
           </p>
         </div>
@@ -577,7 +577,7 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
             setFlash(
               true,
               'err',
-              'No hay API de ajustes: estás viendo valores por defecto. Arranca metrics-api (puerto 3001), usa npm run dev, y pulsa Recargar.',
+              'No hay API de ajustes: estás viendo valores por defecto. Arranca el servidor (bun start o bun run deploy) y pulsa Recargar.',
             );
           }
         })
