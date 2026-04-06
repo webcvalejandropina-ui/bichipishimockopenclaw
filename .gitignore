@@ -1,5 +1,4 @@
-# Raíz: bun.lock y package-lock.json pueden convivir (Bun vs npm).
-/pnpm-lock.yaml
+# Raíz: bun.lock, pnpm-lock.yaml y package-lock.json pueden convivir (Bun / pnpm / npm).
 
 # build output (web estática servida por metrics-api)
 dist/

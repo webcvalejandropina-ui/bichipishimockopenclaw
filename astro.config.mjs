@@ -14,10 +14,13 @@ const apiPort =
   '3001';
 const apiProxyTarget = `http://127.0.0.1:${String(apiPort).trim()}`;
 const publicHost = String(process.env.BICHI_PUBLIC_HOST || 'bichipishi.home').trim() || 'bichipishi.home';
+/** Origen público del sitio (sin barra final). Canonical URLs y `import.meta.env.SITE`. */
+const siteOrigin = String(process.env.PUBLIC_BICHI_SITE_URL || `http://${publicHost}`).replace(/\/$/, '');
 /** Puerto que ve el navegador para HMR (80 con Caddy; 4322 si entras solo por Astro). */
 const hmrClientPort = Number.parseInt(String(process.env.BICHI_HMR_CLIENT_PORT || '80'), 10) || 80;
 
 export default defineConfig({
+  site: siteOrigin,
   server: {
     host: true,
     port: 4322,

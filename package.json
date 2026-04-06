@@ -13,24 +13,25 @@
   "homepage": "https://github.com/webcvalejandropina-ui/bichipishimockopenclaw#readme",
   "workspaces": ["metrics-api"],
   "engines": {
-    "node": ">=18.17.0"
+    "node": ">=18.20.8"
   },
   "scripts": {
-    "deploy": "node scripts/deploy.mjs",
+    "deploy": "bun scripts/deploy.mjs",
+    "deploy:node": "node scripts/deploy.mjs",
     "deploy:bun": "bun scripts/deploy.mjs",
     "start": "bun metrics-api/server.js",
     "start:node": "node metrics-api/server.js",
     "dev": "bun scripts/dev.mjs",
     "dev:node": "node scripts/dev.mjs",
     "dev:api": "bun metrics-api/server.js",
-    "dev:astro": "astro dev --host",
+    "dev:astro": "bun ./node_modules/astro/astro.js dev --host",
     "hosts:check": "node scripts/check-bichipishi-host.mjs",
     "proxy:dev": "caddy run --config ./config/caddy-bichipishi-dev.caddyfile",
     "proxy:prod": "caddy run --config ./config/caddy-bichipishi-prod.caddyfile",
-    "build:astro": "astro build",
-    "build": "astro build && bun metrics-api/server.js",
-    "build:node": "astro build && node metrics-api/server.js",
-    "preview": "astro build && bun metrics-api/server.js"
+    "build:astro": "bun ./node_modules/astro/astro.js build",
+    "build": "bun run build:astro && bun metrics-api/server.js",
+    "build:node": "bun run build:astro && node metrics-api/server.js",
+    "preview": "bun run build:astro && bun metrics-api/server.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

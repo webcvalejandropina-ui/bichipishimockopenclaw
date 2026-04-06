@@ -3,8 +3,13 @@
  * Imported by page scripts via Astro's <script> bundling.
  */
 
-export function statusColor(v: number, type: 'cpu' | 'mem' | 'disk' = 'cpu'): string {
-  const t = type === 'mem' ? { warn: 70, crit: 90 } : type === 'disk' ? { warn: 80, crit: 95 } : { warn: 60, crit: 85 };
+export function statusColor(v: number, type: 'cpu' | 'mem' | 'disk' | 'gpu' = 'cpu'): string {
+  const t =
+    type === 'mem'
+      ? { warn: 70, crit: 90 }
+      : type === 'disk'
+        ? { warn: 80, crit: 95 }
+        : { warn: 60, crit: 85 };
   if (v >= t.crit) return '#fb7185';
   if (v >= t.warn) return '#facc15';
   return '#4ade80';

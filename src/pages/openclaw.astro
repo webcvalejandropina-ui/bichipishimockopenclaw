@@ -1,265 +1,682 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import pineappleImg from '../assets/pineapple.png';
+import { getBuildBrand } from '../lib/brand';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { RefreshCw, Bot } from 'lucide';
+import { RefreshCw, Clock, Terminal, Braces, CalendarDays, Files, Package, BookOpen } from 'lucide';
 
-const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
-const iBot = iconToSvg(Bot, { width: 22, height: 22 });
+const brand = getBuildBrand();
+const avatarSrc = brand.avatarUrl || pineappleImg.src;
+const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 20, height: 20 });
+const iClock = iconToSvg(Clock, { width: 14, height: 14 });
+const iTerm = iconToSvg(Terminal, { width: 18, height: 18 });
+const iBrace = iconToSvg(Braces, { width: 18, height: 18 });
+const iClockBadge = iconToSvg(Clock, { width: 18, height: 18 });
+const iCal = iconToSvg(CalendarDays, { width: 18, height: 18 });
+const iKpiWs = iconToSvg(Files, { width: 20, height: 20 });
+const iKpiSkills = iconToSvg(Package, { width: 20, height: 20 });
+const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
 ---
 <Layout activePage="openclaw">
-  <div class="wrapper oc-page">
-    <div id="oc-chrome" hidden>
-      <div class="oc-top">
-        <div class="page-header oc-header">
-          <div class="oc-title-row">
-            <span class="oc-title-icon" set:html={iBot} aria-hidden="true" />
-            <div>
-              <h2 class="page-title">OpenClaw</h2>
-              <p class="page-desc">
-                Vista consolidada: salida del CLI (<code>openclaw</code> con <code>--json</code> donde aplica), cron del host
-                (misma fuente que <code>/api/cron</code>) y diagnósticos. Override del binario:
-                <code>OPENCLAW_BIN</code>. Desactivar sondas: <code>OPENCLAW_SNAPSHOT_DISABLE=1</code>. Quitar el bloque de
-                personalidad de ejemplo: <code>OPENCLAW_DEMO_FILL=0</code>.
-              </p>
+  <div class="wrapper wrapper--dashboard openclaw-page">
+    <h1 class="sr-only">OpenClaw</h1>
+
+    <div id="oc-chrome">
+      <section class="dashboard-metrics-bar" aria-label="Resumen OpenClaw">
+        <div class="dashboard-metrics-bar__main">
+          <div class="quick-badges" id="oc-meta">
+            <div class="q-badge q-badge--accent">
+              <span class="q-badge-icon" set:html={iTerm} aria-hidden="true" />
+              <span class="q-badge-stack">
+                <span class="q-badge-name">CLI</span>
+                <strong id="ocm-available" class="skeleton q-badge-val">—</strong>
+              </span>
+            </div>
+            <div class="q-badge">
+              <span class="q-badge-icon" set:html={iBrace} aria-hidden="true" />
+              <span class="q-badge-stack">
+                <span class="q-badge-name">Binario</span>
+                <strong id="ocm-binary" class="skeleton q-badge-val oc-meta-bin">—</strong>
+              </span>
+            </div>
+            <div class="q-badge">
+              <span class="q-badge-icon" set:html={iClockBadge} aria-hidden="true" />
+              <span class="q-badge-stack">
+                <span class="q-badge-name">Captura</span>
+                <strong id="ocm-at" class="skeleton q-badge-val">—</strong>
+              </span>
+            </div>
+            <div class="q-badge">
+              <span class="q-badge-icon" set:html={iCal} aria-hidden="true" />
+              <span class="q-badge-stack">
+                <span class="q-badge-name">Cron host</span>
+                <strong id="ocm-cron" class="skeleton q-badge-val">—</strong>
+              </span>
+            </div>
+          </div>
+          <div class="kpi-strip" id="oc-kpi-strip" aria-label="Resumen instalación en disco">
+            <div class="kpi">
+              <span class="kpi-icon" set:html={iKpiWs} aria-hidden="true" />
+              <div class="kpi-body">
+                <div class="kpi-row-main">
+                  <span class="kpi-value skeleton" id="oc-kpi-ws">—</span>
+                  <span class="kpi-title">Workspace MD</span>
+                </div>
+                <p class="kpi-meta" id="oc-kpi-ws-meta">Con contenido / total</p>
+              </div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-icon" set:html={iKpiSkills} aria-hidden="true" />
+              <div class="kpi-body">
+                <div class="kpi-row-main">
+                  <span class="kpi-value skeleton" id="oc-kpi-skills">—</span>
+                  <span class="kpi-title">Skills</span>
+                </div>
+                <p class="kpi-meta" id="oc-kpi-skills-meta">Carpetas en skills/</p>
+              </div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-icon" set:html={iKpiDocs} aria-hidden="true" />
+              <div class="kpi-body">
+                <div class="kpi-row-main">
+                  <span class="kpi-value skeleton" id="oc-kpi-docs">—</span>
+                  <span class="kpi-title">Docs</span>
+                </div>
+                <p class="kpi-meta" id="oc-kpi-docs-meta">Ficheros indexados</p>
+              </div>
             </div>
           </div>
         </div>
-        <button type="button" class="page-filter-btn oc-refresh" id="oc-snap-refresh" style="display:flex;align-items:center;gap:6px">
-          <span set:html={iRefresh} /> Actualizar todo
+        <button type="button" class="dashboard-refresh-btn" id="oc-snap-refresh" title="Actualizar snapshot" aria-label="Actualizar snapshot">
+          <span set:html={iRefresh} aria-hidden="true" />
         </button>
-      </div>
+      </section>
 
-      <div class="oc-meta-strip page-stat-strip" id="oc-meta">
-        <div class="page-stat">
-          <span class="page-stat-value skeleton" id="ocm-available">—</span>
-          <span class="page-stat-label">CLI detectada</span>
-        </div>
-        <div class="page-stat">
-          <span class="page-stat-value skeleton oc-meta-bin" id="ocm-binary">—</span>
-          <span class="page-stat-label">Binario</span>
-        </div>
-        <div class="page-stat">
-          <span class="page-stat-value skeleton" id="ocm-at">—</span>
-          <span class="page-stat-label">Última captura</span>
-        </div>
-        <div class="page-stat">
-          <span class="page-stat-value skeleton" id="ocm-cron">—</span>
-          <span class="page-stat-label">Jobs cron host</span>
+      <div class="card dashboard-alerts-card openclaw-banner openclaw-banner--hidden" id="oc-global-msg" role="status">
+        <div class="dash-alert dash-alert--warning openclaw-banner-inner">
+          <span class="openclaw-banner-dot" aria-hidden="true"></span>
+          <p class="dash-alert-detail openclaw-banner-text" id="oc-global-msg-text"></p>
         </div>
       </div>
 
-      <p class="oc-hint" id="oc-global-msg" hidden></p>
+      <div class="dashboard-grid openclaw-bento-hero">
+        <div class={`card profile-card profile-card--loading${customAvatarClass}`} id="card-profile" aria-busy="true">
+          <div class="pine-avatar-wrap" id="pine-avatar-wrap" data-mood="ok">
+            <div class="pine-load-ring" aria-hidden="true"></div>
+            <div class="pine-glow"></div>
+            <img
+              src={avatarSrc}
+              alt={brand.appName}
+              class="pine-avatar"
+              id="pine-avatar"
+              data-mood="ok"
+              width="280"
+              height="280"
+              decoding="async"
+              fetchpriority="high"
+            />
+            <div class="pine-mouth" id="pine-mouth" data-mood="ok">
+              <svg viewBox="0 0 40 20" xmlns="http://www.w3.org/2000/svg">
+                <path class="mouth-happy" d="M 8 7 Q 20 17 32 7" stroke="#5D4037" stroke-width="2.5" fill="none" stroke-linecap="round"></path>
+                <path class="mouth-neutral" d="M 10 11 Q 20 11 30 11" stroke="#5D4037" stroke-width="2.5" fill="none" stroke-linecap="round"></path>
+                <path class="mouth-sad" d="M 10 15 Q 20 7 30 15" stroke="#5D4037" stroke-width="2.5" fill="none" stroke-linecap="round"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="profile-info">
+            <h2 class="profile-name" id="profile-name"><span class="profile-name-filler skeleton">&nbsp;</span></h2>
+            <p class="profile-role profile-role--boot" id="profile-role">Sincronizando con el monitor…</p>
+            <dl class="openclaw-profile-meta" id="openclaw-profile-meta" hidden>
+              <div class="openclaw-profile-meta__row">
+                <dt>Hostname</dt>
+                <dd id="oc-profile-host" class="skeleton">—</dd>
+              </div>
+              <div class="openclaw-profile-meta__row">
+                <dt>Sistema</dt>
+                <dd id="oc-profile-os" class="skeleton">—</dd>
+              </div>
+              <div class="openclaw-profile-meta__row">
+                <dt>IPv4</dt>
+                <dd id="oc-profile-ipv4" class="skeleton">—</dd>
+              </div>
+            </dl>
+            <span class="profile-badge profile-badge--boot" id="profile-badge">
+              <span set:html={iClock} aria-hidden="true" />
+              <span class="profile-uptime-line skeleton" id="profile-uptime">&nbsp;</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="card openclaw-bento-tile openclaw-bento-tile--snapshot">
+          <div class="card-header">
+            <h3>Snapshot CLI</h3>
+          </div>
+          <p class="progress-subtitle openclaw-bento-snapshot-lede">
+            Vista alineada con el dashboard: CLI, binario, instantánea y cron del host en la barra superior; aquí el detalle y las sondas.
+          </p>
+          <p class="tracker-note openclaw-bento-snapshot-note">
+            Pulsa <strong>Actualizar</strong> para repetir <code>openclaw … --json</code> y releer disco.
+          </p>
+        </div>
+
+        <div class="card openclaw-bento-tile openclaw-bento-tile--disco">
+          <div class="card-header">
+            <h3>Disco local</h3>
+          </div>
+          <p class="progress-subtitle">Los KPI de workspace, skills y docs están en la franja superior.</p>
+          <ul class="openclaw-bento-mini-list">
+            <li>MD canónicos del workspace</li>
+            <li><code>memory/</code>, <code>skills/</code>, índice <code>docs</code></li>
+            <li>Tablas y detalle en el panel inferior</li>
+          </ul>
+        </div>
+
+        <div class="card openclaw-bento-tile openclaw-bento-tile--env">
+          <div class="card-header">
+            <h3>Variables API</h3>
+          </div>
+          <ul class="openclaw-env-chips" aria-label="Variables de entorno relevantes">
+            <li><code>OPENCLAW_WORKSPACE</code></li>
+            <li><code>OPENCLAW_DOCS</code></li>
+            <li><code>OPENCLAW_SKILLS</code></li>
+            <li><code>OPENCLAW_MEDIA_INBOUND</code></li>
+            <li><code>OPENCLAW_BIN</code></li>
+            <li><code>OPENCLAW_FS_DISABLE</code></li>
+          </ul>
+        </div>
+
+        <div class="card openclaw-bento-index">
+          <div class="card-header openclaw-bento-index__head">
+            <h3>Índice del panel</h3>
+            <nav class="openclaw-quick-links" aria-label="Enlaces rápidos">
+              <a href="/logs">Registros</a>
+              <a href="/configuracion">Monitor</a>
+              <a href="/">Dashboard</a>
+            </nav>
+          </div>
+          <p class="dash-sys-lede" style="margin-top:0">
+            Abajo, rejilla tipo bento: instalación en disco (ancho completo), personalidad demo y cron del host en paralelo, y bloques de sondas agrupadas.
+          </p>
+          <ul class="openclaw-index-list">
+            <li><strong>Instalación</strong> — rutas visibles; memory/skills/docs/media en secciones plegables.</li>
+            <li><strong>Perfil / agentes</strong> — acordeón: tablas de personalidad, agentes y workspace; estilo en lista.</li>
+            <li><strong>Cron del SO</strong> — misma fuente que el calendario del dashboard.</li>
+            <li><strong>Sondas CLI</strong> — núcleo, gateway, canales+modelos, plugins, cron; simuladas en una fila: icono, título, comando y flecha para la salida.</li>
+          </ul>
+          <p class="openclaw-index-hint">
+            Sin <code>openclaw</code> en PATH de la API: define <code>OPENCLAW_BIN</code> en el entorno del servicio de métricas.
+          </p>
+        </div>
+      </div>
     </div>
 
-    <div id="oc-sections" class="oc-sections oc-sections--loading" aria-busy="true">
-      <div class="oc-load oc-load--neutral" aria-hidden="true">
-        <div class="oc-load-spinner"></div>
-        <div class="oc-load-bars">
-          <div class="oc-load-bar oc-load-bar--a"></div>
-          <div class="oc-load-bar oc-load-bar--b"></div>
-          <div class="oc-load-bar oc-load-bar--c"></div>
-        </div>
-        <div class="oc-load-cards">
-          <div class="oc-load-card"><span class="oc-load-skel oc-load-skel--t"></span><span class="oc-load-skel oc-load-skel--b"></span></div>
-          <div class="oc-load-card"><span class="oc-load-skel oc-load-skel--t"></span><span class="oc-load-skel oc-load-skel--b"></span></div>
+    <div id="oc-sections" class="openclaw-bento-main oc-sections--loading" aria-busy="true">
+      <div class="oc-bento-tile oc-bento-tile--full" aria-hidden="true">
+        <div class="card openclaw-loading-card">
+          <span class="skeleton openclaw-loading-line"></span>
+          <span class="skeleton openclaw-loading-block"></span>
         </div>
       </div>
     </div>
   </div>
 
   <style>
-    .oc-page .oc-top {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-    .oc-title-row {
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-    }
-    .oc-title-icon {
-      flex-shrink: 0;
-      margin-top: 4px;
-      color: var(--accent);
-      display: grid;
-      place-items: center;
-    }
-    .oc-meta-bin {
-      font-size: 11px !important;
-      font-weight: 600;
-      max-width: min(280px, 40vw);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .oc-hint {
-      margin: 0 0 16px;
-      padding: 12px 14px;
-      border-radius: 12px;
-      background: var(--bg-subtle);
-      border: 1px solid var(--border);
-      font-size: 13px;
-      color: var(--text-soft);
-    }
-    .oc-sections {
+    .openclaw-page #oc-chrome {
       display: flex;
       flex-direction: column;
-      gap: 22px;
-    }
-    .oc-sections--loading {
-      min-height: 220px;
-    }
-    .oc-load {
-      padding: 28px 20px 32px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      background: var(--bg-card);
-      box-shadow: var(--shadow-card);
-      text-align: center;
-    }
-    .oc-load--neutral .oc-load-spinner {
-      margin-bottom: 20px;
-    }
-    .oc-load-spinner {
-      width: 40px;
-      height: 40px;
-      margin: 0 auto 16px;
-      border-radius: 50%;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      animation: oc-spin 0.85s linear infinite;
-    }
-    @keyframes oc-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-    .oc-load-title {
-      margin: 0 0 6px;
-      font-family: var(--font-display);
-      font-size: 17px;
-      font-weight: 800;
-      color: var(--text);
-      letter-spacing: -0.02em;
-    }
-    .oc-load-sub {
-      margin: 0 0 22px;
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.45;
-      max-width: 28rem;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    .oc-load-bars {
-      display: flex;
       gap: 6px;
-      justify-content: center;
-      margin-bottom: 20px;
     }
-    .oc-load-bar {
-      height: 4px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent-soft), var(--accent), var(--accent-soft));
-      background-size: 200% 100%;
-      animation: oc-shimmer 1.2s ease-in-out infinite;
-    }
-    .oc-load-bar--a {
-      width: 22%;
-      animation-delay: 0s;
-    }
-    .oc-load-bar--b {
-      width: 38%;
-      animation-delay: 0.15s;
-    }
-    .oc-load-bar--c {
-      width: 18%;
-      animation-delay: 0.3s;
-    }
-    @keyframes oc-shimmer {
-      0% {
-        background-position: 100% 0;
-        opacity: 0.5;
-      }
-      50% {
-        opacity: 1;
-      }
-      100% {
-        background-position: -100% 0;
-        opacity: 0.5;
+    @media (min-width: 1100px) {
+      .openclaw-page .dashboard-grid.openclaw-bento-hero {
+        grid-template-columns: 260px 1fr 1fr 280px;
+        grid-template-rows: auto minmax(0, auto);
+        align-items: stretch;
+        gap: 16px;
       }
     }
-    .oc-load-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
+    /* Hero bento: misma plantilla que el dashboard (≥1100px en global.css) */
+    .openclaw-page .openclaw-bento-hero .profile-card {
+      grid-column: 1;
+      grid-row: 1 / 3;
+    }
+    .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--snapshot {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--disco {
+      grid-column: 3;
+      grid-row: 1;
+    }
+    .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--env {
+      grid-column: 4;
+      grid-row: 1;
+    }
+    .openclaw-page .openclaw-bento-hero .openclaw-bento-index {
+      grid-column: 2 / 5;
+      grid-row: 2;
+      min-height: 0;
+    }
+    .openclaw-bento-tile,
+    .openclaw-bento-index {
+      padding: 20px;
+      min-width: 0;
+    }
+    .openclaw-bento-tile .card-header,
+    .openclaw-bento-index .card-header {
+      margin-bottom: 10px;
+    }
+    .openclaw-bento-snapshot-lede {
+      margin: 0 0 8px;
+    }
+    .openclaw-bento-snapshot-note {
+      margin: 0;
       text-align: left;
+      max-width: none;
     }
-    .oc-load-card {
-      padding: 14px;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background: var(--bg-subtle);
+    .openclaw-bento-mini-list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .openclaw-bento-mini-list code {
+      font-size: 0.9em;
+    }
+    .openclaw-env-chips {
+      list-style: none;
+      margin: 0;
+      padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
     }
-    .oc-load-skel {
-      display: block;
+    .openclaw-env-chips li {
+      margin: 0;
+    }
+    .openclaw-env-chips code {
+      font-size: 10px;
+      padding: 4px 8px;
       border-radius: 8px;
-      background: linear-gradient(90deg, var(--border) 0%, var(--accent-soft) 50%, var(--border) 100%);
-      background-size: 200% 100%;
-      animation: oc-shimmer 1.4s ease-in-out infinite;
-    }
-    .oc-load-skel--t {
-      height: 12px;
-      width: 55%;
-    }
-    .oc-load-skel--b {
-      height: 36px;
-      width: 100%;
-    }
-    .oc-section {
-      background: var(--bg-card);
+      background: var(--bg-subtle);
       border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 18px 20px 20px;
-      box-shadow: var(--shadow-card);
+      display: inline-block;
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
-    .oc-section-title {
-      font-family: var(--font-display);
-      font-size: 16px;
-      font-weight: 800;
-      margin: 0 0 14px;
-      color: var(--text);
-      letter-spacing: -0.02em;
-    }
-    .oc-probe {
-      margin-bottom: 16px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    .oc-probe:last-child {
-      margin-bottom: 0;
-      padding-bottom: 0;
-      border-bottom: none;
-    }
-    .oc-probe-head {
+    .openclaw-bento-index .openclaw-bento-index__head.card-header {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
+      justify-content: space-between;
+      gap: 10px 14px;
+    }
+    .openclaw-quick-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .openclaw-quick-links a {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 999px;
+      text-decoration: none;
+      color: var(--text-soft);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+    }
+    .openclaw-quick-links a:hover {
+      color: var(--accent);
+      border-color: rgba(250, 204, 21, 0.35);
+    }
+    .openclaw-profile-meta {
+      margin: 10px 0 12px;
+      padding: 8px 0 8px 12px;
+      border-radius: 0;
+      background: transparent;
+      border: none;
+      border-left: 2px solid var(--border);
+      display: grid;
+      gap: 8px;
+    }
+    .openclaw-profile-meta__row {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 10px;
+      align-items: baseline;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .openclaw-profile-meta dt {
+      margin: 0;
+      font-weight: 800;
+      font-family: var(--font-display);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-size: 9px;
+    }
+    .openclaw-profile-meta dd {
+      margin: 0;
+      font-weight: 600;
+      color: var(--text-soft);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .openclaw-index-list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-soft);
+    }
+    .openclaw-index-list strong {
+      color: var(--text);
+    }
+    .openclaw-index-hint {
+      margin: 14px 0 0;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    .openclaw-index-hint code {
+      font-size: 10px;
+    }
+    /* Panel inferior: rejilla 12 columnas (bento). Sin .openclaw-detail { flex }: rompía el grid. */
+    .openclaw-bento-main {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+      min-width: 0;
+    }
+    .openclaw-page .wrapper--dashboard > .openclaw-bento-main {
+      flex-shrink: 0;
+    }
+    .openclaw-bento-main :global(.oc-bento-tile) {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .openclaw-bento-main :global(.oc-bento-tile) > :global(.card) {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      margin: 0;
+      padding: 18px 20px 20px;
+      border-radius: 24px;
+    }
+    .openclaw-bento-main :global(.oc-bento-tile) > :global(.card) > :global(.card-header) {
+      flex-shrink: 0;
+    }
+    .openclaw-bento-main :global(.oc-bento-tile--full) > :global(.card) :global(.openclaw-fill-stack),
+    .openclaw-bento-main :global(.oc-bento-tile--half) > :global(.card) :global(.openclaw-fill-stack),
+    .openclaw-bento-main :global(.oc-bento-tile--full) > :global(.card) > :global(.openclaw-fs-table-wrap),
+    .openclaw-bento-main :global(.oc-bento-tile--full) > :global(.card) > :global(.oc-muted) {
+      min-width: 0;
+    }
+    .openclaw-bento-main > :global(.oc-bento-tile--full) {
+      grid-column: 1 / -1;
+      min-width: 0;
+    }
+    .openclaw-bento-main > :global(.oc-bento-tile--half) {
+      grid-column: span 6;
+      min-width: 0;
+    }
+    .openclaw-bento-main > :global(.oc-bento-tile--half:only-child) {
+      grid-column: 1 / -1;
+    }
+    @media (max-width: 1099px) {
+      .openclaw-bento-main > :global(.oc-bento-tile--half) {
+        grid-column: 1 / -1;
+      }
+    }
+    @media (min-width: 768px) and (max-width: 1099px) {
+      .openclaw-page .openclaw-bento-hero .profile-card {
+        grid-column: 1;
+        grid-row: 1;
+      }
+      .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--snapshot {
+        grid-column: 2;
+        grid-row: 1;
+      }
+      .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--disco {
+        grid-column: 1;
+        grid-row: 2;
+      }
+      .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--env {
+        grid-column: 2;
+        grid-row: 2;
+      }
+      .openclaw-page .openclaw-bento-hero .openclaw-bento-index {
+        grid-column: 1 / -1;
+        grid-row: 3;
+      }
+    }
+    @media (max-width: 767px) {
+      .openclaw-page .openclaw-bento-hero .profile-card,
+      .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--snapshot,
+      .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--disco,
+      .openclaw-page .openclaw-bento-hero .openclaw-bento-tile--env,
+      .openclaw-page .openclaw-bento-hero .openclaw-bento-index {
+        grid-column: 1 / -1;
+        grid-row: auto;
+      }
+    }
+    .openclaw-page .oc-meta-bin {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: inherit !important;
+    }
+    .openclaw-banner {
+      margin: 0;
+      padding: 12px 16px;
+    }
+    .openclaw-banner--hidden {
+      display: none !important;
+    }
+    .openclaw-banner-inner {
+      align-items: center;
+    }
+    .openclaw-banner-dot {
+      flex-shrink: 0;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.2);
+    }
+    .openclaw-banner-text {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.45;
+      color: var(--text-soft);
+    }
+    .oc-sections--loading {
+      min-height: 120px;
+    }
+    .openclaw-loading-line {
+      display: block !important;
+      height: 14px;
+      width: min(240px, 45%);
+      border-radius: 8px;
+    }
+    .openclaw-loading-block {
+      display: block !important;
+      height: min(160px, 28vh);
+      width: 100%;
+      border-radius: 14px;
+    }
+  </style>
+
+  <style is:global>
+    /* HTML generado en cliente (innerHTML): sin data-astro-cid, el scope no aplicaba. */
+    .openclaw-page .openclaw-loading-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 20px !important;
+    }
+    .openclaw-page .openclaw-details {
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+    }
+    /* Flecha a la derecha (misma lógica que .sidebar-section en global.css). */
+    .openclaw-page .oc-chevron-disclosure > summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 12px;
+      line-height: 1.4;
+      font-family: var(--font-display);
+      color: var(--text);
+    }
+    .openclaw-page .oc-chevron-disclosure > summary::-webkit-details-marker {
+      display: none;
+    }
+    .openclaw-page .oc-chevron-disclosure > summary::before {
+      content: none !important;
+    }
+    .openclaw-page .oc-chevron-disclosure > summary::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg);
+      transition: transform 0.25s;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .openclaw-page .oc-chevron-disclosure[open] > summary::after {
+      transform: rotate(-135deg);
+    }
+    .openclaw-page .oc-chevron-disclosure__lead {
+      min-width: 0;
+      flex: 1 1 auto;
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    .openclaw-page .openclaw-fs-sub {
+      margin: 18px 0 8px;
+      font-size: 13px;
+      font-weight: 800;
+      font-family: var(--font-display);
+      color: var(--text);
+    }
+    .openclaw-page .openclaw-fs-sub:first-of-type {
+      margin-top: 0;
+    }
+    .openclaw-page .oc-fs-meta {
+      font-weight: 600;
+      font-size: 11px;
+      line-height: 1.35;
+      color: var(--muted);
+      margin-left: 6px;
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    .openclaw-page .openclaw-fs-table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-top: 8px;
+    }
+    .openclaw-page .openclaw-fs-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .openclaw-page .openclaw-fs-table th,
+    .openclaw-page .openclaw-fs-table td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .openclaw-page .openclaw-fs-table th {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      background: var(--bg-subtle);
+    }
+    .openclaw-page .openclaw-fs-table td:first-child {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      word-break: break-all;
+    }
+    .openclaw-page .openclaw-lede {
+      margin: 0 0 12px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .openclaw-page .openclaw-fill-list {
+      margin: 4px 0 0;
+      padding-left: 18px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-soft);
+    }
+    .openclaw-page .oc-probe {
+      margin-bottom: 12px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+    }
+    [data-theme='dark'] .openclaw-page .oc-probe {
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .openclaw-page .oc-probe:last-child {
+      margin-bottom: 0;
+    }
+    .openclaw-page .oc-probe-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
       gap: 8px 12px;
       margin-bottom: 10px;
     }
-    .oc-probe-head strong {
+    .openclaw-page .oc-probe-head .oc-cmd {
+      min-width: 0;
+      flex: 1 1 100%;
+      max-width: 100%;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    @media (min-width: 720px) {
+      .openclaw-page .oc-probe-head .oc-cmd {
+        flex: 1 1 12rem;
+      }
+    }
+    .openclaw-page .oc-probe-head strong {
       font-size: 14px;
       color: var(--text);
     }
-    .oc-cmd {
+    .openclaw-page .oc-cmd {
       font-size: 10px;
       font-family: ui-monospace, monospace;
       color: var(--muted);
@@ -270,7 +687,7 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
       overflow-wrap: anywhere;
       word-break: break-word;
     }
-    .oc-badge {
+    .openclaw-page .oc-badge {
       font-size: 10px;
       font-weight: 800;
       text-transform: uppercase;
@@ -278,17 +695,22 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
       padding: 3px 8px;
       border-radius: 6px;
     }
-    .oc-badge--ok {
+    .openclaw-page .oc-badge--ok {
       background: rgba(74, 222, 128, 0.12);
       color: var(--ok);
       border: 1px solid rgba(74, 222, 128, 0.25);
     }
-    .oc-badge--bad {
+    .openclaw-page .oc-badge--bad {
       background: rgba(251, 113, 133, 0.1);
       color: var(--crit);
       border: 1px solid rgba(251, 113, 133, 0.22);
     }
-    .oc-pre {
+    .openclaw-page .oc-badge--mock {
+      background: rgba(250, 204, 21, 0.12);
+      color: #ca8a04;
+      border: 1px solid rgba(250, 204, 21, 0.28);
+    }
+    .openclaw-page .oc-pre {
       margin: 0;
       padding: 12px 14px;
       border-radius: 12px;
@@ -305,40 +727,40 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
       word-break: break-word;
       color: var(--text-soft);
     }
-    .oc-pre--json {
+    .openclaw-page .oc-pre--json {
       color: var(--text);
     }
-    .oc-pre--err {
+    .openclaw-page .oc-pre--err {
       border-color: rgba(251, 113, 133, 0.35);
       color: #f85149;
     }
-    .oc-muted {
+    .openclaw-page .oc-muted {
       color: var(--muted);
       font-size: 14px;
     }
-    .oc-err-note {
+    .openclaw-page .oc-err-note {
       font-size: 13px;
       color: var(--crit);
       margin: 0 0 8px;
     }
-    .oc-cron-wrap {
+    .openclaw-page .oc-cron-wrap {
       overflow-x: auto;
       border-radius: 12px;
       border: 1px solid var(--border);
     }
-    .oc-cron-table {
+    .openclaw-page .oc-cron-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 12px;
     }
-    .oc-cron-table th,
-    .oc-cron-table td {
+    .openclaw-page .oc-cron-table th,
+    .openclaw-page .oc-cron-table td {
       padding: 10px 12px;
       text-align: left;
       border-bottom: 1px solid var(--border);
       vertical-align: top;
     }
-    .oc-cron-table th {
+    .openclaw-page .oc-cron-table th {
       font-weight: 800;
       font-family: var(--font-display);
       font-size: 10px;
@@ -347,90 +769,668 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
       color: var(--muted);
       background: var(--bg-subtle);
     }
-    .oc-cron-table tr:last-child td {
+    .openclaw-page .oc-cron-table tr:last-child td {
       border-bottom: none;
     }
-    .oc-td-cmd {
+    .openclaw-page .oc-td-cmd {
       font-family: ui-monospace, monospace;
       font-size: 11px;
       max-width: 420px;
       overflow-wrap: anywhere;
       word-break: break-word;
     }
-    .oc-fill-note {
-      font-size: 12px;
-      color: var(--muted);
-      margin: 0 0 14px;
-      line-height: 1.45;
-    }
-    .oc-fill-grid {
+    .openclaw-page .oc-probe-grid--2col {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      grid-template-columns: 1fr;
       gap: 12px;
     }
-    .oc-fill-card {
-      padding: 14px 16px;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background: var(--bg-subtle);
+    @media (min-width: 880px) {
+      .openclaw-page .oc-probe-grid--2col {
+        grid-template-columns: 1fr 1fr;
+      }
     }
-    .oc-fill-card h4 {
-      margin: 0 0 8px;
-      font-size: 13px;
+    .openclaw-page .oc-probe-grid--3col {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 720px) {
+      .openclaw-page .oc-probe-grid--3col {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    /* Panel bento: sondas sin mini-card; código continuo y más ligero. */
+    .openclaw-page .openclaw-bento-main .oc-probe {
+      margin: 0;
+      padding: 12px 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .openclaw-page .openclaw-bento-main .card > .oc-probe + .oc-probe {
+      border-top: 1px solid var(--border);
+    }
+    .openclaw-page .openclaw-bento-main .oc-probe-grid {
+      gap: 14px 20px;
+    }
+    .openclaw-page .openclaw-bento-main .oc-probe-grid > .oc-probe {
+      padding: 8px 0;
+    }
+    .openclaw-page .openclaw-bento-main .oc-probe-head {
+      margin-bottom: 4px;
+    }
+    .openclaw-page .openclaw-bento-main .oc-probe-head strong {
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .openclaw-page .openclaw-bento-main .oc-cmd {
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+    }
+    .openclaw-page .openclaw-bento-main .oc-pre,
+    .openclaw-page .openclaw-bento-main .oc-pre.oc-pre--probe {
+      margin-top: 8px;
+      padding: 8px 0 0;
+      border-radius: 0;
+      background: transparent;
+      border: none;
+      border-top: 1px solid var(--border);
+      box-shadow: none;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .openclaw-page .openclaw-bento-main .oc-pre--err {
+      border-top-color: rgba(251, 113, 133, 0.35);
+    }
+    .openclaw-page .openclaw-bento-main .oc-err-note {
+      margin: 6px 0 4px;
+      font-size: 12px;
+    }
+    .openclaw-page .oc-card-header--icon {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .openclaw-page .oc-card-header--icon h3 {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+    }
+    .openclaw-page .oc-card-header__ico {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      opacity: 0.9;
+    }
+    .openclaw-page .oc-card-header__ico svg {
+      display: block;
+      width: 20px;
+      height: 20px;
+    }
+    .openclaw-page .oc-card-header--spread {
+      flex-wrap: wrap;
+    }
+    /* Mock: una línea — icono salida · título · comando · flecha (::after del dashboard). */
+    .openclaw-page .oc-probe--mock .oc-probe-output.sidebar-section {
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+    .openclaw-page .oc-probe--mock .oc-probe-output.sidebar-section > summary.oc-probe-mock-summary {
+      padding: 2px 0 4px;
+      min-height: 40px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      font-size: 12px;
+    }
+    .openclaw-page .oc-probe--mock .oc-probe-output.sidebar-section > summary.oc-probe-mock-summary::after {
+      align-self: center;
+    }
+    .openclaw-page .oc-probe--mock .oc-probe-output.sidebar-section > summary.oc-probe-mock-summary:hover {
+      background: var(--bg-subtle);
+      border-radius: 10px;
+      margin-left: -6px;
+      margin-right: -6px;
+      padding-left: 6px;
+      padding-right: 6px;
+    }
+    .openclaw-page .oc-probe-mock-summary__main {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      min-width: 0;
+      flex: 1 1 auto;
+      flex-wrap: wrap;
+    }
+    .openclaw-page .oc-probe-mock-summary__main .sidebar-section__summary-ico {
+      flex-shrink: 0;
+    }
+    .openclaw-page .oc-probe-mock-summary__main strong {
+      flex-shrink: 0;
+      font-size: 12px;
       font-weight: 800;
-      font-family: var(--font-display);
       color: var(--text);
     }
-    .oc-fill-card p {
-      margin: 0 0 8px;
-      font-size: 12px;
-      line-height: 1.45;
-      color: var(--text-soft);
-    }
-    .oc-fill-card p:last-child {
-      margin-bottom: 0;
-    }
-    .oc-fill-list {
-      margin: 0;
-      padding-left: 18px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--text-soft);
-    }
-    .oc-fill-k {
+    .openclaw-page .oc-probe-mock-summary__cmd {
+      flex: 1 1 12rem;
+      min-width: 0;
+      max-width: 100%;
       font-size: 10px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .openclaw-page .oc-probe-output-inner {
+      padding: 8px 0 0;
+    }
+    .openclaw-page .oc-pre--probe {
+      max-height: min(32vh, 280px);
+    }
+    .openclaw-page .oc-pre--tight {
+      max-height: min(24vh, 160px);
+      margin-top: 8px;
+    }
+    /* Tablas clave–valor (Personalidad, Workspace) alineadas con la de Agentes. */
+    .openclaw-page .openclaw-fill-kv th[scope='row'] {
+      width: 32%;
+      max-width: 160px;
+      font-size: 9px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--muted);
-      margin-bottom: 4px;
+      background: var(--bg-subtle);
+      text-align: left;
+      vertical-align: top;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+    }
+    .openclaw-page .openclaw-fill-kv td {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.45;
+      color: var(--text-soft);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .openclaw-page .openclaw-fill-kv tbody tr:nth-child(even) td {
+      background: rgba(0, 0, 0, 0.02);
+    }
+    [data-theme='dark'] .openclaw-page .openclaw-fill-kv tbody tr:nth-child(even) td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .openclaw-page .openclaw-fill-kv .openclaw-fill-td-path,
+    .openclaw-page .openclaw-fill-kv .openclaw-fill-td-path code {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+    .openclaw-page .openclaw-fill-kv .openclaw-fill-td-path code {
+      display: block;
+      font-weight: 500;
+      color: var(--text-soft);
+      background: transparent;
+      padding: 0;
+      border: none;
+    }
+    .openclaw-page .openclaw-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .openclaw-page .openclaw-chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-soft);
+    }
+    .openclaw-page .openclaw-fill-inline-details {
+      grid-column: 1 / -1;
+      margin-top: 8px;
+      padding: 8px 0 0;
+      border-radius: 0;
+      border: none;
+      border-top: 1px solid var(--border);
+      background: transparent;
+    }
+    [data-theme='dark'] .openclaw-page .openclaw-fill-inline-details {
+      background: transparent;
+    }
+    .openclaw-page .openclaw-fill-dek {
+      margin: 0 0 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--muted);
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    .openclaw-page .openclaw-fill-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .openclaw-page .openclaw-fill-panel {
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      overflow: hidden;
+    }
+    .openclaw-page .openclaw-fill-panel-body {
+      padding: 12px 14px 14px;
+    }
+    .openclaw-page .openclaw-fill-panel-note {
+      display: block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--muted);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    .openclaw-page .openclaw-fill-table {
+      width: 100%;
+      min-width: min(100%, 520px);
+      border-collapse: collapse;
+      font-size: 11px;
+      table-layout: auto;
+    }
+    .openclaw-page .openclaw-fill-table th,
+    .openclaw-page .openclaw-fill-table td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    .openclaw-page .openclaw-fill-table code {
+      font-size: 10px;
+      font-family: ui-monospace, monospace;
+    }
+    /* ID u otros códigos cortos: una sola línea (evita “defaul” + “t”). */
+    .openclaw-page .openclaw-fill-table td:not(.oc-td-cmd) code {
+      white-space: nowrap;
+    }
+    .openclaw-page .openclaw-fill-table .openclaw-fill-td-path code {
+      white-space: pre-wrap;
+    }
+    .openclaw-page .openclaw-fill-table td.oc-td-cmd {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .openclaw-page .openclaw-fill-table td.oc-td-cmd code {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .openclaw-page .openclaw-fill-table th {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      background: var(--bg-subtle);
+    }
+    .openclaw-page .openclaw-fill-grid tbody tr:nth-child(even) td {
+      background: rgba(0, 0, 0, 0.02);
+    }
+    [data-theme='dark'] .openclaw-page .openclaw-fill-grid tbody tr:nth-child(even) td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .openclaw-page .openclaw-style-dl {
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .openclaw-page .openclaw-style-dl > div {
+      display: grid;
+      grid-template-columns: minmax(72px, 88px) minmax(0, 1fr);
+      gap: 10px;
+      align-items: baseline;
+      min-width: 0;
+    }
+    .openclaw-page .openclaw-style-dl dt {
+      margin: 0;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .openclaw-page .openclaw-style-dl dd {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-soft);
+      line-height: 1.45;
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    /* Perfil, agentes y estilo: mismo ritmo que sondas (plano, borde izq., sin cajas anidadas). */
+    .openclaw-page .openclaw-fill-card .openclaw-fill-stack {
+      gap: 0;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-panel {
+      border-radius: 0;
+      border: none;
+      background: transparent;
+      overflow: visible;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-panel + .openclaw-fill-panel {
+      border-top: 1px solid var(--border);
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-panel.oc-chevron-disclosure > summary {
+      padding: 10px 0;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-panel[open].oc-chevron-disclosure > summary {
+      padding-bottom: 8px;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-panel-body {
+      padding: 0 0 14px;
+      border: none;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-panel-note {
+      margin-left: 0;
+      max-width: none;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fs-table-wrap {
+      margin-top: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding-left: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg-card);
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-table thead th {
+      background: var(--bg-subtle);
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-kv th[scope='row'] {
+      background: var(--bg-subtle);
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-table tbody tr:last-child td,
+    .openclaw-page .openclaw-fill-card .openclaw-fill-table tbody tr:last-child th {
+      border-bottom: none;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-inline-details {
+      margin-top: 10px;
+      padding: 10px 0 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      border-top: 1px solid var(--border);
+    }
+    [data-theme='dark'] .openclaw-page .openclaw-fill-card .openclaw-fill-inline-details {
+      background: transparent;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-fill-inline-details.oc-chevron-disclosure > summary {
+      padding-top: 0;
+      color: var(--text-soft);
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-style-dl {
+      padding-left: 0;
+      border: none;
+      gap: 12px;
+    }
+    .openclaw-page .openclaw-fill-card .openclaw-chip {
+      background: transparent;
+      font-weight: 600;
+    }
+    .openclaw-page .openclaw-fs-rollup > summary {
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .openclaw-page .openclaw-fs-rollup-title {
+      font-family: var(--font-display);
+    }
+    .openclaw-page .openclaw-fs-rollup-body {
+      padding: 0 0 12px;
+    }
+    .openclaw-page .openclaw-fs-rollup.openclaw-details {
+      margin-bottom: 10px;
+    }
+    /* Instalación en disco: tablas como el perfil; rollups tipo tarjeta; detalles internos planos. */
+    .openclaw-page .openclaw-install-lede {
+      margin: 0 0 14px;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    .openclaw-page .openclaw-install-lede code {
+      font-size: 11px;
+    }
+    .openclaw-page .openclaw-install-section-meta {
+      margin: 0 0 12px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .openclaw-page .openclaw-install-section-meta--tight {
+      margin-bottom: 0;
+    }
+    .openclaw-page .openclaw-install-section-meta code {
+      font-size: 11px;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .openclaw-page .openclaw-install-fs-sub {
+      margin-top: 2px;
+      margin-bottom: 8px;
+    }
+    .openclaw-page .openclaw-install-empty {
+      margin: 0 0 12px;
+      font-size: 12px;
+    }
+    .openclaw-page .openclaw-install-card .openclaw-fs-table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg-card);
+      margin-top: 0;
+      margin-bottom: 14px;
+    }
+    .openclaw-page .openclaw-install-card .openclaw-fs-rollup-body .openclaw-fs-table-wrap:last-child {
+      margin-bottom: 0;
+    }
+    .openclaw-page .openclaw-install-card .openclaw-fill-table thead th {
+      background: var(--bg-subtle);
+    }
+    .openclaw-page .openclaw-install-card .openclaw-fill-table tbody tr:last-child td,
+    .openclaw-page .openclaw-install-card .openclaw-fill-table tbody tr:last-child th {
+      border-bottom: none;
+    }
+    .openclaw-page .openclaw-install-card > .openclaw-details.openclaw-fs-rollup {
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-card);
+      overflow: hidden;
+      padding: 0;
+    }
+    .openclaw-page .openclaw-install-card > .openclaw-details.openclaw-fs-rollup:last-child {
+      margin-bottom: 0;
+    }
+    .openclaw-page .openclaw-install-card > .openclaw-details.openclaw-fs-rollup > summary {
+      padding: 12px 14px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border);
+    }
+    .openclaw-page .openclaw-install-card > .openclaw-details.openclaw-fs-rollup .openclaw-fs-rollup-body {
+      padding: 12px 14px 14px;
+    }
+    .openclaw-page .openclaw-install-card .openclaw-fs-rollup-body > .openclaw-details {
+      margin-bottom: 0;
+      padding: 12px 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      border-bottom: 1px solid var(--border);
+    }
+    .openclaw-page .openclaw-install-card .openclaw-fs-rollup-body > .openclaw-details:last-child {
+      border-bottom: none;
+      padding-bottom: 2px;
+    }
+    .openclaw-page .openclaw-install-card .openclaw-fs-rollup-body > .openclaw-details:first-child {
+      padding-top: 0;
+    }
+    .openclaw-page .openclaw-install-card .openclaw-fill-td-path {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
   </style>
 
   <script>
     import { escHtml } from '../lib/process-hints';
-    import { apiFetch } from '../lib/metrics';
+    import { iconToSvg } from '../lib/lucide-svg-string';
+    import {
+      Activity,
+      Box,
+      CalendarClock,
+      CalendarDays,
+      CircleEllipsis,
+      FolderOpen,
+      Network,
+      Package,
+      Plug,
+      Radio,
+      Shield,
+      Terminal,
+      UserRound,
+      Users,
+    } from 'lucide';
+    import {
+      apiFetch,
+      fetchMetrics,
+      updateHeader,
+      fmtUptime,
+      hasValidSystemUptime,
+      metricsRepresentHost,
+    } from '../lib/metrics';
+    import { resolveBichiBrand } from '../lib/brand-runtime';
 
     const $ = (id: string) => document.getElementById(id)!;
 
-    function ocLoadingMarkup(opts?: { withCopy?: boolean }): string {
-      const copy = opts?.withCopy
-        ? `<p class="oc-load-title">Recopilando OpenClaw</p>
-        <p class="oc-load-sub">Sondas del CLI, cron del host y diagnósticos…</p>`
-        : '';
-      return `<div class="oc-load${opts?.withCopy ? '' : ' oc-load--neutral'}" aria-hidden="true">
-        <div class="oc-load-spinner"></div>
-        ${copy}
-        <div class="oc-load-bars">
-          <div class="oc-load-bar oc-load-bar--a"></div>
-          <div class="oc-load-bar oc-load-bar--b"></div>
-          <div class="oc-load-bar oc-load-bar--c"></div>
-        </div>
-        <div class="oc-load-cards">
-          <div class="oc-load-card"><span class="oc-load-skel oc-load-skel--t"></span><span class="oc-load-skel oc-load-skel--b"></span></div>
-          <div class="oc-load-card"><span class="oc-load-skel oc-load-skel--t"></span><span class="oc-load-skel oc-load-skel--b"></span></div>
-        </div>
-      </div>`;
+    const OC_PROBE_ICON = { width: 18, height: 18, 'stroke-width': 2 };
+    const OC_HDR_ICON = { width: 20, height: 20, 'stroke-width': 2 };
+
+    const OC_CARD_ICON = {
+      install: iconToSvg(FolderOpen, OC_HDR_ICON),
+      profile: iconToSvg(UserRound, OC_HDR_ICON),
+      cronHost: iconToSvg(CalendarDays, OC_HDR_ICON),
+    };
+
+    const OC_SECTION_ICON_SVG: Record<string, string> = {
+      'Núcleo y diagnóstico': iconToSvg(Activity, OC_HDR_ICON),
+      Skills: iconToSvg(Package, OC_HDR_ICON),
+      Agentes: iconToSvg(Users, OC_HDR_ICON),
+      'Gateway y nodos': iconToSvg(Network, OC_HDR_ICON),
+      'Canales, modelos y memoria': iconToSvg(Radio, OC_HDR_ICON),
+      'Plugins, MCP y hooks': iconToSvg(Plug, OC_HDR_ICON),
+      'OpenClaw: cron y tareas': iconToSvg(CalendarClock, OC_HDR_ICON),
+      'Sandbox, pairing y aprobaciones': iconToSvg(Box, OC_HDR_ICON),
+      Seguridad: iconToSvg(Shield, OC_HDR_ICON),
+      'Otras sondas': iconToSvg(CircleEllipsis, OC_HDR_ICON),
+    };
+
+    const OC_MOCK_OUTPUT_ICON = iconToSvg(Terminal, OC_PROBE_ICON);
+
+    async function syncDashboardProfile() {
+      try {
+        const d = await fetchMetrics();
+        updateHeader(d);
+        const pc = document.getElementById('card-profile');
+        if (pc) {
+          pc.classList.remove('profile-card--loading');
+          pc.classList.add('profile-card--ready');
+          pc.removeAttribute('aria-busy');
+        }
+        const pn = document.getElementById('profile-name');
+        if (pn) {
+          const dev = typeof d.deviceName === 'string' && d.deviceName.trim() ? d.deviceName.trim() : '';
+          pn.textContent = dev || d.hostname || resolveBichiBrand().appName;
+          pn.classList.remove('skeleton');
+        }
+        const hostOk = metricsRepresentHost(d);
+        const openclaw =
+          d && typeof d.openclawAvailable === 'boolean' ? d.openclawAvailable : false;
+        const pr = document.getElementById('profile-role');
+        if (pr) {
+          if (!hostOk) {
+            pr.textContent =
+              'Métricas sin identidad de host (p. ej. API en contenedor). OpenClaw sigue pudiendo sondearse si configuras el binario.';
+          } else if (openclaw) {
+            pr.textContent = 'Host monitorizado · CLI OpenClaw disponible en la API';
+          } else {
+            pr.textContent =
+              'Host monitorizado · OpenClaw por API (CLI no en PATH o sin binario; revisa OPENCLAW_BIN)';
+          }
+          pr.classList.remove('profile-role--boot');
+        }
+        const pu = document.getElementById('profile-uptime');
+        if (pu) {
+          if (hasValidSystemUptime(d.uptime)) pu.textContent = fmtUptime(Number(d.uptime));
+          else pu.textContent = '—';
+          pu.classList.remove('skeleton');
+        }
+        const pb = document.getElementById('profile-badge');
+        if (pb) pb.classList.remove('profile-badge--boot');
+
+        const meta = document.getElementById('openclaw-profile-meta');
+        const hh = document.getElementById('oc-profile-host');
+        const ho = document.getElementById('oc-profile-os');
+        const hip = document.getElementById('oc-profile-ipv4');
+        if (meta && hh && ho && hip) {
+          if (hostOk) {
+            meta.removeAttribute('hidden');
+            const h = typeof d.hostname === 'string' && d.hostname.trim() ? d.hostname.trim() : '—';
+            const osStr = typeof d.hostOs === 'string' && d.hostOs.trim() ? d.hostOs.trim() : '—';
+            const ips = Array.isArray(d.hostIpv4)
+              ? d.hostIpv4.filter((x: unknown) => typeof x === 'string' && x.trim())
+              : [];
+            hh.textContent = h;
+            ho.textContent = osStr;
+            hip.textContent = ips.length ? ips.join(', ') : '—';
+            hh.classList.remove('skeleton');
+            ho.classList.remove('skeleton');
+            hip.classList.remove('skeleton');
+          } else {
+            meta.setAttribute('hidden', '');
+          }
+        }
+      } catch {
+        /* sin API */
+      }
+    }
+
+    function ocLoadingMarkup(): string {
+      return `<div class="oc-bento-tile oc-bento-tile--full"><div class="card openclaw-loading-card" aria-hidden="true">
+        <span class="skeleton openclaw-loading-line"></span>
+        <span class="skeleton openclaw-loading-block"></span>
+      </div></div>`;
     }
 
     const LABELS: Record<string, string> = {
@@ -473,110 +1473,161 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
       const agents = Array.isArray(fill.agentsPreview) ? fill.agentsPreview : [];
       const ws = fill.workspace;
       const st = fill.style;
-      const note = fill.note
-        ? `<p class="oc-fill-note">${escHtml(fill.note)}</p>`
-        : '';
+      const note = fill.note ? `<p class="dash-sys-lede openclaw-lede">${escHtml(fill.note)}</p>` : '';
 
       let personaBlock = '';
+      let personaSummary = '';
       if (p && typeof p === 'object') {
         const traits = Array.isArray(p.traits) ? p.traits : [];
         const quirks = Array.isArray(p.quirks) ? p.quirks : [];
         const bounds = Array.isArray(p.boundaries) ? p.boundaries : [];
-        personaBlock = `<div class="oc-fill-card">
-          <h4>Personalidad e identidad</h4>
-          <p><strong>${escHtml(p.displayName || '—')}</strong> — ${escHtml(p.role || '')}</p>
-          <div class="oc-fill-k">Tono</div>
-          <p>${escHtml(p.tone || '—')}</p>
-          <div class="oc-fill-k">Voz</div>
-          <p>${escHtml(p.voice || '—')}</p>
-          <div class="oc-fill-k">Locale</div>
-          <p>${escHtml(p.locale || '—')}</p>
-          ${
-            traits.length
-              ? `<div class="oc-fill-k">Rasgos</div><ul class="oc-fill-list">${traits.map((t: string) => `<li>${escHtml(t)}</li>`).join('')}</ul>`
-              : ''
-          }
-          ${
-            quirks.length
-              ? `<div class="oc-fill-k">Manías</div><ul class="oc-fill-list">${quirks.map((t: string) => `<li>${escHtml(t)}</li>`).join('')}</ul>`
-              : ''
-          }
-          ${
-            p.systemPromptPreview
-              ? `<div class="oc-fill-k">Vista previa del system prompt</div><p style="font-family:ui-monospace,monospace;font-size:11px">${escHtml(p.systemPromptPreview)}</p>`
-              : ''
-          }
-          ${
-            bounds.length
-              ? `<div class="oc-fill-k">Límites</div><ul class="oc-fill-list">${bounds.map((t: string) => `<li>${escHtml(t)}</li>`).join('')}</ul>`
-              : ''
-          }
-        </div>`;
+        const dn = p.displayName || '—';
+        const roleFull = typeof p.role === 'string' ? p.role : '';
+        personaSummary = `${escHtml(dn)}${roleFull ? ` · ${escHtml(roleFull)}` : ''}`;
+        const traitChips = traits.length
+          ? `<div class="openclaw-chip-row" aria-label="Rasgos">${traits.map((t: string) => `<span class="openclaw-chip">${escHtml(t)}</span>`).join('')}</div>`
+          : '';
+        const personaRows: string[] = [
+          `<tr><th scope="row">Nombre</th><td>${escHtml(p.displayName || '—')}</td></tr>`,
+          `<tr><th scope="row">Locale</th><td>${escHtml(p.locale || '—')}</td></tr>`,
+          `<tr><th scope="row">Rol</th><td>${escHtml(p.role || '—')}</td></tr>`,
+          `<tr><th scope="row">Tono</th><td>${escHtml(p.tone || '—')}</td></tr>`,
+          `<tr><th scope="row">Voz</th><td>${escHtml(p.voice || '—')}</td></tr>`,
+        ];
+        if (traitChips) personaRows.push(`<tr><th scope="row">Rasgos</th><td>${traitChips}</td></tr>`);
+        if (quirks.length)
+          personaRows.push(
+            `<tr><th scope="row">Manías</th><td>${quirks.map((t: string) => escHtml(t)).join(' · ')}</td></tr>`,
+          );
+        if (bounds.length)
+          personaRows.push(
+            `<tr><th scope="row">Límites</th><td>${bounds.map((t: string) => escHtml(t)).join(' · ')}</td></tr>`,
+          );
+        const promptBlock = p.systemPromptPreview
+          ? `<details class="openclaw-fill-inline-details oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead">System prompt (vista previa)</span></summary><pre class="oc-pre oc-pre--tight">${escHtml(p.systemPromptPreview)}</pre></details>`
+          : '';
+        personaBlock = `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-kv"><tbody>${personaRows.join('')}</tbody></table></div>${promptBlock}`;
       }
 
-      const agentCards = agents
-        .map(
-          (a: any) =>
-            `<div class="oc-fill-card">
-            <h4>${escHtml(a.label || a.id || 'Agente')}</h4>
-            <div class="oc-fill-k">ID</div><p>${escHtml(String(a.id || '—'))}</p>
-            <div class="oc-fill-k">Binding</div><p>${escHtml(String(a.binding || '—'))}</p>
-            <div class="oc-fill-k">Persona</div><p>${escHtml(String(a.persona || '—'))}</p>
-          </div>`,
-        )
-        .join('');
+      let agentsBlock = '';
+      if (agents.length) {
+        const rows = agents
+          .map(
+            (a: any) =>
+              `<tr>
+            <td>${escHtml(a.label || a.id || '—')}</td>
+            <td><code>${escHtml(String(a.id || '—'))}</code></td>
+            <td class="oc-td-cmd">${escHtml(String(a.binding || '—'))}</td>
+            <td>${escHtml(String(a.persona || '—'))}</td>
+          </tr>`,
+          )
+          .join('');
+        agentsBlock = `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-grid">
+          <thead><tr><th scope="col">Agente</th><th scope="col">ID</th><th scope="col">Binding</th><th scope="col">Persona</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`;
+      }
 
       let wsBlock = '';
       if (ws && typeof ws === 'object') {
         const dirs = Array.isArray(ws.skillsDirs) ? ws.skillsDirs : [];
         const mem = Array.isArray(ws.memoryFiles) ? ws.memoryFiles : [];
-        wsBlock = `<div class="oc-fill-card">
-          <h4>Workspace (referencia)</h4>
-          <div class="oc-fill-k">Ruta</div><p style="font-family:ui-monospace,monospace;font-size:11px">${escHtml(ws.path || '—')}</p>
-          ${
-            dirs.length
-              ? `<div class="oc-fill-k">Carpetas de skills</div><ul class="oc-fill-list">${dirs.map((t: string) => `<li>${escHtml(t)}</li>`).join('')}</ul>`
-              : ''
-          }
-          ${
-            mem.length
-              ? `<div class="oc-fill-k">Memoria</div><ul class="oc-fill-list">${mem.map((t: string) => `<li>${escHtml(t)}</li>`).join('')}</ul>`
-              : ''
-          }
-        </div>`;
+        const wsRows: string[] = [
+          `<tr><th scope="row">Ruta</th><td class="openclaw-fill-td-path"><code>${escHtml(ws.path || '—')}</code></td></tr>`,
+        ];
+        if (dirs.length)
+          wsRows.push(
+            `<tr><th scope="row">Skills</th><td>${dirs.map((t: string) => escHtml(t)).join(' · ')}</td></tr>`,
+          );
+        if (mem.length)
+          wsRows.push(
+            `<tr><th scope="row">Memoria</th><td>${mem.map((t: string) => escHtml(t)).join(' · ')}</td></tr>`,
+          );
+        wsBlock = `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-kv"><tbody>${wsRows.join('')}</tbody></table></div>`;
       }
 
       let styleBlock = '';
       if (st && typeof st === 'object') {
-        styleBlock = `<div class="oc-fill-card">
-          <h4>Estilo de respuesta</h4>
-          <div class="oc-fill-k">Markdown</div><p>${escHtml(st.markdown || '—')}</p>
-          <div class="oc-fill-k">Citas</div><p>${escHtml(st.citations || '—')}</p>
-        </div>`;
+        styleBlock = `<dl class="openclaw-style-dl">
+          <div><dt>Markdown</dt><dd>${escHtml(st.markdown || '—')}</dd></div>
+          <div><dt>Citas</dt><dd>${escHtml(st.citations || '—')}</dd></div>
+        </dl>`;
       }
 
-      const inner = [personaBlock, agentCards, wsBlock, styleBlock].filter(Boolean).join('');
-      if (!inner) return '';
+      const panels: string[] = [];
+      if (personaBlock) {
+        panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure" open>
+      <summary><span class="oc-chevron-disclosure__lead">Personalidad <span class="openclaw-fill-panel-note">${personaSummary}</span></span></summary>
+      <div class="openclaw-fill-panel-body">${personaBlock}</div>
+    </details>`);
+      }
+      if (agentsBlock) {
+        panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure">
+      <summary><span class="oc-chevron-disclosure__lead">Agentes <span class="openclaw-fill-panel-note">${agents.length} filas</span></span></summary>
+      <div class="openclaw-fill-panel-body">${agentsBlock}</div>
+    </details>`);
+      }
+      if (wsBlock) {
+        panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure">
+      <summary><span class="oc-chevron-disclosure__lead">Workspace <span class="openclaw-fill-panel-note">referencia demo</span></span></summary>
+      <div class="openclaw-fill-panel-body">${wsBlock}</div>
+    </details>`);
+      }
+      if (styleBlock) {
+        panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure">
+      <summary><span class="oc-chevron-disclosure__lead">Estilo de respuesta</span></summary>
+      <div class="openclaw-fill-panel-body">${styleBlock}</div>
+    </details>`);
+      }
 
-      return `<div class="oc-section">
-        <h3 class="oc-section-title">Personalidad, agentes de ejemplo y estilo</h3>
+      if (!panels.length) return '';
+
+      return `<div class="card openclaw-fill-card">
+        <div class="card-header oc-card-header--icon">
+          <span class="oc-card-header__ico" aria-hidden="true">${OC_CARD_ICON.profile}</span>
+          <h3>Perfil, agentes y estilo</h3>
+        </div>
+        <p class="openclaw-fill-dek">Demostración en tablas: personalidad, agentes y workspace comparten el mismo contenedor visual; estilo aparte. Cada bloque se pliega por separado.</p>
         ${note}
-        <div class="oc-fill-grid">${inner}</div>
+        <div class="openclaw-fill-stack">${panels.join('')}</div>
       </div>`;
     }
 
-    const SECTIONS: { title: string; keys: string[] }[] = [
+    type OcSection = { title: string; keys: string[]; probeLayout?: 'twoCol' | 'threeCol' };
+
+    const SECTIONS: OcSection[] = [
       { title: 'Núcleo y diagnóstico', keys: ['version', 'config_file', 'config_validate', 'status', 'health', 'doctor'] },
       { title: 'Skills', keys: ['skills_list', 'skills_check'] },
       { title: 'Agentes', keys: ['agents_list', 'agents_bindings'] },
       { title: 'Gateway y nodos', keys: ['gateway_status', 'gateway_health', 'gateway_probe', 'nodes', 'devices_list', 'directory'] },
-      { title: 'Canales', keys: ['channels_list', 'channels_status'] },
+      {
+        title: 'Canales, modelos y memoria',
+        keys: ['channels_list', 'channels_status', 'models_list', 'memory_status'],
+        probeLayout: 'twoCol',
+      },
       { title: 'Plugins, MCP y hooks', keys: ['plugins_list', 'mcp_list', 'hooks_list'] },
       { title: 'OpenClaw: cron y tareas', keys: ['cron_status', 'cron_list', 'tasks_list', 'tasks_flow'] },
-      { title: 'Modelos y memoria', keys: ['models_list', 'memory_status'] },
-      { title: 'Sandbox, pairing y aprobaciones', keys: ['sandbox_list', 'pairing_list', 'approvals_get'] },
+      {
+        title: 'Sandbox, pairing y aprobaciones',
+        keys: ['sandbox_list', 'pairing_list', 'approvals_get'],
+        probeLayout: 'threeCol',
+      },
       { title: 'Seguridad', keys: ['security_audit'] },
     ];
+
+    /** Ancho del bloque en la rejilla bento (12 col). */
+    function ocBentoSectionClass(title: string): string {
+      const full = new Set([
+        'Núcleo y diagnóstico',
+        'Gateway y nodos',
+        'Canales, modelos y memoria',
+        'Plugins, MCP y hooks',
+        'OpenClaw: cron y tareas',
+        'Sandbox, pairing y aprobaciones',
+        'Seguridad',
+      ]);
+      return full.has(title) ? 'oc-bento-tile--full' : 'oc-bento-tile--half';
+    }
 
     function fmtTime(ts: number) {
       if (!ts) return '—';
@@ -587,12 +1638,235 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
       }
     }
 
+    const OC_WF_ORDER = ['AGENTS', 'SOUL', 'USER', 'IDENTITY', 'TOOLS', 'MEMORY', 'HEARTBEAT'];
+
+    function fmtBytes(n: number | undefined | null) {
+      if (n == null || Number.isNaN(n)) return '—';
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MiB`;
+    }
+
+    /** Contenido leído del disco: workspace, memory/, skills, docs, media (API installLayout). */
+    function renderInstallLayout(il: any): string {
+      if (!il || typeof il !== 'object') return '';
+
+      if (il.disabled) {
+        return `<div class="card openclaw-install-card">
+        <div class="card-header oc-card-header--icon"><span class="oc-card-header__ico" aria-hidden="true">${OC_CARD_ICON.install}</span><h3>Instalación en disco</h3></div>
+        <p class="oc-muted openclaw-install-lede">Lectura del sistema de archivos desactivada: <code>${escHtml(il.message || 'OPENCLAW_FS_DISABLE')}</code></p>
+      </div>`;
+      }
+
+      const roots = il.roots && typeof il.roots === 'object' ? il.roots : {};
+      const rootsRows = ['workspace', 'docs', 'skills', 'mediaInbound']
+        .map((k) => {
+          const p = roots[k];
+          if (!p) return '';
+          const label =
+            k === 'mediaInbound' ? 'Media inbound' : k === 'docs' ? 'Docs (npm)' : k === 'skills' ? 'Skills (npm)' : 'Workspace';
+          return `<tr><td>${escHtml(label)}</td><td class="oc-td-cmd">${escHtml(String(p))}</td></tr>`;
+        })
+        .filter(Boolean)
+        .join('');
+
+      const topErr = il.error ? `<p class="oc-err-note">${escHtml(String(il.error))}</p>` : '';
+
+      const wf = il.workspaceFiles || {};
+      const wsDetails = OC_WF_ORDER.map((key) => {
+        const f = wf[key];
+        if (!f) return '';
+        const name = f.name || `${key}.md`;
+        let meta = '—';
+        if (f.exists && f.content) {
+          meta = `${fmtBytes(f.size)}${f.truncated ? ' · truncado' : ''}`;
+        } else if (f.error) {
+          meta = String(f.error);
+        }
+        const body =
+          f.exists && f.content
+            ? `<pre class="oc-pre oc-pre--probe">${escHtml(f.content)}</pre>`
+            : f.error
+              ? `<p class="oc-muted" style="margin:8px 0 0">${escHtml(String(f.error))}</p>`
+              : '<p class="oc-muted">(vacío)</p>';
+        const pathLine = f.path
+          ? `<p class="oc-muted" style="margin:0 0 8px;font-size:11px;font-family:ui-monospace,monospace">${escHtml(f.path)}</p>`
+          : '';
+        return `<details class="openclaw-details oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead">${escHtml(name)} <span class="oc-fs-meta">${escHtml(meta)}</span></span></summary>${pathLine}${body}</details>`;
+      }).join('');
+      const wsN = OC_WF_ORDER.filter((k) => wf[k]).length;
+      const wsRollup = wsDetails.trim()
+        ? `<details class="openclaw-details openclaw-fs-rollup oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead"><span class="openclaw-fs-rollup-title">Ficheros MD del workspace</span> <span class="oc-fs-meta">${wsN} bloques</span></span></summary><div class="openclaw-fs-rollup-body">${wsDetails}</div></details>`
+        : '';
+
+      const mem = il.memory || {};
+      let memBlock = '';
+      if (mem.error) {
+        memBlock = `<p class="oc-err-note">${escHtml(String(mem.error))}</p>`;
+      } else {
+        const entries = Array.isArray(mem.entries) ? mem.entries : [];
+        const memList = entries
+          .map((e: any) => {
+            const meta =
+              e.content != null
+                ? `${fmtBytes(e.size)}${e.truncated ? ' · truncado' : ''} · ${fmtTime(e.mtimeMs)}`
+                : e.error || '—';
+            const body =
+              e.content != null
+                ? `<pre class="oc-pre">${escHtml(e.content)}</pre>`
+                : e.error
+                  ? `<p class="oc-muted">${escHtml(String(e.error))}</p>`
+                  : '';
+            const pathLine = e.path
+              ? `<p class="oc-muted" style="margin:0 0 8px;font-size:11px;font-family:ui-monospace,monospace">${escHtml(e.path)}</p>`
+              : '';
+            return `<details class="openclaw-details oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead">${escHtml(e.name || '—')} <span class="oc-fs-meta">${escHtml(meta)}</span></span></summary>${pathLine}${body}</details>`;
+          })
+          .join('');
+        const memN = entries.length;
+        memBlock = `<details class="openclaw-details openclaw-fs-rollup oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead"><span class="openclaw-fs-rollup-title">Carpeta memory/</span> <span class="oc-fs-meta">${mem.exists ? 'accesible' : 'no accesible'} · ${memN} .md</span></span></summary>
+      <div class="openclaw-fs-rollup-body">
+      <p class="oc-muted openclaw-install-section-meta">${mem.exists ? 'Existe' : 'No accesible'} · <code>${escHtml(mem.dir || '')}</code></p>
+      ${memList || '<p class="oc-muted">Sin entradas .md listadas.</p>'}
+      </div></details>`;
+      }
+
+      const sk = il.skills || {};
+      let skillsBlock = '';
+      if (sk.error) {
+        skillsBlock = `<p class="oc-err-note">${escHtml(String(sk.error))}</p>`;
+      } else {
+        const items = Array.isArray(sk.items) ? sk.items : [];
+        const skillList = items
+          .map((s: any) => {
+            const meta = s.exists && s.content ? `${fmtBytes(s.size)}${s.truncated ? ' · truncado' : ''}` : s.error || '—';
+            const body =
+              s.exists && s.content
+                ? `<pre class="oc-pre">${escHtml(s.content)}</pre>`
+                : s.error
+                  ? `<p class="oc-muted">${escHtml(String(s.error))}</p>`
+                  : '';
+            const pathLine = s.skillMdPath
+              ? `<p class="oc-muted" style="margin:0 0 8px;font-size:11px;font-family:ui-monospace,monospace">${escHtml(s.skillMdPath)}</p>`
+              : '';
+            return `<details class="openclaw-details oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead">${escHtml(s.skillDir || 'skill')} · SKILL.md <span class="oc-fs-meta">${escHtml(meta)}</span></span></summary>${pathLine}${body}</details>`;
+          })
+          .join('');
+        skillsBlock = `<details class="openclaw-details openclaw-fs-rollup oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead"><span class="openclaw-fs-rollup-title">Skills instaladas</span> <span class="oc-fs-meta">${items.length} carpetas</span></span></summary>
+      <div class="openclaw-fs-rollup-body">
+      <p class="oc-muted openclaw-install-section-meta">${sk.exists ? 'Directorio local' : 'No accesible'} · <code>${escHtml(sk.dir || '')}</code></p>
+      ${skillList || '<p class="oc-muted">Sin carpetas de skill.</p>'}
+      </div></details>`;
+      }
+
+      const docs = il.docs || {};
+      let docsBlock = '';
+      if (docs.error) {
+        docsBlock = `<p class="oc-err-note">${escHtml(String(docs.error))}</p>`;
+      } else {
+        const files = Array.isArray(docs.files) ? docs.files : [];
+        const docRows = files
+          .map(
+            (f: any) =>
+              `<tr>
+            <td class="openclaw-fill-td-path">${escHtml(f.path || '—')}</td>
+            <td>${escHtml(fmtBytes(f.size))}</td>
+            <td>${escHtml(fmtTime(f.mtimeMs))}</td>
+          </tr>`,
+          )
+          .join('');
+        const docCount = docs.fileCount || 0;
+        docsBlock = `<details class="openclaw-details openclaw-fs-rollup oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead"><span class="openclaw-fs-rollup-title">Documentación (índice)</span> <span class="oc-fs-meta">${docCount} ficheros${docs.capped ? ' · tope' : ''}</span></span></summary>
+      <div class="openclaw-fs-rollup-body">
+      <p class="oc-muted openclaw-install-section-meta">${docs.exists ? `${docCount} ficheros` : 'No accesible'}${docs.capped ? ' (tope alcanzado)' : ''} · <code>${escHtml(docs.dir || '')}</code></p>
+      ${
+        files.length
+          ? `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-grid">
+        <thead><tr><th scope="col">Ruta relativa</th><th scope="col">Tamaño</th><th scope="col">Modificación</th></tr></thead>
+        <tbody>${docRows}</tbody>
+      </table></div>`
+          : '<p class="oc-muted">Sin ficheros indexados.</p>'
+      }
+      </div></details>`;
+      }
+
+      const media = il.mediaInbound || {};
+      let mediaBlock = '';
+      if (media.error) {
+        mediaBlock = `<p class="oc-err-note">${escHtml(String(media.error))}</p>`;
+      } else {
+        const sample = Array.isArray(media.sample) ? media.sample : [];
+        const mediaN = media.fileCount ?? 0;
+        mediaBlock = `<details class="openclaw-details openclaw-fs-rollup oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead"><span class="openclaw-fs-rollup-title">Media entrante</span> <span class="oc-fs-meta">${media.exists ? `${mediaN} ficheros` : 'no accesible'}</span></span></summary>
+      <div class="openclaw-fs-rollup-body">
+      <p class="oc-muted openclaw-install-section-meta">${media.exists ? `${mediaN} ficheros` : 'No accesible'} · <code>${escHtml(media.dir || '')}</code></p>
+      ${
+        sample.length
+          ? `<p class="oc-muted openclaw-install-section-meta openclaw-install-section-meta--tight">Muestra: ${sample.map((n: string) => `<code>${escHtml(n)}</code>`).join(', ')}</p>`
+          : ''
+      }
+      </div></details>`;
+      }
+
+      const subs = il.workspaceSubdirs || {};
+      const subKeys = ['memory', 'logs', 'proyectos'];
+      const subRows = subKeys
+        .map((k) => {
+          const s = subs[k];
+          if (!s) return '';
+          const st = s.exists && s.isDirectory ? `${s.entryCount ?? 0} entradas` : s.exists ? '—' : 'no existe';
+          return `<tr><td>${escHtml(k)}</td><td class="oc-td-cmd">${escHtml(s.path || '—')}</td><td>${escHtml(st)}</td></tr>`;
+        })
+        .filter(Boolean)
+        .join('');
+
+      const subBlock = subRows
+        ? `<details class="openclaw-details openclaw-fs-rollup oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead"><span class="openclaw-fs-rollup-title">Subcarpetas del workspace</span> <span class="oc-fs-meta">${subKeys.filter((k) => subs[k]).length} rutas</span></span></summary>
+      <div class="openclaw-fs-rollup-body">
+      <div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-grid">
+        <thead><tr><th scope="col">Nombre</th><th scope="col">Ruta</th><th scope="col">Estado</th></tr></thead>
+        <tbody>${subRows}</tbody>
+      </table></div>
+      </div></details>`
+        : '';
+
+      const badge = il.hasRealWorkspaceContent
+        ? '<span class="oc-badge oc-badge--ok">Contenido real</span>'
+        : '<span class="oc-badge oc-badge--mock">Sin MD de workspace</span>';
+
+      return `<div class="card openclaw-install-card">
+    <div class="card-header oc-card-header--icon oc-card-header--spread">
+      <span class="oc-card-header__ico" aria-hidden="true">${OC_CARD_ICON.install}</span>
+      <h3>Instalación en disco</h3>
+      ${badge}
+    </div>
+    <p class="oc-muted openclaw-install-lede">Rutas configurables con <code>OPENCLAW_WORKSPACE</code>, <code>OPENCLAW_DOCS</code>, <code>OPENCLAW_SKILLS</code>, <code>OPENCLAW_MEDIA_INBOUND</code>.</p>
+    ${topErr}
+    <h4 class="openclaw-fs-sub openclaw-install-fs-sub">Rutas base</h4>
+    <div class="openclaw-fs-table-wrap openclaw-install-rutas-wrap">
+      <table class="openclaw-fill-table openclaw-fill-grid">
+        <thead><tr><th scope="col">Ámbito</th><th scope="col">Ruta</th></tr></thead>
+        <tbody>${rootsRows || '<tr><td colspan="2" class="oc-muted">Sin rutas</td></tr>'}</tbody>
+      </table>
+    </div>
+    ${wsRollup || '<p class="oc-muted openclaw-install-empty">Sin datos de workspace.</p>'}
+    ${memBlock}
+    ${skillsBlock}
+    ${docsBlock}
+    ${mediaBlock}
+    ${subBlock}
+  </div>`;
+    }
+
     function renderProbe(key: string, pr: any): string {
       const label = LABELS[key] || key;
       const cmd = pr && pr.cmd ? String(pr.cmd) : `openclaw … ${key}`;
       const ok = !!(pr && pr.ok && pr.error !== 'ENOENT');
+      const isMock = !!(pr && pr.mock);
       const badge = ok ? 'oc-badge--ok' : 'oc-badge--bad';
+      const badgeLabel = ok ? 'OK' : 'Error';
       const exit = pr && typeof pr.exitCode === 'number' ? pr.exitCode : '—';
+      const badgeText = `${badgeLabel} · ${String(exit)}`;
       const enoent =
         pr && pr.error === 'ENOENT'
           ? '<p class="oc-err-note">No se encontró el ejecutable en PATH. Define <code>OPENCLAW_BIN</code> en el entorno de la API.</p>'
@@ -600,27 +1874,46 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
 
       let body = '';
       if (pr && pr.parsed != null) {
-        body = `<pre class="oc-pre oc-pre--json">${escHtml(JSON.stringify(pr.parsed, null, 2))}</pre>`;
+        body = `<pre class="oc-pre oc-pre--probe oc-pre--json">${escHtml(JSON.stringify(pr.parsed, null, 2))}</pre>`;
       } else if (pr && pr.stdout) {
-        body = `<pre class="oc-pre">${escHtml(pr.stdout)}</pre>`;
+        body = `<pre class="oc-pre oc-pre--probe">${escHtml(pr.stdout)}</pre>`;
       } else {
         body = '<p class="oc-muted">(sin salida en stdout)</p>';
       }
 
       const err =
         pr && pr.stderr
-          ? `<pre class="oc-pre oc-pre--err">${escHtml(pr.stderr)}</pre>`
+          ? `<pre class="oc-pre oc-pre--probe oc-pre--err">${escHtml(pr.stderr)}</pre>`
           : '';
 
-      return `<div class="oc-probe">
-        <div class="oc-probe-head">
+      const rawOut = `${body}${err}`;
+
+      const headHtml = `<div class="oc-probe-head">
           <strong>${escHtml(label)}</strong>
           <code class="oc-cmd">${escHtml(cmd)}</code>
-          <span class="oc-badge ${badge}">${ok ? 'OK' : 'Error'} · ${escHtml(String(exit))}</span>
-        </div>
+          ${isMock ? '' : `<span class="oc-badge ${badge}">${escHtml(badgeText)}</span>`}
+        </div>`;
+
+      if (isMock) {
+        return `<div class="oc-probe oc-probe--mock">
+        <details class="oc-probe-output sidebar-section oc-probe-output--mock-row">
+        <summary class="oc-probe-mock-summary" aria-label="Mostrar u ocultar salida simulada">
+          <span class="oc-probe-mock-summary__main">
+            <span class="sidebar-section__summary-ico" aria-hidden="true">${OC_MOCK_OUTPUT_ICON}</span>
+            <strong>${escHtml(label)}</strong>
+            <code class="oc-cmd oc-probe-mock-summary__cmd">${escHtml(cmd)}</code>
+          </span>
+        </summary>
         ${enoent}
-        ${body}
-        ${err}
+        <div class="oc-probe-output-inner">${rawOut}</div>
+      </details>
+      </div>`;
+      }
+
+      return `<div class="oc-probe">
+        ${headHtml}
+        ${enoent}
+        ${rawOut}
       </div>`;
     }
 
@@ -655,24 +1948,45 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
 
       if (data && data.disabled) {
         el.classList.remove('oc-sections--loading');
-        el.innerHTML = `<div class="oc-section"><p class="oc-muted">${escHtml(data.message || 'Snapshot desactivado.')}</p></div>`;
+        el.innerHTML = `<div class="oc-bento-tile oc-bento-tile--full"><div class="card"><p class="oc-muted">${escHtml(data.message || 'Snapshot desactivado.')}</p></div></div>`;
         return;
       }
 
       const parts: string[] = [];
 
-      const fillHtml = renderFill(data.openclawFill);
-      if (fillHtml) parts.push(fillHtml);
+      const installHtml = renderInstallLayout(data.installLayout);
+      if (installHtml) parts.push(`<div class="oc-bento-tile oc-bento-tile--full">${installHtml}</div>`);
 
-      parts.push(`<div class="oc-section">
-        <h3 class="oc-section-title">Cron y tareas del host (sistema)</h3>
+      const suppressDemo = !!(data && data.suppressDemoFill);
+      const fillHtml = !suppressDemo ? renderFill(data.openclawFill) : '';
+      const cronHostCard = `<div class="card">
+        <div class="card-header oc-card-header--icon">
+          <span class="oc-card-header__ico" aria-hidden="true">${OC_CARD_ICON.cronHost}</span>
+          <h3>Cron y tareas del host (sistema)</h3>
+        </div>
         ${renderCronHost(data.cronSystem)}
-      </div>`);
+      </div>`;
+      if (fillHtml) {
+        parts.push(`<div class="oc-bento-tile oc-bento-tile--half">${fillHtml}</div>`);
+        parts.push(`<div class="oc-bento-tile oc-bento-tile--half">${cronHostCard}</div>`);
+      } else {
+        parts.push(`<div class="oc-bento-tile oc-bento-tile--full">${cronHostCard}</div>`);
+      }
 
       for (const sec of SECTIONS) {
         const inner = sec.keys.map((k) => (probes[k] ? renderProbe(k, probes[k]) : '')).filter(Boolean).join('');
         if (!inner) continue;
-        parts.push(`<div class="oc-section"><h3 class="oc-section-title">${escHtml(sec.title)}</h3>${inner}</div>`);
+        const span = ocBentoSectionClass(sec.title);
+        const gridClass =
+          sec.probeLayout === 'twoCol'
+            ? 'oc-probe-grid oc-probe-grid--2col'
+            : sec.probeLayout === 'threeCol'
+              ? 'oc-probe-grid oc-probe-grid--3col'
+              : '';
+        const gridOpen = gridClass ? `<div class="${gridClass}">` : '';
+        const gridClose = gridClass ? '</div>' : '';
+        const hdrIco = OC_SECTION_ICON_SVG[sec.title] || '';
+        parts.push(`<div class="oc-bento-tile ${span}"><div class="card"><div class="card-header oc-card-header--icon">${hdrIco ? `<span class="oc-card-header__ico" aria-hidden="true">${hdrIco}</span>` : ''}<h3>${escHtml(sec.title)}</h3></div>${gridOpen}${inner}${gridClose}</div></div>`);
       }
 
       const covered = new Set<string>();
@@ -680,35 +1994,75 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
       const extraKeys = Object.keys(probes).filter((k) => !covered.has(k));
       if (extraKeys.length) {
         const inner = extraKeys.map((k) => renderProbe(k, probes[k])).join('');
-        parts.push(`<div class="oc-section"><h3 class="oc-section-title">Otras sondas</h3>${inner}</div>`);
+        parts.push(`<div class="oc-bento-tile oc-bento-tile--full"><div class="card"><div class="card-header oc-card-header--icon"><span class="oc-card-header__ico" aria-hidden="true">${OC_SECTION_ICON_SVG['Otras sondas']}</span><h3>Otras sondas</h3></div>${inner}</div></div>`);
       }
 
-      el.innerHTML = parts.join('') || '<p class="oc-muted">Sin datos de sondas.</p>';
+      el.innerHTML =
+        parts.join('') ||
+        '<div class="oc-bento-tile oc-bento-tile--full"><div class="card"><p class="oc-muted">Sin datos de sondas.</p></div></div>';
+    }
+
+    function updateOpenClawKpis(data: any) {
+      const elWs = document.getElementById('oc-kpi-ws');
+      const elSk = document.getElementById('oc-kpi-skills');
+      const elDoc = document.getElementById('oc-kpi-docs');
+      const metaWs = document.getElementById('oc-kpi-ws-meta');
+      const metaSk = document.getElementById('oc-kpi-skills-meta');
+      const metaDoc = document.getElementById('oc-kpi-docs-meta');
+      if (!elWs || !elSk || !elDoc) return;
+
+      const clearSk = (el: HTMLElement) => el.classList.remove('skeleton');
+      const il = data && data.installLayout;
+
+      if (!il || typeof il !== 'object' || il.disabled) {
+        elWs.textContent = '—';
+        elSk.textContent = '—';
+        elDoc.textContent = '—';
+        if (metaWs) metaWs.textContent = il && il.disabled ? 'Lectura FS desactivada' : 'Sin datos de instalación';
+        if (metaSk) metaSk.textContent = '—';
+        if (metaDoc) metaDoc.textContent = '—';
+        clearSk(elWs);
+        clearSk(elSk);
+        clearSk(elDoc);
+        return;
+      }
+
+      const wf = il.workspaceFiles || {};
+      const nWs = Object.keys(wf).filter((k) => wf[k] && wf[k].exists && wf[k].content).length;
+      elWs.textContent = `${nWs}/7`;
+      if (metaWs) metaWs.textContent = 'MD con contenido (canónicos)';
+
+      const skillItems = il.skills && Array.isArray(il.skills.items) ? il.skills.items : [];
+      elSk.textContent = String(skillItems.length);
+      const withSkillMd = skillItems.filter((s: any) => s.exists && s.content).length;
+      if (metaSk)
+        metaSk.textContent = skillItems.length ? `${withSkillMd} con SKILL.md leído` : 'Sin carpetas';
+
+      const docN = il.docs && typeof il.docs.fileCount === 'number' ? il.docs.fileCount : 0;
+      elDoc.textContent = String(docN);
+      if (metaDoc) metaDoc.textContent = il.docs && il.docs.capped ? 'Índice (tope alcanzado)' : 'Ficheros en docs/';
+
+      clearSk(elWs);
+      clearSk(elSk);
+      clearSk(elDoc);
     }
 
     async function load() {
-      const chrome = document.getElementById('oc-chrome');
-      const msg = $('oc-global-msg');
+      const msgBox = $('oc-global-msg');
+      const msgText = $('oc-global-msg-text');
       const el = $('oc-sections');
       el.setAttribute('aria-busy', 'true');
       el.classList.add('oc-sections--loading');
       el.innerHTML = ocLoadingMarkup();
-      if (chrome) chrome.setAttribute('hidden', '');
-      if (msg) msg.hidden = true;
+      msgBox.classList.add('openclaw-banner--hidden');
+      msgText.textContent = '';
+
+      void syncDashboardProfile();
 
       try {
         const r = await apiFetch('/api/openclaw');
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const data = await r.json();
-
-        if (!data.available) {
-          el.removeAttribute('aria-busy');
-          el.classList.remove('oc-sections--loading');
-          el.innerHTML = ocLoadingMarkup();
-          return;
-        }
-
-        if (chrome) chrome.removeAttribute('hidden');
 
         const av = $('ocm-available');
         av.textContent = data.available ? 'Sí' : 'No';
@@ -728,19 +2082,30 @@ const iBot = iconToSvg(Bot, { width: 22, height: 22 });
         cj.textContent = String(n);
         cj.classList.remove('skeleton');
 
-        if (data.message && data.disabled && msg) {
-          msg.textContent = data.message;
-          msg.hidden = false;
+        updateOpenClawKpis(data);
+
+        if (data.message && data.disabled) {
+          msgText.textContent = data.message;
+          msgBox.classList.remove('openclaw-banner--hidden');
+        } else if (data.mockMode) {
+          msgText.textContent = data.suppressDemoFill
+            ? 'OpenClaw no está instalado o no está en PATH: las sondas son de demostración, pero el workspace, memoria, skills y documentación local se leen del disco. Cron del host es real.'
+            : 'OpenClaw no está instalado o no está en PATH. Se muestran datos de demostración (sondas y bloque de personalidad) y el cron real del host.';
+          msgBox.classList.remove('openclaw-banner--hidden');
+        } else {
+          msgBox.classList.add('openclaw-banner--hidden');
         }
 
         renderAll(data);
       } catch (e) {
         console.error(e);
-        if (chrome) chrome.removeAttribute('hidden');
+        msgBox.classList.add('openclaw-banner--hidden');
+        updateOpenClawKpis({});
         el.removeAttribute('aria-busy');
         el.classList.remove('oc-sections--loading');
-        el.innerHTML =
-          '<div class="oc-section"><p class="oc-err-note">No se pudo conectar con el servicio de métricas. Comprueba que la API esté en marcha y vuelve a intentarlo.</p></div>';
+        el.innerHTML = `<div class="oc-bento-tile oc-bento-tile--full"><div class="card"><p class="oc-err-note">${escHtml(
+          'No se pudo conectar con el servicio de métricas. Comprueba que la API esté en marcha y vuelve a intentarlo.',
+        )}</p></div></div>`;
       }
     }
 

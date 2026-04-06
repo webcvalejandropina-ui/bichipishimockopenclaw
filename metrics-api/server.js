@@ -1,7 +1,11 @@
 const http = require('http');
 const fs = require('fs');
+const fsp = fs.promises;
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({
+  path: path.join(__dirname, '..', '.env'),
+  override: false,
+});
 const os = require('os');
 const { promisify } = require('util');
 const { spawnSync, execSync, execFile, execFileSync } = require('child_process');
@@ -500,6 +504,43 @@ function timed(promise, ms, fallback) {
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
   ]).catch(() => fallback);
+}
+
+/** Resumen GPU desde `si.graphics()` (uso solo si el driver expone utilizationGpu, p. ej. NVIDIA con nvidia-smi). */
+function summarizeGpuFromGraphics(graphicsData) {
+  const ctrls =
+    graphicsData && Array.isArray(graphicsData.controllers) ? graphicsData.controllers.filter(Boolean) : [];
+  if (!ctrls.length) {
+    return { gpu: null, gpuModel: null, gpuVramMb: null, gpuControllers: [] };
+  }
+  let bestUtil = null;
+  for (const c of ctrls) {
+    const u = Number(c.utilizationGpu);
+    if (Number.isFinite(u)) {
+      const cl = Math.min(100, Math.max(0, u));
+      bestUtil = bestUtil == null ? cl : Math.max(bestUtil, cl);
+    }
+  }
+  const primary = ctrls.reduce((acc, cur) => {
+    const va = Number(acc.vram) || 0;
+    const vb = Number(cur.vram) || 0;
+    return vb > va ? cur : acc;
+  });
+  const vendor = String(primary.vendor || '').trim();
+  const model = String(primary.model || '').trim();
+  const gpuModel = [vendor, model].filter(Boolean).join(' ').trim() || null;
+  const vramN = Number(primary.vram);
+  const gpuVramMb = Number.isFinite(vramN) && vramN > 0 ? Math.round(vramN) : null;
+  const gpuControllers = ctrls.map((c) => ({
+    vendor: String(c.vendor || '').trim(),
+    model: String(c.model || '').trim(),
+    vramMb: Number.isFinite(Number(c.vram)) && Number(c.vram) > 0 ? Math.round(Number(c.vram)) : null,
+    utilization:
+      Number.isFinite(Number(c.utilizationGpu))
+        ? Math.min(100, Math.max(0, Math.round(Number(c.utilizationGpu))))
+        : null,
+  }));
+  return { gpu: bestUtil, gpuModel, gpuVramMb, gpuControllers };
 }
 
 function checkOpenClawAvailable() {
@@ -1118,6 +1159,7 @@ async function collectMetrics() {
     dockerVolumes,
     siNics,
     publicIp,
+    graphicsData,
   ] = await Promise.all([
     si.currentLoad(),
     si.mem(),
@@ -1131,7 +1173,10 @@ async function collectMetrics() {
     loadDockerVolumesForMetrics(),
     si.networkInterfaces().catch(() => []),
     fetchPublicIpv4().catch(() => ''),
+    timed(si.graphics().catch(() => ({ controllers: [] })), 8000, { controllers: [] }),
   ]);
+
+  const gpuBase = summarizeGpuFromGraphics(graphicsData);
 
   const memMacActivityMonitor = applyDarwinMemIfNeeded(mem);
   if (process.platform === 'darwin') {
@@ -1314,6 +1359,10 @@ async function collectMetrics() {
     processCountTotal: outProcTotal,
     cpuModel: cpuBrand,
     cpuCores: cores,
+    gpu: misleadingDocker ? null : gpuBase.gpu,
+    gpuModel: misleadingDocker ? null : gpuBase.gpuModel,
+    gpuVramMb: misleadingDocker ? null : gpuBase.gpuVramMb,
+    gpuControllers: misleadingDocker ? [] : gpuBase.gpuControllers,
     load: outLoad,
     uptime: outUptime,
     timestamp: Date.now(),
@@ -1603,8 +1652,346 @@ function getOpenClawDemoFill() {
   };
 }
 
+/**
+ * Sondas ficticias cuando no hay binario OpenClaw: misma forma que runOpenClawArgs + mock: true.
+ */
+function buildOpenClawMockProbes() {
+  const demoRow = (key) => ({
+    mock: true,
+    probe: key,
+    message: 'Demostración: instala el CLI OpenClaw o define OPENCLAW_BIN para datos reales.',
+  });
+  const out = {};
+  for (const p of OPENCLAW_CLI_PROBES) {
+    const cmdLine = `openclaw --no-color ${p.args.join(' ')}`;
+    let parsed;
+    let stdout;
+    if (p.key === 'version') {
+      parsed = { version: '0.0.0-mock', channel: 'demo', note: 'Sin CLI en PATH' };
+    } else if (p.key === 'config_file') {
+      parsed = null;
+      stdout = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+    } else if (p.key === 'doctor') {
+      parsed = null;
+      stdout = 'OpenClaw doctor (mock)\nChecks: OK\nSin binario real: vista de ejemplo únicamente.';
+    } else {
+      parsed = demoRow(p.key);
+    }
+    const stdoutFinal = stdout != null ? stdout : JSON.stringify(parsed, null, 2);
+    out[p.key] = {
+      ok: true,
+      exitCode: 0,
+      stdout: stdoutFinal,
+      stderr: '',
+      parsed: parsed != null ? parsed : tryParseJsonOutput(stdoutFinal),
+      cmd: cmdLine,
+      mock: true,
+    };
+  }
+  return out;
+}
+
+/** Rutas por defecto (VPS típico); override con OPENCLAW_WORKSPACE, OPENCLAW_DOCS, OPENCLAW_SKILLS, OPENCLAW_MEDIA_INBOUND */
+const OPENCLAW_PATH_DEFAULTS = {
+  workspace: '/home/openclaw_vps/.openclaw/workspace',
+  docs: '/home/openclaw_vps/.npm-global/lib/node_modules/openclaw/docs',
+  skills: '/home/openclaw_vps/.npm-global/lib/node_modules/openclaw/skills',
+  mediaInbound: '/home/openclaw_vps/.openclaw/media/inbound',
+};
+
+const OPENCLAW_WORKSPACE_CANONICAL = [
+  'AGENTS.md',
+  'SOUL.md',
+  'USER.md',
+  'IDENTITY.md',
+  'TOOLS.md',
+  'MEMORY.md',
+  'HEARTBEAT.md',
+];
+
+const OPENCLAW_READ_CAP_WORKSPACE = 131072;
+const OPENCLAW_READ_CAP_SKILL = 65536;
+const OPENCLAW_READ_CAP_MEMORY = 49152;
+const OPENCLAW_DOCS_MAX_FILES = 120;
+const OPENCLAW_DOCS_MAX_DEPTH = 8;
+
+function openclawEnvPath(key, fallback) {
+  const v = String(process.env[key] || '').trim();
+  return v || fallback;
+}
+
+function safeRealRoot(dir) {
+  try {
+    const r = fs.realpathSync(dir);
+    return r;
+  } catch {
+    return null;
+  }
+}
+
+/** Comprueba que candidate (normalizado) está bajo rootReal. */
+function isPathInsideRoot(rootReal, candidateAbs) {
+  if (!rootReal || !candidateAbs) return false;
+  const rel = path.relative(rootReal, candidateAbs);
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+async function readUtf8FileCapped(absPath, maxBytes) {
+  const buf = await fsp.readFile(absPath);
+  const slice = buf.length > maxBytes ? buf.subarray(0, maxBytes) : buf;
+  const truncated = buf.length > maxBytes;
+  let text = slice.toString('utf8');
+  const re = /\uFFFD/;
+  if (re.test(text)) {
+    text = `[binario o no UTF-8; ${buf.length} bytes]\n`;
+  }
+  return { text, truncated, size: buf.length };
+}
+
+async function collectOpenClawInstallLayout() {
+  if (process.env.OPENCLAW_FS_DISABLE === '1') {
+    return { disabled: true, message: 'OPENCLAW_FS_DISABLE=1' };
+  }
+
+  const roots = {
+    workspace: openclawEnvPath('OPENCLAW_WORKSPACE', OPENCLAW_PATH_DEFAULTS.workspace),
+    docs: openclawEnvPath('OPENCLAW_DOCS', OPENCLAW_PATH_DEFAULTS.docs),
+    skills: openclawEnvPath('OPENCLAW_SKILLS', OPENCLAW_PATH_DEFAULTS.skills),
+    mediaInbound: openclawEnvPath('OPENCLAW_MEDIA_INBOUND', OPENCLAW_PATH_DEFAULTS.mediaInbound),
+  };
+
+  const out = {
+    roots,
+    at: Date.now(),
+    workspaceExists: false,
+    workspaceFiles: {},
+    memory: { dir: '', exists: false, entries: [] },
+    skills: { dir: '', exists: false, items: [] },
+    docs: { dir: '', exists: false, files: [], fileCount: 0, capped: false },
+    mediaInbound: { dir: '', exists: false, fileCount: 0, sample: [] },
+    workspaceSubdirs: {},
+  };
+
+  const wsRoot = roots.workspace;
+  const wsReal = safeRealRoot(wsRoot);
+  out.workspaceExists = !!wsReal;
+
+  for (const name of OPENCLAW_WORKSPACE_CANONICAL) {
+    const key = name.replace(/\.md$/i, '').replace(/[^a-z0-9_]/gi, '_');
+    if (!wsReal) {
+      out.workspaceFiles[key] = { name, path: path.join(wsRoot, name), exists: false, error: 'Workspace no accesible' };
+      continue;
+    }
+    const abs = path.join(wsReal, name);
+    if (!isPathInsideRoot(wsReal, abs)) {
+      out.workspaceFiles[key] = { name, path: abs, exists: false, error: 'Ruta inválida' };
+      continue;
+    }
+    try {
+      const st = await fsp.stat(abs);
+      if (!st.isFile()) {
+        out.workspaceFiles[key] = { name, path: abs, exists: false, error: 'No es un fichero' };
+        continue;
+      }
+      const { text, truncated, size } = await readUtf8FileCapped(abs, OPENCLAW_READ_CAP_WORKSPACE);
+      out.workspaceFiles[key] = {
+        name,
+        path: abs,
+        exists: true,
+        content: text,
+        truncated,
+        size,
+      };
+    } catch (e) {
+      const code = e && e.code;
+      out.workspaceFiles[key] = {
+        name,
+        path: abs,
+        exists: code !== 'ENOENT',
+        error: code === 'ENOENT' ? 'No encontrado' : String(e.message || e),
+      };
+    }
+  }
+
+  const memDir = wsReal ? path.join(wsReal, 'memory') : path.join(wsRoot, 'memory');
+  out.memory.dir = memDir;
+  try {
+    const mr = wsReal ? safeRealRoot(memDir) : null;
+    if (mr && isPathInsideRoot(wsReal, mr)) {
+      out.memory.exists = true;
+      const names = await fsp.readdir(mr);
+      const mdFiles = names.filter((n) => /\.md$/i.test(n)).sort().reverse();
+      for (const n of mdFiles.slice(0, 40)) {
+        const abs = path.join(mr, n);
+        try {
+          const st = await fsp.stat(abs);
+          if (!st.isFile()) continue;
+          const { text, truncated, size } = await readUtf8FileCapped(abs, OPENCLAW_READ_CAP_MEMORY);
+          out.memory.entries.push({
+            name: n,
+            path: abs,
+            size,
+            mtimeMs: st.mtimeMs,
+            content: text,
+            truncated,
+          });
+        } catch (e) {
+          out.memory.entries.push({ name: n, path: abs, error: String(e.message || e) });
+        }
+      }
+    } else {
+      try {
+        await fsp.access(memDir);
+        out.memory.exists = true;
+        out.memory.error = 'No se pudo validar ruta bajo workspace';
+      } catch {
+        out.memory.exists = false;
+      }
+    }
+  } catch (e) {
+    out.memory.error = String(e.message || e);
+  }
+
+  const skillsRoot = roots.skills;
+  const skReal = safeRealRoot(skillsRoot);
+  out.skills.dir = skillsRoot;
+  out.skills.exists = !!skReal;
+  if (skReal) {
+    try {
+      const dirs = await fsp.readdir(skReal, { withFileTypes: true });
+      for (const d of dirs.sort((a, b) => a.name.localeCompare(b.name))) {
+        if (!d.isDirectory()) continue;
+        const skillAbs = path.join(skReal, d.name, 'SKILL.md');
+        try {
+          await fsp.access(skillAbs);
+        } catch {
+          out.skills.items.push({
+            skillDir: d.name,
+            skillMdPath: skillAbs,
+            exists: false,
+            error: 'SKILL.md no encontrado',
+          });
+          continue;
+        }
+        if (!isPathInsideRoot(skReal, path.dirname(skillAbs))) continue;
+        try {
+          const { text, truncated, size } = await readUtf8FileCapped(skillAbs, OPENCLAW_READ_CAP_SKILL);
+          out.skills.items.push({
+            skillDir: d.name,
+            skillMdPath: skillAbs,
+            exists: true,
+            content: text,
+            truncated,
+            size,
+          });
+        } catch (e) {
+          out.skills.items.push({ skillDir: d.name, skillMdPath: skillAbs, exists: false, error: String(e.message || e) });
+        }
+      }
+    } catch (e) {
+      out.skills.error = String(e.message || e);
+    }
+  }
+
+  const docsRoot = roots.docs;
+  const docsReal = safeRealRoot(docsRoot);
+  out.docs.dir = docsRoot;
+  out.docs.exists = !!docsReal;
+  if (docsReal) {
+    const collected = [];
+    async function walk(cur, depth) {
+      if (collected.length >= OPENCLAW_DOCS_MAX_FILES || depth > OPENCLAW_DOCS_MAX_DEPTH) return;
+      let entries;
+      try {
+        entries = await fsp.readdir(cur, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const ent of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+        if (collected.length >= OPENCLAW_DOCS_MAX_FILES) break;
+        const full = path.join(cur, ent.name);
+        if (ent.isDirectory()) {
+          await walk(full, depth + 1);
+        } else {
+          try {
+            const st = await fsp.stat(full);
+            const rel = path.relative(docsReal, full).replace(/\\/g, '/');
+            collected.push({ path: rel, size: st.size, mtimeMs: st.mtimeMs });
+          } catch {
+            /* skip */
+          }
+        }
+      }
+    }
+    try {
+      await walk(docsReal, 0);
+      out.docs.files = collected;
+      out.docs.fileCount = collected.length;
+      out.docs.capped = collected.length >= OPENCLAW_DOCS_MAX_FILES;
+    } catch (e) {
+      out.docs.error = String(e.message || e);
+    }
+  }
+
+  const mediaDir = roots.mediaInbound;
+  out.mediaInbound.dir = mediaDir;
+  try {
+    const medReal = safeRealRoot(mediaDir);
+    if (medReal) {
+      out.mediaInbound.exists = true;
+      const entries = await fsp.readdir(medReal, { withFileTypes: true });
+      let n = 0;
+      const sample = [];
+      for (const ent of entries) {
+        if (ent.isFile()) n += 1;
+        if (sample.length < 12 && ent.isFile()) sample.push(ent.name);
+      }
+      out.mediaInbound.fileCount = n;
+      out.mediaInbound.sample = sample.sort();
+    }
+  } catch (e) {
+    out.mediaInbound.error = String(e.message || e);
+  }
+
+  if (wsReal) {
+    for (const sub of ['memory', 'logs', 'proyectos']) {
+      const p = path.join(wsReal, sub);
+      try {
+        const st = await fsp.stat(p);
+        out.workspaceSubdirs[sub] = {
+          path: p,
+          exists: st.isDirectory(),
+          isDirectory: st.isDirectory(),
+        };
+        if (st.isDirectory()) {
+          const ch = await fsp.readdir(p);
+          out.workspaceSubdirs[sub].entryCount = ch.length;
+        }
+      } catch {
+        out.workspaceSubdirs[sub] = { path: p, exists: false };
+      }
+    }
+  }
+
+  const wf = out.workspaceFiles;
+  out.hasRealWorkspaceContent = Object.keys(wf).some((k) => wf[k] && wf[k].exists && wf[k].content);
+
+  return out;
+}
+
 async function collectOpenClawFullSnapshot() {
   const fill = getOpenClawDemoFill();
+  let installLayout = null;
+  if (process.env.OPENCLAW_FS_DISABLE === '1') {
+    installLayout = { disabled: true, message: 'OPENCLAW_FS_DISABLE=1' };
+  } else {
+    try {
+      installLayout = await collectOpenClawInstallLayout();
+    } catch (e) {
+      installLayout = { error: String(e && e.message ? e.message : e), roots: {} };
+    }
+  }
+
   if (process.env.OPENCLAW_SNAPSHOT_DISABLE === '1') {
     const d = new Date();
     const cronSystem = await collectCronPayload(d.getFullYear(), d.getMonth() + 1);
@@ -1618,18 +2005,25 @@ async function collectOpenClawFullSnapshot() {
       disabled: true,
       message: 'OPENCLAW_SNAPSHOT_DISABLE=1',
       openclawFill: fill,
+      installLayout,
+      suppressDemoFill: !!(installLayout && installLayout.hasRealWorkspaceContent),
     };
   }
 
   if (!checkOpenClawAvailable()) {
+    const d = new Date();
+    const cronSystem = await collectCronPayload(d.getFullYear(), d.getMonth() + 1);
     return {
       at: Date.now(),
       available: false,
+      mockMode: true,
       binary: getOpenClawBin(),
       platform: process.platform,
-      probes: {},
-      openclawFill: null,
-      cronSystem: { jobs: [], hint: '' },
+      probes: buildOpenClawMockProbes(),
+      openclawFill: fill,
+      cronSystem,
+      installLayout,
+      suppressDemoFill: !!(installLayout && installLayout.hasRealWorkspaceContent),
     };
   }
 
@@ -1654,6 +2048,8 @@ async function collectOpenClawFullSnapshot() {
     cronSystem,
     probes,
     openclawFill: fill,
+    installLayout,
+    suppressDemoFill: !!(installLayout && installLayout.hasRealWorkspaceContent),
   };
 }
 
@@ -2060,15 +2456,21 @@ function assertSettingsWrite(req, res) {
 }
 
 function serveStatic(req, res) {
-  let filePath = req.url.split('?')[0];
-  if (filePath === '/') filePath = '/index.html';
+  const raw = req.url.split('?')[0] || '/';
+  let pathname = raw.replace(/\/+$/, '') || '/';
+  try {
+    pathname = decodeURIComponent(pathname);
+  } catch {
+    res.writeHead(400);
+    res.end('Bad request');
+    return;
+  }
+  if (pathname.includes('\0') || pathname.includes('..')) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
 
-  const fullPath = path.join(DIST_DIR, filePath);
-  const distPath = path.join(DIST_DIR, req.url.split('?')[0]);
-
-  const safePath = distPath.startsWith(DIST_DIR) ? distPath : fullPath;
-
-  const ext = path.extname(safePath);
   const mimeTypes = {
     '.html': 'text/html',
     '.js': 'application/javascript',
@@ -2080,22 +2482,54 @@ function serveStatic(req, res) {
     '.svg': 'image/svg+xml',
   };
 
-  fs.readFile(safePath, (err, data) => {
-    if (err) {
-      fs.readFile(path.join(DIST_DIR, 'index.html'), (err2, data2) => {
-        if (err2) {
-          res.writeHead(404);
-          res.end('Not found');
-        } else {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(data2);
-        }
-      });
+  const rel = pathname === '/' ? 'index.html' : pathname.slice(1);
+  if (path.isAbsolute(rel) || rel.startsWith(path.sep)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+  const candidates = [
+    path.join(DIST_DIR, rel),
+    path.join(DIST_DIR, rel, 'index.html'),
+    path.join(DIST_DIR, `${rel}.html`),
+  ];
+
+  function fallbackIndexHtml() {
+    fs.readFile(path.join(DIST_DIR, 'index.html'), (err2, data2) => {
+      if (err2) {
+        res.writeHead(404);
+        res.end('Not found');
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(data2);
+      }
+    });
+  }
+
+  let i = 0;
+  function tryNext() {
+    if (i >= candidates.length) {
+      fallbackIndexHtml();
       return;
     }
-    res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
-    res.end(data);
-  });
+    const p = path.normalize(candidates[i++]);
+    if (!p.startsWith(DIST_DIR)) {
+      tryNext();
+      return;
+    }
+    fs.readFile(p, (err, data) => {
+      if (err) {
+        tryNext();
+        return;
+      }
+      const ext = path.extname(p);
+      res.writeHead(200, {
+        'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+      });
+      res.end(data);
+    });
+  }
+  tryNext();
 }
 
 function serveApi(req, res) {
@@ -2221,10 +2655,10 @@ server.on('error', (err) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   const distOk = fs.existsSync(path.join(DIST_DIR, 'index.html'));
-  console.log(`Bichipishi http://127.0.0.1:${PORT}/  (acceso directo al proceso)`);
-  if (PUBLIC_HOST_HINT) {
-    console.log(`           http://${PUBLIC_HOST_HINT}/  (puerto 80; Caddy: config/caddy-bichipishi-prod.caddyfile)`);
-  }
+  console.log(
+    `Bichipishi  http://${PUBLIC_HOST_HINT}/  (URL recomendada: sin IP ni puerto; hosts + Caddy → config/caddy-bichipishi-prod.caddyfile)`,
+  );
+  console.log(`           http://127.0.0.1:${PORT}/  (acceso directo al proceso)`);
   console.log(`  Web estática: ${DIST_DIR}${distOk ? '' : ' (ejecuta bun run build:astro antes)'}`);
   console.log(`  Datos: ${DATA_DIR}`);
   console.log(

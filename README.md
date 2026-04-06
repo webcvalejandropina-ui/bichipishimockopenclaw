@@ -1,51 +1,125 @@
 # Bichipishi
 
-Monitor del sistema en el navegador con **métricas reales del equipo** donde corre la app.
+**Bichipishi** es un monitor del sistema que corre en el navegador y muestra **métricas reales del equipo** donde se ejecuta la API (CPU, RAM, disco, carga, procesos, servicios, Docker, logs, GPU cuando el SO lo permite, etc.). La interfaz es una app **Astro** estática; los datos los sirve un pequeño servidor **Node/Bun** en rutas `/api/*`, de modo que en producción puedes tener **web y API en el mismo origen y puerto** (por defecto `3001`).
 
-**Repo:** https://github.com/webcvalejandropina-ui/bichipishimockopenclaw
+**Repositorio:** [github.com/webcvalejandropina-ui/bichipishimockopenclaw](https://github.com/webcvalejandropina-ui/bichipishimockopenclaw)
+
+---
+
+## Qué incluye
+
+| Área | Descripción |
+|------|-------------|
+| **Dashboard** | Resumen de CPU, RAM, disco, carga, GPU, KPIs (procesos, servicios, contenedores), alertas, gráficos y tarjeta de **información del sistema** (equipo, hostname, SO, IP, CPU, núcleos, GPU, RAM, disco). |
+| **Rendimiento** | Histórico agregado por día (SQLite en `data/`), alineado con las muestras que guarda la API. |
+| **Procesos / Servicios / Docker** | Listados y estado según `systeminformation` y el daemon de Docker. |
+| **Logs** | Lectura de archivo de log o journal (según plataforma y configuración). |
+| **OpenClaw** | Panel opcional si detectas binario o ruta de log configurada. |
+| **Sistema** | Hardware, uso de recursos, uptime, red, **GPU** (modelo, VRAM, uso si está disponible). |
+| **Configuración** | Umbrales, alertas por correo (SMTP), ajustes persistidos en `data/settings.json`. |
+| **Alertas** | Vista dedicada de advertencias del monitor. |
+
+Tema claro/oscuro, cabecera con estado del host y reloj, marca personalizable vía variables públicas (nombre, avatar).
+
+---
+
+## Arquitectura (resumen)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Navegador — Astro (HTML/CSS/JS en dist/)             │
+│  fetch → /api/metrics, /api/settings, …                │
+└────────────────────────┬────────────────────────────────┘
+                         │ mismo host:puerto en producción
+┌────────────────────────▼────────────────────────────────┐
+│  metrics-api/server.js (Bun o Node ≥ 18)                  │
+│  Sirve dist/ + API + SQLite (perf) + lectura de logs    │
+└────────────────────────┬────────────────────────────────┘
+                         │
+              systeminformation, fs, Docker, opc. mail
+```
+
+- **Desarrollo:** Astro en **4322** con proxy de Vite hacia la API en **3001** (ver `bun run dev`).
+- **Producción local:** `bun run deploy` construye la web y arranca un solo proceso que sirve `dist/` y la API.
 
 ---
 
 ## Requisitos
 
-- **[Bun](https://bun.sh) 1.1+** (Linux, macOS y Windows). Un solo runtime para la web (Astro), el script de deploy y la API.
-- Sin Docker: un solo proceso evita confundir métricas del contenedor con las del PC.
+- **[Bun](https://bun.sh) 1.1+** recomendado (scripts y lockfile del repo). También puedes usar **Node ≥ 18.20** con `npm run deploy:node`, `npm run start:node`, etc.
+- La API debe ejecutarse **en el host** cuyo sistema quieres monitorizar. Si solo la levantas dentro de un contenedor sin variables `BICHI_HOST_*`, la UI indica que las métricas **no representan tu PC** (Docker Linux ≠ Windows/macOS del usuario).
 
 ---
 
-## Estructura del proyecto
-
-| Carpeta / archivo | Qué es |
-|-------------------|--------|
-| **`dist/`** | Web estática (`bun run build`). La sirve el mismo proceso que la API. |
-| **`metrics-api/`** | Servidor Bun: rutas `/api/...` + ficheros de `dist/`. |
-| **`data/`** | SQLite de rendimiento (`perf.sqlite`) y **`settings.json`**. Misma ruta en cada arranque salvo `BICHI_DATA_DIR`. |
-
----
-
-## Ponerlo en marcha (recomendado)
+## Puesta en marcha (recomendado)
 
 ```bash
-cp .env.example .env   # opcional
+cp .env.example .env    # opcional; ajusta puertos y marca
 bun install
 bun run deploy
 ```
 
-**`bun run deploy`** hace, en orden: `bun install` (raíz + workspace `metrics-api`) → `bun run build` (Astro → `dist/`) → migra `metrics-api/data/*` a **`data/`** si aún no existen → arranca el servidor.
+Abre **http://127.0.0.1:3001/** (o el puerto definido en `BICHI_API_PORT` / `PUBLIC_BICHI_API_PORT`).
 
-Abre **http://127.0.0.1:3001/** (o el puerto de `BICHI_API_PORT` en `.env`). Web y API van **en el mismo origen**.
-
-| Comando | Uso |
-|---------|-----|
-| **`bun start`** | Solo servidor (si ya construiste antes). |
-| **`bun run dev`** | Desarrollo: Astro en caliente + API en otro puerto. |
+| Comando | Descripción |
+|---------|-------------|
+| `bun run deploy` | Instala dependencias (raíz + workspace `metrics-api`), build de Astro → `dist/`, migra datos antiguos de `metrics-api/data/` a `data/` si aplica, arranca el servidor unificado. |
+| `bun start` | Solo servidor (necesitas haber hecho el build antes). |
+| `bun run dev` | Astro en caliente (p. ej. `:4322`) + API en el puerto de `.env`. |
+| `bun run build:astro` | Solo genera `dist/`. |
 
 ---
 
-## Datos y consistencia
+## API HTTP (referencia rápida)
 
-- **SQLite** y **settings** viven en **`data/`** (ignorados por git salvo `data/.gitkeep`).
-- Si venías de una versión antigua con `metrics-api/data/`, el primer **`bun run deploy`** copia esos archivos a **`data/`** sin machacar los nuevos.
+| Ruta | Método | Uso |
+|------|--------|-----|
+| `/api/metrics` | GET | JSON con CPU, memoria, disco, load, uptime, top procesos, servicios, contenedores Docker, GPU (`gpu`, `gpuModel`, `gpuVramMb`, …), alertas, etc. |
+| `/api/settings` | GET / POST | Lee o guarda ajustes (con opciones de seguridad en producción). |
+| `/api/settings/test-mail` | POST | Prueba SMTP. |
+| `/api/perf/daily` | GET | Series diarias para la página de rendimiento. |
+| `/api/openclaw` | GET | Estado / datos OpenClaw si aplica. |
+| `/api/logs` | GET | Líneas de log según `LOG_FILE` o journal. |
+| `/api/cron` | GET | Tareas tipo cron (crontab + opcional `config/cron.extra`). |
+
+La documentación detallada de cabeceras, CORS y tokens opcionales está comentada en `metrics-api/server.js` y en `.env.example`.
+
+---
+
+## Datos en disco
+
+| Ruta | Contenido |
+|------|-----------|
+| **`data/`** | `perf.sqlite` (histórico de rendimiento), `settings.json` (umbrales, correo, …). Ignorados en git salvo `data/.gitkeep`. |
+| **`dist/`** | Salida del build de Astro; la sirve la API. Ignorado en git. |
+
+Variable opcional: **`BICHI_DATA_DIR`** para otra carpeta de datos.
+
+---
+
+## GPU
+
+La API usa **`systeminformation.graphics()`**. El **modelo** y la **VRAM** suelen aparecer en Linux/macOS/Windows; el **porcentaje de uso** depende del fabricante y herramientas (p. ej. NVIDIA con `nvidia-smi`). Si no hay dato de uso, la UI puede mostrar **N/D** manteniendo el modelo.
+
+---
+
+## Variables de entorno
+
+Copia **`.env.example`** → **`.env`**. Incluye:
+
+- Puerto unificado (`BICHI_API_PORT`, `PUBLIC_BICHI_API_PORT`).
+- Marca (`PUBLIC_BICHI_APP_NAME`, `PUBLIC_BICHI_AVATAR_URL`).
+- Origen público del sitio (`PUBLIC_BICHI_SITE_URL`, `BICHI_PUBLIC_HOST`) para HMR con Caddy u hosts locales.
+- Producción: `PUBLIC_BICHI_API_URL`, `BICHI_CORS_ORIGIN`, `BICHI_SETTINGS_TOKEN`, etc.
+- OpenClaw, `LOG_FILE`, overrides de host en Docker: ver comentarios en `.env.example` y `config/host-identity.env.example`.
+
+**No subas** `.env` ni `data/` con secretos.
+
+---
+
+## Windows
+
+Instala Bun con el instalador oficial. Los scripts de `package.json` no dependen de bash: `bun run deploy`, `bun start` y `bun run dev` funcionan en PowerShell o CMD. Si el puerto está ocupado, el servidor suele indicar cómo liberarlo (`netstat` / `taskkill`).
 
 ---
 
@@ -55,14 +129,11 @@ Abre **http://127.0.0.1:3001/** (o el puerto de `BICHI_API_PORT` en `.env`). Web
 bun run dev
 ```
 
-Web en **http://localhost:4322**, API en **3001** (proxy de Vite).
+- Front: **http://localhost:4322** (u host configurado).
+- API: proxy `/api` → **127.0.0.1:3001** (o el puerto de tu `.env`).
 
 ---
 
-## Windows
+## Contribuciones
 
-Instala Bun con el instalador oficial. Los scripts de `package.json` no dependen de bash: `bun run deploy`, `bun start` y `bun run dev` funcionan en PowerShell o CMD. Si el puerto está ocupado, el servidor muestra ayuda con `netstat` / `taskkill`.
-
----
-
-No subas **`.env`** ni el contenido de **`data/`** con secretos.
+Puedes abrir **issues** o **pull requests** en el repositorio de GitHub enlazado arriba. El campo `"private": true` en `package.json` solo evita publicar el paquete en npm; no define la visibilidad del repo.

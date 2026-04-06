@@ -6,7 +6,7 @@ import { iconToSvg } from '../lib/lucide-svg-string';
 import {
   Cpu, MemoryStick, HardDrive, Clock, Activity,
   RefreshCw, Users, Settings, Package,
-  Copy, Monitor, Server, Globe, Layers, LayoutGrid,
+  Copy, Monitor, Server, Globe, Layers, LayoutGrid, CircuitBoard,
 } from 'lucide';
 
 const iconSm = { width: 16, height: 16, 'stroke-width': 2 };
@@ -16,6 +16,7 @@ const i = {
   mem:     iconToSvg(MemoryStick,{ width: 18, height: 18 }),
   disk:    iconToSvg(HardDrive,  { width: 18, height: 18 }),
   load:    iconToSvg(Activity,   { width: 18, height: 18 }),
+  gpu:     iconToSvg(CircuitBoard, { width: 18, height: 18 }),
   clock:   iconToSvg(Clock,      { width: 14, height: 14 }),
   refresh: iconToSvg(RefreshCw,  { width: 20, height: 20 }),
   users:   iconToSvg(Users,      { width: 20, height: 20 }),
@@ -29,6 +30,7 @@ const i = {
   sysIp:   iconToSvg(Globe,      iconSm),
   sysCpu:  iconToSvg(Cpu,        iconSm),
   sysCores: iconToSvg(LayoutGrid, iconSm),
+  sysGpu:  iconToSvg(CircuitBoard, iconSm),
   sysMem:  iconToSvg(MemoryStick, iconSm),
   sysDisk: iconToSvg(HardDrive,  iconSm),
 };
@@ -63,6 +65,13 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
           <span class="q-badge-stack">
             <span class="q-badge-name">Disco</span>
             <strong id="qb-disk" class="skeleton q-badge-val">&mdash;</strong>
+          </span>
+        </div>
+        <div class="q-badge">
+          <span class="q-badge-icon" set:html={i.gpu} aria-hidden="true" />
+          <span class="q-badge-stack">
+            <span class="q-badge-name">GPU</span>
+            <strong id="qb-gpu" class="skeleton q-badge-val">&mdash;</strong>
           </span>
         </div>
         <div class="q-badge">
@@ -218,6 +227,11 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
             <div class="status-bar"><div class="status-fill" id="bar-disk" style="width:0%;background:var(--warn)"></div></div>
             <span class="status-val" id="bar-disk-val">&mdash;</span>
           </div>
+          <div class="status-row">
+            <span class="status-label">GPU</span>
+            <div class="status-bar"><div class="status-fill" id="bar-gpu" style="width:0%;background:var(--accent2)"></div></div>
+            <span class="status-val" id="bar-gpu-val">&mdash;</span>
+          </div>
         </div>
         <a href="/sistema" class="status-task-label">Sistema</a>
       </div>
@@ -326,6 +340,23 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
                   <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
                     <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-cpu-cores"></span>
                     <span class="dash-sys-tip__bubble" id="sys-cpu-cores-tip" role="tooltip">
+                      <span class="dash-sys-tip__bubble-row">
+                        <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
+                        <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
+                          <span class="dash-sys-tip__copy-icon" set:html={i.copyTip} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="dash-sys-row-card">
+                <div class="dash-sys-row-ico act-icon act-icon--info" set:html={i.sysGpu} aria-hidden="true" />
+                <div class="dash-sys-row-main">
+                  <span class="dash-sys-row-label">GPU</span>
+                  <span class="dash-sys-tip" tabindex="0" data-dash-sys-tip>
+                    <span class="dash-sys-val sys-val skeleton sys-val--dash-ellipsis" id="sys-gpu-model"></span>
+                    <span class="dash-sys-tip__bubble" id="sys-gpu-model-tip" role="tooltip">
                       <span class="dash-sys-tip__bubble-row">
                         <span class="dash-sys-tip__bubble-text" data-dash-tip-line></span>
                         <button type="button" class="dash-sys-tip__copy" aria-label="Copiar al portapapeles" title="Copiar">
@@ -867,6 +898,21 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         set('qb-cpu', pct(cpu));
         set('qb-ram', pct(mem));
         set('qb-disk', pct(disk));
+        const gpuN = hostOk && d.gpu != null ? Number(d.gpu) : NaN;
+        const gpuEl = document.getElementById('qb-gpu');
+        if (gpuEl) {
+          if (Number.isFinite(gpuN)) {
+            gpuEl.textContent = pct(gpuN);
+            gpuEl.removeAttribute('title');
+          } else {
+            const gm = typeof d.gpuModel === 'string' && d.gpuModel.trim() ? d.gpuModel.trim() : '';
+            gpuEl.textContent = gm ? 'N/D' : '—';
+            gpuEl.title = gm
+              ? 'Modelo detectado (sin % de uso en este sistema): ' + gm
+              : 'Sin datos de GPU';
+          }
+          gpuEl.classList.remove('skeleton');
+        }
         set(
           'qb-load',
           hostOk && Array.isArray(d.load) && d.load.length ? d.load[0].toFixed(2) : '—',
@@ -888,7 +934,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
 
         // Status bars
         const barW = (n: number) => (Number.isFinite(n) ? `${n}%` : '0%');
-        const barC = (n: number, t: 'cpu' | 'mem' | 'disk') =>
+        const barC = (n: number, t: 'cpu' | 'mem' | 'disk' | 'gpu') =>
           Number.isFinite(n) ? statusColor(n, t) : 'var(--bar-bg)';
         ($('bar-cpu') as HTMLElement).style.width = barW(cpu);
         ($('bar-cpu') as HTMLElement).style.background = barC(cpu, 'cpu');
@@ -899,6 +945,14 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         ($('bar-disk') as HTMLElement).style.width = barW(disk);
         ($('bar-disk') as HTMLElement).style.background = barC(disk, 'disk');
         $('bar-disk-val').textContent = pct(disk);
+        ($('bar-gpu') as HTMLElement).style.width = barW(gpuN);
+        ($('bar-gpu') as HTMLElement).style.background = barC(gpuN, 'gpu');
+        const gpuValEl = $('bar-gpu-val');
+        if (Number.isFinite(gpuN)) gpuValEl.textContent = pct(gpuN);
+        else {
+          const gm = typeof d.gpuModel === 'string' && d.gpuModel.trim() ? d.gpuModel.trim() : '';
+          gpuValEl.textContent = gm ? 'N/D' : '—';
+        }
 
         // Health pct
         const avg =
@@ -967,6 +1021,18 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         setDashSysTip('sys-ipv4', 'sys-ipv4-tip', ipFace, ipFull);
         setDashSysTip('sys-cpu-model', 'sys-cpu-model-tip', d.cpuModel || '—', d.cpuModel || '—', 30);
         setDashSysTip('sys-cpu-cores', 'sys-cpu-cores-tip', String(d.cpuCores ?? '—'), String(d.cpuCores ?? '—'));
+        const gpuModelDash =
+          typeof d.gpuModel === 'string' && d.gpuModel.trim() ? d.gpuModel.trim() : '';
+        const gpuVramDash =
+          typeof d.gpuVramMb === 'number' && d.gpuVramMb > 0 ? `${d.gpuVramMb} MB VRAM` : '';
+        const gpuUseDash =
+          hostOk && d.gpu != null && Number.isFinite(Number(d.gpu))
+            ? `${Math.round(Number(d.gpu))}% uso`
+            : '';
+        const gpuLineParts = [gpuModelDash, gpuVramDash, gpuUseDash].filter(Boolean);
+        const gpuFullLine = gpuLineParts.length ? gpuLineParts.join(' · ') : '—';
+        const gpuFaceLine = gpuModelDash || (gpuUseDash || '—');
+        setDashSysTip('sys-gpu-model', 'sys-gpu-model-tip', gpuFaceLine, gpuFullLine, 36);
         setDashSysTip('sys-mem-used', 'sys-mem-used-tip', ramStr, ramStr);
         setDashSysTip('sys-disk-used', 'sys-disk-used-tip', diskStr, diskStr);
         const upOk = hasValidSystemUptime(d.uptime);
@@ -1040,6 +1106,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         $('svc-list').innerHTML = '<div class="act-empty">Sin conexión a la API</div>';
         $('ctnr-list').innerHTML = '<div class="act-empty">Sin conexión a la API</div>';
         $('warn-list').innerHTML = '<div class="act-empty">Sin conexión a la API</div>';
+        setDashSysTip('sys-gpu-model', 'sys-gpu-model-tip', '—', '—');
       }
       finally {
         btn?.classList.remove('spinning');
