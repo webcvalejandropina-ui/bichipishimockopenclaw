@@ -6,6 +6,24 @@ La interfaz es una aplicación **Astro** (estática en `dist/`); los datos los s
 
 **Repositorio:** [github.com/webcvalejandropina-ui/bichipishimockopenclaw](https://github.com/webcvalejandropina-ui/bichipishimockopenclaw)
 
+**Versión actual del monorepo:** `1.1.0` (ver `package.json`).
+
+---
+
+## Novedades en v1.1.0
+
+| Área | Mejora |
+|------|--------|
+| **Tareas programadas** | Nueva página con vista y **calendario** alineado con el mismo origen de datos que el dashboard (`/api/cron`). Desde la UI se pueden **crear, editar y eliminar** tareas en hosts compatibles. |
+| **API** | Endpoint **`POST /api/host/cron/task`** para gestionar cron: crontab del usuario, fichero `config/cron.extra`, crontab del sistema opcional (`BICHI_CRON_ALLOW_SYSTEM`), y en **Windows** integración con **Programador de tareas** (`schtasks`) en los modos soportados. |
+| **Sistema** | Contenido organizado en **pestañas** para navegar hardware, recursos y red con menos scroll. |
+| **Procesos** | **Copia de PID y comando** más clara (botón dedicado, estilos que evitan solapar texto con el control de copiar). |
+| **Servicios** | Mensaje por defecto más neutro cuando no hay plantilla de comando para el entorno («Sin comandos»). |
+| **UI tareas programadas** | Ajuste de **capas (z-index)** y flujo del formulario para que los modales de error no queden ocultos bajo el formulario (p. ej. en macOS). |
+| **Tipos / datos** | Modelo ampliado para trabajos programados del sistema (p. ej. metadatos opcionales de Windows). |
+| **Desarrollo** | Script opcional **`proxy-server.py`** en la raíz: sirve `dist/` y reenvía `/api/*` a la API sin depender de Caddy. |
+| **Documentación** | README reescrito con **marco de proyecto personal**, tabla de API ampliada, advertencias de seguridad y **troubleshooting** de comandos en tareas cron. |
+
 ---
 
 ## Alcance y responsabilidad

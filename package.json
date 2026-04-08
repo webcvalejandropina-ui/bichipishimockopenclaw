@@ -1,6 +1,6 @@
 {
   "name": "bichipishimockopenclaw",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Bichipishi — dashboard de métricas del sistema (Astro + API Node/Bun). Repo público.",
   "repository": {
