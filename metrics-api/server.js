@@ -28,6 +28,13 @@ const CORS_ORIGIN = String(process.env.BICHI_CORS_ORIGIN || '*').trim() || '*';
 const SETTINGS_WRITE_DISABLED = process.env.BICHI_DISABLE_SETTINGS_WRITE === '1';
 /** Si está definido, POST /api/settings y test-mail exigen Authorization: Bearer <token> o cabecera X-Bichi-Token. */
 const SETTINGS_WRITE_TOKEN = String(process.env.BICHI_SETTINGS_TOKEN || '').trim();
+/** Si es 1, no se aceptan POST /api/host/* (señales a procesos ni acciones sobre servicios). */
+const HOST_ACTIONS_DISABLED = process.env.BICHI_DISABLE_HOST_ACTIONS === '1';
+/**
+ * Si se define, exige este token para POST /api/host/* (además, si no hay uno propio, se usa BICHI_SETTINGS_TOKEN).
+ * Sin token en env: mismas reglas que Docker (POST abiertos en LAN; no recomendado expuesto a Internet).
+ */
+const HOST_ACTION_TOKEN = String(process.env.BICHI_HOST_ACTION_TOKEN || '').trim();
 /** Si es 1, no se consulta servicio externo para IPv4 pública (menos latencia / sin salida a Internet). */
 const SKIP_PUBLIC_IP = process.env.BICHI_SKIP_PUBLIC_IP === '1';
 const PUBLIC_IP_CACHE_MS = 5 * 60 * 1000;
@@ -104,6 +111,8 @@ const DIST_DIR = process.env.DIST_DIR || path.join(REPO_ROOT, 'dist');
 /** SQLite (perf) + settings.json: raíz del repo por defecto (`data/`), consistente con `bun run deploy`. */
 const DATA_DIR = process.env.BICHI_DATA_DIR || path.join(REPO_ROOT, 'data');
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
+/** Editar /etc/crontab (requiere que el proceso tenga permiso de escritura). */
+const BICHI_CRON_ALLOW_SYSTEM = process.env.BICHI_CRON_ALLOW_SYSTEM === '1';
 
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -124,6 +133,66 @@ function isRunningInDocker() {
 
 function envTrim(key) {
   return String(process.env[key] || '').trim();
+}
+
+/**
+ * Ruta mostrable del ejecutable (o directorio/código) para la columna «Ruta» en /procesos.
+ * systeminformation suele dar `path` como carpeta y `command` solo como nombre corto.
+ */
+function resolveProcessExecutableDisplayPath(p) {
+  const nameRaw = String(p.name || '').replace(/^\((.+)\)$/, '$1').trim();
+  const baseName = nameRaw.split(/[/\\]/).pop() || nameRaw;
+  const pathField = String(p.path || '').trim();
+  const command = String(p.command || '').trim();
+  const params = String(p.params || '').trim();
+
+  if (command.startsWith('/')) {
+    const t = command.split(/\s+/)[0];
+    if (t.startsWith('/')) return t;
+  }
+  const qm = command.match(/^["']([^"']+)["']/);
+  if (qm && qm[1].startsWith('/')) return qm[1];
+
+  if (pathField.startsWith('/')) {
+    if (baseName) {
+      const candidates = [
+        path.join(pathField, baseName),
+        path.join(pathField, 'MacOS', baseName),
+      ];
+      for (const c of candidates) {
+        try {
+          if (fs.existsSync(c) && !fs.statSync(c).isDirectory()) return c;
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    return pathField;
+  }
+
+  if (params) {
+    const paramPaths = params.match(/(\/[^\s"')]+)/g);
+    if (paramPaths && paramPaths.length) {
+      const scriptish = paramPaths.find((x) => /\.(js|mjs|cjs|ts|tsx|py|wasm|json)$/i.test(x));
+      const pick = scriptish || paramPaths[0];
+      return String(pick || '').replace(/\)\s*$/, '');
+    }
+  }
+
+  if (process.platform === 'linux' && p.pid != null) {
+    const pid = Number(p.pid);
+    if (Number.isFinite(pid)) {
+      try {
+        let ex = fs.readlinkSync(`/proc/${pid}/exe`);
+        ex = String(ex || '').trim();
+        if (ex.startsWith('/')) return ex.replace(/\s*\(deleted\)\s*$/i, '').trim();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  return baseName || '';
 }
 
 /** PRETTY_NAME (o NAME+VERSION) desde os-release del anfitrión montado en el contenedor. */
@@ -280,6 +349,214 @@ function readBody(req, maxBytes) {
     req.on('end', () => resolve(buf));
     req.on('error', reject);
   });
+}
+
+function assertHostActionAuth(req, res) {
+  if (HOST_ACTIONS_DISABLED) {
+    json(res, 403, {
+      ok: false,
+      error: 'Acciones sobre procesos, servicios y tareas programadas desactivadas (BICHI_DISABLE_HOST_ACTIONS=1).',
+    });
+    return false;
+  }
+  const need = HOST_ACTION_TOKEN || SETTINGS_WRITE_TOKEN;
+  if (!need) return true;
+  const auth = String(req.headers.authorization || '');
+  const x = String(req.headers['x-bichi-token'] || '');
+  if (auth === `Bearer ${need}` || x === need) return true;
+  json(res, 401, {
+    ok: false,
+    error:
+      'Token requerido: BICHI_HOST_ACTION_TOKEN o BICHI_SETTINGS_TOKEN; cabecera Authorization: Bearer … o X-Bichi-Token (procesos, servicios, tareas programadas).',
+  });
+  return false;
+}
+
+function isSafeServiceName(s) {
+  const t = String(s || '').trim();
+  if (!t || t.length > 240) return false;
+  if (/[\r\n\0]/.test(t)) return false;
+  if (/[;&|$`()]/.test(t)) return false;
+  return /^[\w.\-@+\\ ]+$/i.test(t);
+}
+
+function runProcessSignal(pidRaw, signal) {
+  const sig = signal === 'kill' ? 'kill' : 'term';
+  const pid = Number(pidRaw);
+  if (!Number.isInteger(pid) || pid < 2) return { ok: false, error: 'PID inválido' };
+  if (pid === process.pid) {
+    return { ok: false, error: 'No se puede señalar al propio proceso de la API de métricas' };
+  }
+  if (pid === 1 && process.platform !== 'win32') {
+    return { ok: false, error: 'No se permite señalar al proceso con PID 1 (init del sistema).' };
+  }
+  if (process.platform === 'win32') {
+    const args = ['/PID', String(pid)];
+    if (sig === 'kill') args.push('/F');
+    try {
+      const r = spawnSync('taskkill', args, {
+        encoding: 'utf8',
+        stdio: 'pipe',
+        windowsHide: true,
+        timeout: 30000,
+      });
+      if (r.error) return { ok: false, error: r.error.message || String(r.error) };
+      if (r.status !== 0) {
+        const msg = (r.stderr || r.stdout || '').trim() || `taskkill terminó con código ${r.status}`;
+        return { ok: false, error: msg };
+      }
+      return { ok: true, signal: sig };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message ? e.message : e) };
+    }
+  }
+  try {
+    const nodeSig = sig === 'kill' ? 'SIGKILL' : 'SIGTERM';
+    process.kill(pid, nodeSig);
+    return { ok: true, signal: sig };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+async function runServiceHostAction(name, action) {
+  if (!['stop', 'start', 'restart'].includes(action)) return { ok: false, error: 'Acción inválida' };
+  if (!isSafeServiceName(name)) return { ok: false, error: 'Nombre de servicio no permitido' };
+
+  if (process.platform === 'linux') {
+    try {
+      await execFileAsync('systemctl', [action, name], {
+        timeout: 120000,
+        windowsHide: true,
+      });
+      return { ok: true };
+    } catch (e) {
+      const msg =
+        (e && e.stderr && String(e.stderr).trim()) ||
+        (e && e.stdout && String(e.stdout).trim()) ||
+        (e && e.message ? e.message : String(e));
+      return { ok: false, error: msg };
+    }
+  }
+
+  if (process.platform === 'win32') {
+    const esc = String(name).replace(/'/g, "''");
+    const ps =
+      action === 'stop'
+        ? `Stop-Service -Name '${esc}' -Force -ErrorAction Stop`
+        : action === 'start'
+          ? `Start-Service -Name '${esc}' -ErrorAction Stop`
+          : `Restart-Service -Name '${esc}' -Force -ErrorAction Stop`;
+    try {
+      await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], {
+        timeout: 120000,
+        windowsHide: true,
+      });
+      return { ok: true };
+    } catch (e) {
+      const msg =
+        (e && e.stderr && String(e.stderr).trim()) ||
+        (e && e.stdout && String(e.stdout).trim()) ||
+        (e && e.message ? e.message : String(e));
+      return { ok: false, error: msg };
+    }
+  }
+
+  return {
+    ok: false,
+    error:
+      'Este sistema no expone systemctl ni servicios de Windows gestionables desde aquí (p. ej. macOS: filas informativas por proceso). Usa launchctl, la UI del sistema o ejecuta la API en Linux/WSL.',
+  };
+}
+
+function serviceLocalCliMeta(platform) {
+  if (platform === 'darwin') {
+    return {
+      cliStopTemplate: 'brew services stop {{name}}',
+      cliStartTemplate: 'brew services start {{name}}',
+      cliRestartTemplate: 'brew services restart {{name}}',
+      cliNote:
+        'Ejemplos orientativos con Homebrew. Si el servicio no es de brew, usa `sudo launchctl list` y la documentación de launchd; el nombre de la tarjeta puede no coincidir con el ID del daemon.',
+      openTerminal: 'open -a Terminal',
+      openTerminalHelp:
+        'Se copia en el portápapeles. Pégalo en Spotlight (⌘+Espacio), en “Ejecutar” de otra ventana o en un acceso directo.',
+    };
+  }
+  if (platform === 'freebsd' || platform === 'openbsd' || platform === 'netbsd') {
+    return {
+      cliStopTemplate: 'sudo service {{name}} onestop',
+      cliStartTemplate: 'sudo service {{name}} onestart',
+      cliRestartTemplate: 'sudo service {{name}} onerestart',
+      cliNote: 'Comandos típicos de rc.d; el nombre puede variar según el script en /usr/local/etc/rc.d.',
+      openTerminal: 'xterm',
+      openTerminalHelp: 'Se copia el lanzador por defecto; abre un terminal desde el escritorio o usa SSH y pega el comando del servicio.',
+    };
+  }
+  return {
+    cliStopTemplate: 'sudo service {{name}} stop',
+    cliStartTemplate: 'sudo service {{name}} start',
+    cliRestartTemplate: 'sudo service {{name}} restart',
+    cliNote: 'Comando genérico tipo SysV/BSD; comprueba el init de tu sistema.',
+    openTerminal: 'x-terminal-emulator',
+    openTerminalHelp: 'Se copia un lanzador genérico (Debian: update-alternatives x-terminal-emulator).',
+  };
+}
+
+function hostActionsPayload(platform, metricsRepresentHost) {
+  if (!metricsRepresentHost) return null;
+  const processCtl = { term: true, kill: true };
+  let serviceMode = 'none';
+  let serviceHint = '';
+  /** Plantillas CLI y “abrir terminal” cuando no hay API systemctl/Windows. */
+  let cliStopTemplate = '';
+  let cliStartTemplate = '';
+  let cliRestartTemplate = '';
+  let cliNote = '';
+  let openTerminal = '';
+  let openTerminalHelp = '';
+  if (platform === 'linux') {
+    serviceMode = 'systemd';
+    serviceHint = 'Linux: systemctl start|stop|restart con el nombre exacto que devuelve la API.';
+    cliStopTemplate = 'sudo systemctl stop {{name}}';
+    cliStartTemplate = 'sudo systemctl start {{name}}';
+    cliRestartTemplate = 'sudo systemctl restart {{name}}';
+    cliNote = 'Referencia para copiar en terminal (misma acción que los botones si tienes permisos polkit/sudo).';
+    openTerminal = 'gnome-terminal || x-terminal-emulator || konsole';
+    openTerminalHelp =
+      'Una sola línea con alternativas; copia y ejecuta en un shell o abre un terminal desde el menú del escritorio.';
+  } else if (platform === 'win32') {
+    serviceMode = 'windows';
+    serviceHint = 'Windows: PowerShell Start/Stop/Restart-Service.';
+    cliStopTemplate = 'Stop-Service -Name "{{name}}" -Force';
+    cliStartTemplate = 'Start-Service -Name "{{name}}"';
+    cliRestartTemplate = 'Restart-Service -Name "{{name}}" -Force';
+    cliNote = 'Ejecuta en PowerShell elevado si el servicio lo requiere. Sustituye el nombre exacto (puede incluir espacios).';
+    openTerminal = 'wt';
+    openTerminalHelp = 'Copia `wt` para abrir Windows Terminal, o usa Win+X → Terminal (Windows 11).';
+  } else {
+    const loc = serviceLocalCliMeta(platform);
+    serviceHint = loc.cliNote;
+    cliStopTemplate = loc.cliStopTemplate;
+    cliStartTemplate = loc.cliStartTemplate;
+    cliRestartTemplate = loc.cliRestartTemplate;
+    cliNote = loc.cliNote;
+    openTerminal = loc.openTerminal;
+    openTerminalHelp = loc.openTerminalHelp;
+  }
+  return {
+    process: processCtl,
+    service: {
+      mode: serviceMode,
+      hint: serviceHint,
+      cliStopTemplate,
+      cliStartTemplate,
+      cliRestartTemplate,
+      cliNote,
+      openTerminal,
+      openTerminalHelp,
+    },
+    authRequired: !!(HOST_ACTION_TOKEN || SETTINGS_WRITE_TOKEN),
+  };
 }
 
 function severityMeetsEmailMin(sev, min) {
@@ -527,10 +804,23 @@ function summarizeGpuFromGraphics(graphicsData) {
     return vb > va ? cur : acc;
   });
   const vendor = String(primary.vendor || '').trim();
-  const model = String(primary.model || '').trim();
-  const gpuModel = [vendor, model].filter(Boolean).join(' ').trim() || null;
+  const model = String(primary.model || '')
+    .trim()
+    .replace(/^Apple\s+Apple\s+/i, 'Apple ');
+  const vLow = vendor.toLowerCase();
+  const mLow = model.toLowerCase();
+  let gpuModel = null;
+  if (vendor && model) {
+    if (mLow === vLow || mLow.startsWith(`${vLow} `) || mLow.startsWith(`${vLow}(`)) gpuModel = model;
+    else gpuModel = `${vendor} ${model}`.trim();
+  } else {
+    gpuModel = vendor || model || null;
+  }
   const vramN = Number(primary.vram);
   const gpuVramMb = Number.isFinite(vramN) && vramN > 0 ? Math.round(vramN) : null;
+  if (gpuModel) {
+    gpuModel = String(gpuModel).replace(/\bApple\s+Apple\b/gi, 'Apple').trim();
+  }
   const gpuControllers = ctrls.map((c) => ({
     vendor: String(c.vendor || '').trim(),
     model: String(c.model || '').trim(),
@@ -541,6 +831,43 @@ function summarizeGpuFromGraphics(graphicsData) {
         : null,
   }));
   return { gpu: bestUtil, gpuModel, gpuVramMb, gpuControllers };
+}
+
+/**
+ * Si `systeminformation` no lista GPU (frecuente en Windows sin WMI completo), intenta Win32_VideoController.
+ * Misma forma que espera `summarizeGpuFromGraphics` (vram en MB).
+ */
+async function tryWindowsGpuControllersFromWmi() {
+  if (process.platform !== 'win32') return [];
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        'Get-CimInstance Win32_VideoController | Where-Object { $_.Name } | Select-Object Name, AdapterRAM | ConvertTo-Json -Compress',
+      ],
+      { timeout: 9000, windowsHide: true, maxBuffer: 512 * 1024 },
+    );
+    const raw = JSON.parse(String(stdout || '').trim());
+    const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const junk = /microsoft basic|parsec|virtual display|remote desktop|teamviewer|sunlogin|rdp|mirror|dummy/i;
+    const mapped = rows
+      .map((r) => {
+        const name = String(r.Name || '').trim();
+        const bytes = Number(r.AdapterRAM) || 0;
+        const vramMb = bytes > 0 ? Math.round(bytes / (1024 * 1024)) : null;
+        return { vendor: '', model: name, vram: vramMb, utilizationGpu: undefined };
+      })
+      .filter((c) => c.model);
+    const good = mapped.filter((c) => !junk.test(c.model));
+    return good.length ? good : mapped;
+  } catch (e) {
+    console.warn('[bichi] Win32_VideoController (GPU):', e && e.message ? e.message : e);
+    return [];
+  }
 }
 
 function checkOpenClawAvailable() {
@@ -573,9 +900,164 @@ function pickMainFs(fsSize) {
   const skipRe = /^(tmpfs|devtmpfs|overlay|squashfs|ramfs|proc|sys|devfs|loop)/i;
   const usable = fsSize.filter((f) => f && f.size > 0 && !skipRe.test(f.type || '') && String(f.mount || '').length);
   if (!usable.length) return fsSize[0];
+  /** macOS APFS: `/` suele ser el volumen del sistema sellado (pequeño); los datos van en Data. */
+  if (process.platform === 'darwin') {
+    const dataVol = usable.find((f) => String(f.mount || '') === '/System/Volumes/Data');
+    if (dataVol) return dataVol;
+    const darwinCandidates = usable.filter((f) => {
+      const m = String(f.mount || '');
+      return m === '/' || m.startsWith('/System/Volumes/');
+    });
+    if (darwinCandidates.length) {
+      return darwinCandidates.sort((a, b) => (b.size || 0) - (a.size || 0))[0];
+    }
+  }
   const root = usable.find((f) => f.mount === '/' || /^[A-Za-z]:$/.test(String(f.mount).replace(/\\/g, '')));
   if (root) return root;
   return usable.sort((a, b) => (b.size || 0) - (a.size || 0))[0];
+}
+
+/**
+ * macOS: `systeminformation.fsSize()` suele mezclar APFS (total del contenedor de datos vs usado del volumen sellado).
+ * Usamos `df` y/o `fs.statfsSync` y elegimos el volumen grande (no el de ~15–20 GiB del sistema).
+ */
+function parseDfPkDataLine(line) {
+  const parts = line.trim().split(/\s+/);
+  const capIdx = parts.findIndex((p) => /^\d+%$/.test(p));
+  if (capIdx < 4) return null;
+  const blocks = Number.parseInt(parts[capIdx - 3], 10);
+  const used = Number.parseInt(parts[capIdx - 2], 10);
+  const avail = Number.parseInt(parts[capIdx - 1], 10);
+  if (!Number.isFinite(blocks) || blocks <= 0) return null;
+  const mount = parts.slice(capIdx + 1).join(' ').trim();
+  const size = blocks * 1024;
+  const usedB = Number.isFinite(used) && used >= 0 ? used * 1024 : 0;
+  const availB = Number.isFinite(avail) && avail >= 0 ? avail * 1024 : Math.max(0, size - usedB);
+  const usePct = size > 0 ? Math.min(100, Math.max(0, (usedB / size) * 100)) : 0;
+  return { size, used: usedB, available: availB, mount, use: usePct };
+}
+
+function dfExecutableForPlatform() {
+  if (process.platform === 'darwin' && fs.existsSync('/bin/df')) return '/bin/df';
+  return 'df';
+}
+
+function statFsNumber(v) {
+  if (typeof v === 'bigint') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/** Alineado con “espacio disponible” del usuario (bavail). */
+function statfsToDiskRow(mountPath) {
+  if (typeof fs.statfsSync !== 'function') return null;
+  try {
+    const s = fs.statfsSync(mountPath);
+    const bsize = statFsNumber(s.bsize);
+    const blocks = statFsNumber(s.blocks);
+    const bavail = statFsNumber(s.bavail);
+    if (!(bsize > 0) || !(blocks > 0) || !Number.isFinite(bavail) || bavail < 0) return null;
+    const size = blocks * bsize;
+    const available = bavail * bsize;
+    const used = Math.max(0, Math.min(size, size - available));
+    const usePct = size > 0 ? Math.min(100, Math.max(0, (used / size) * 100)) : 0;
+    return { size, used, available, mount: mountPath, use: usePct, type: 'statfs' };
+  } catch {
+    return null;
+  }
+}
+
+function tryDfPkForPath(mountPath) {
+  try {
+    const exe = dfExecutableForPlatform();
+    const r = spawnSync(exe, ['-Pk', mountPath], {
+      encoding: 'utf8',
+      timeout: 9000,
+      maxBuffer: 128 * 1024,
+      windowsHide: true,
+    });
+    if (r.error || r.status !== 0 || !String(r.stdout || '').trim()) return null;
+    const lines = String(r.stdout).trim().split('\n');
+    if (lines.length < 2) return null;
+    const row = parseDfPkDataLine(lines[1]);
+    if (!row) return null;
+    return { ...row, type: 'df' };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {string} [rootPrefix] nativo: ''; en Docker: prefijo montaje del host (p. ej. `/host`).
+ */
+function darwinLikeDiskFromPaths(rootPrefix) {
+  const base = rootPrefix == null ? '' : String(rootPrefix).replace(/\/$/, '');
+  const paths = base
+    ? [`${base}/System/Volumes/Data`, base]
+    : ['/System/Volumes/Data', '/'];
+  const extra = envTrim('BICHI_DISK_EXTRA_MOUNT');
+  if (extra) {
+    for (const raw of extra.split(/[,;]+/)) {
+      const p = String(raw || '').trim();
+      if (!p) continue;
+      paths.push(base ? `${base}${p.startsWith('/') ? p : `/${p}`}` : p);
+    }
+  }
+
+  const rows = [];
+  for (const p of paths) {
+    try {
+      if (!fs.existsSync(p)) continue;
+    } catch {
+      continue;
+    }
+    const dfRow = tryDfPkForPath(p);
+    if (dfRow) rows.push(dfRow);
+    const st = statfsToDiskRow(p);
+    if (st) rows.push(st);
+  }
+
+  const byMount = new Map();
+  for (const r of rows) {
+    const m = String(r.mount || '').trim() || '(unknown)';
+    const cur = byMount.get(m);
+    if (!cur || (r.type === 'df' && cur.type !== 'df')) byMount.set(m, r);
+  }
+
+  let list = [...byMount.values()].filter((r) => r && r.size > 0);
+  if (!list.length) return null;
+
+  /** Excluye el volumen sellado ~10–20 GiB si ya tenemos un candidato mayor (típico APFS). */
+  const MIN_MAIN_VOL = 20 * 1024 ** 3;
+  const big = list.filter((r) => r.size >= MIN_MAIN_VOL);
+  if (big.length) list = big;
+
+  list.sort((a, b) => {
+    if (b.size !== a.size) return b.size - a.size;
+    return (b.used || 0) - (a.used || 0);
+  });
+
+  return list[0];
+}
+
+function mergeMainFsWithFree(fsRow) {
+  if (!fsRow) return null;
+  const size = Number(fsRow.size) || 0;
+  const used = Number(fsRow.used) || 0;
+  let available = Number(fsRow.available);
+  if (!Number.isFinite(available) || available < 0) {
+    available = Math.max(0, size - used);
+  }
+  const use =
+    Number.isFinite(Number(fsRow.use)) && fsRow.use >= 0
+      ? Math.min(100, Math.max(0, Number(fsRow.use)))
+      : size > 0
+        ? Math.min(100, Math.max(0, (used / size) * 100))
+        : 0;
+  return { ...fsRow, size, used, available, use };
 }
 
 function formatBytes(n) {
@@ -618,13 +1100,24 @@ function dockerEngineGet(pathAndQuery, timeoutMs = 12000) {
 
   return new Promise((resolve) => {
     let settled = false;
+    /** Evita colgarse indefinidamente si el pipe/socket no emite `end` ni `timeout` (p. ej. Docker Desktop en Windows). */
+    let req = null;
     const finish = (val) => {
       if (settled) return;
       settled = true;
+      clearTimeout(hardDeadline);
       resolve(val);
     };
 
-    let req;
+    const hardDeadline = setTimeout(() => {
+      try {
+        if (req) req.destroy();
+      } catch {
+        /* ignore */
+      }
+      finish(null);
+    }, timeoutMs + 4000);
+
     try {
       req = http.request(
         {
@@ -723,6 +1216,68 @@ async function loadDockerVolumesForMetrics() {
     scope: (v.Scope || '').toString(),
     created: v.CreatedAt ? Math.round(new Date(v.CreatedAt).getTime() / 1000) : 0,
   }));
+}
+
+/** Primeros 12 hex del digest de imagen (como en `docker images`). */
+function dockerImageIdShortFromField(imageIdField) {
+  const raw = String(imageIdField || '')
+    .trim()
+    .replace(/^sha256:/i, '');
+  if (raw.length >= 12) return raw.slice(0, 12).toLowerCase();
+  return '';
+}
+
+function containerRowReferencesImage(im, c) {
+  const cShort = dockerImageIdShortFromField(c.ImageID || c.imageID);
+  const imId = String(im.id || '').toLowerCase();
+  if (cShort && imId && cShort === imId) return true;
+  const iref = String(c.Image || c.image || '').trim();
+  if (!iref) return false;
+  const irefBase = iref.split('@')[0];
+  if (im.repo && im.repo !== '<sin etiqueta>' && (iref === im.repo || irefBase === im.repo)) return true;
+  if (Array.isArray(im.tags)) {
+    for (const t of im.tags) {
+      if (!t) continue;
+      if (iref === t || irefBase === t) return true;
+      const tb = t.split('@')[0];
+      if (irefBase === tb || iref === tb) return true;
+    }
+  }
+  return false;
+}
+
+function enrichDockerImagesWithUsage(images, containersJson) {
+  if (!Array.isArray(images)) return [];
+  const cis = Array.isArray(containersJson) ? containersJson : [];
+  return images.map((im) => {
+    const ids = new Set();
+    for (const c of cis) {
+      if (containerRowReferencesImage(im, c)) ids.add(String(c.Id || c.ID || ''));
+    }
+    const n = ids.size;
+    return { ...im, inUse: n > 0, usedByContainers: n };
+  });
+}
+
+function enrichDockerVolumesWithUsage(volumes, containersJson) {
+  if (!Array.isArray(volumes)) return [];
+  const cis = Array.isArray(containersJson) ? containersJson : [];
+  const nameToIds = new Map();
+  for (const c of cis) {
+    const cid = String(c.Id || c.ID || '');
+    const mounts = Array.isArray(c.Mounts) ? c.Mounts : [];
+    for (const m of mounts) {
+      if (String(m.Type || m.type || '').toLowerCase() === 'volume' && m.Name) {
+        if (!nameToIds.has(m.Name)) nameToIds.set(m.Name, new Set());
+        if (cid) nameToIds.get(m.Name).add(cid);
+      }
+    }
+  }
+  return volumes.map((v) => {
+    const set = nameToIds.get(v.name) || new Set();
+    const n = set.size;
+    return { ...v, inUse: n > 0, usedByContainers: n };
+  });
 }
 
 function formatDockerPorts(ports) {
@@ -1143,6 +1698,13 @@ function buildThresholdAlerts(hostname, memPct, diskPct, cpuPct, mem, mainFs, th
   return { warnings, alerts };
 }
 
+/** Valores seguros si `systeminformation` tarda demasiado o falla (evita que /api/metrics cuelgue). */
+function memFallbackFromOs() {
+  const total = Math.max(1, os.totalmem() || 1);
+  const free = Math.max(0, os.freemem() || 0);
+  return { total, used: Math.min(total, total - free) };
+}
+
 async function collectMetrics() {
   const openclawAvailable = checkOpenClawAvailable();
 
@@ -1160,23 +1722,32 @@ async function collectMetrics() {
     siNics,
     publicIp,
     graphicsData,
+    dockerContainersJson,
   ] = await Promise.all([
-    si.currentLoad(),
-    si.mem(),
-    si.fsSize(),
-    si.osInfo(),
-    si.cpu(),
-    si.processes().catch(() => ({ list: [] })),
-    si.services(monitoredServicesSpecifier()).catch(() => []),
+    timed(si.currentLoad(), 15000, { currentLoad: 0 }),
+    timed(si.mem(), 15000, memFallbackFromOs()),
+    timed(si.fsSize(), 20000, []),
+    timed(si.osInfo(), 12000, { hostname: os.hostname() || '' }),
+    timed(si.cpu(), 15000, { cores: os.cpus().length || 1, brand: 'CPU', manufacturer: '' }),
+    timed(si.processes().catch(() => ({ list: [] })), 25000, { list: [] }),
+    timed(si.services(monitoredServicesSpecifier()).catch(() => []), 20000, []),
     timed(si.dockerContainers(true), 8000, []),
-    loadDockerImagesForMetrics(),
-    loadDockerVolumesForMetrics(),
-    si.networkInterfaces().catch(() => []),
+    timed(loadDockerImagesForMetrics(), 22000, []),
+    timed(loadDockerVolumesForMetrics(), 18000, []),
+    timed(si.networkInterfaces().catch(() => []), 15000, []),
     fetchPublicIpv4().catch(() => ''),
-    timed(si.graphics().catch(() => ({ controllers: [] })), 8000, { controllers: [] }),
+    timed(si.graphics().catch(() => ({ controllers: [] })), 12000, { controllers: [] }),
+    timed(dockerEngineGet('containers/json?all=true', 12000), 12000, null),
   ]);
 
-  const gpuBase = summarizeGpuFromGraphics(graphicsData);
+  let graphicsForGpu = graphicsData;
+  if (!graphicsForGpu?.controllers?.length && process.platform === 'win32') {
+    const wmiCtrls = await tryWindowsGpuControllersFromWmi();
+    if (wmiCtrls.length) {
+      graphicsForGpu = { controllers: wmiCtrls };
+    }
+  }
+  const gpuBase = summarizeGpuFromGraphics(graphicsForGpu);
 
   const memMacActivityMonitor = applyDarwinMemIfNeeded(mem);
   if (process.platform === 'darwin') {
@@ -1199,7 +1770,19 @@ async function collectMetrics() {
   const memTotal = mem.total || 1;
   const memPct = Math.min(100, Math.max(0, ((mem.used || 0) / memTotal) * 100));
 
-  const mainFs = pickMainFs(fsSize);
+  const hostDiskRootEnv = envTrim('BICHI_HOST_DISK_ROOT');
+  const hostDiskRoot =
+    hostDiskRootEnv || (isRunningInDocker() && fs.existsSync('/host') ? '/host' : '');
+
+  let mainFsRaw = pickMainFs(fsSize);
+  if (process.platform === 'darwin') {
+    const acc = darwinLikeDiskFromPaths('');
+    if (acc) mainFsRaw = acc;
+  } else if (hostDiskRoot) {
+    const acc = darwinLikeDiskFromPaths(hostDiskRoot);
+    if (acc) mainFsRaw = acc;
+  }
+  const mainFs = mergeMainFsWithFree(mainFsRaw);
   const diskPct = mainFs && mainFs.size > 0
     ? Math.min(100, Math.max(0, mainFs.use || ((mainFs.used / mainFs.size) * 100)))
     : 0;
@@ -1224,14 +1807,20 @@ async function collectMetrics() {
     .filter((p) => p && (p.pid || p.pid === 0))
     .sort((a, b) => (Number(b.cpu) || 0) - (Number(a.cpu) || 0))
     .slice(0, TOP_CPU_PROCESSES)
-    .map((p) => ({
-      comm: (p.name || p.command || '?').toString().split(/[\s\\/]/).pop() || '?',
-      desc: '',
-      pid: p.pid,
-      cmd: (p.command || p.path || p.name || '').toString(),
-      cpu: Math.round((Number(p.cpu) || 0) * 10) / 10,
-      mem: Math.round((Number(p.mem) || 0) * 10) / 10,
-    }));
+    .map((p) => {
+      const pathResolved = resolveProcessExecutableDisplayPath(p);
+      const cmdLine = [String(p.command || '').trim(), String(p.params || '').trim()].filter(Boolean).join(' ').trim();
+      const cmdOut = cmdLine || String(p.command || p.path || p.name || '').trim();
+      return {
+        comm: (p.name || p.command || '?').toString().split(/[\s\\/]/).pop() || '?',
+        desc: '',
+        pid: p.pid,
+        path: pathResolved,
+        cmd: cmdOut,
+        cpu: Math.round((Number(p.cpu) || 0) * 10) / 10,
+        mem: Math.round((Number(p.mem) || 0) * 10) / 10,
+      };
+    });
 
   const services = normalizeServicesList(svcList, process.platform);
 
@@ -1249,8 +1838,15 @@ async function collectMetrics() {
       };
     });
 
-  const dockerImagesSafe = Array.isArray(dockerImages) ? dockerImages : [];
-  const dockerVolumesSafe = Array.isArray(dockerVolumes) ? dockerVolumes : [];
+  const containersJsonForUsage = Array.isArray(dockerContainersJson) ? dockerContainersJson : [];
+  const dockerImagesSafe = enrichDockerImagesWithUsage(
+    Array.isArray(dockerImages) ? dockerImages : [],
+    containersJsonForUsage,
+  );
+  const dockerVolumesSafe = enrichDockerVolumesWithUsage(
+    Array.isArray(dockerVolumes) ? dockerVolumes : [],
+    containersJsonForUsage,
+  );
   const dockerImagesTotalBytes = dockerImagesSafe.reduce((s, im) => s + (im.size || 0), 0);
 
   let hostOsLabel = formatHostOsLabel(osInfo);
@@ -1292,6 +1888,18 @@ async function collectMetrics() {
       hostMetricsNote =
         'La API corre en un contenedor Linux: aquí no mostramos CPU/RAM/disco como si fueran tu PC. Para métricas reales: ejecuta la API en el host (bun run deploy o bun start desde el repo).';
     }
+  }
+
+  if (
+    !misleadingDocker &&
+    isRunningInDocker() &&
+    process.platform === 'linux' &&
+    /mac\s*os|darwin/i.test(hostOsLabel) &&
+    !hostDiskRoot
+  ) {
+    const diskHint =
+      'El disco que ves es el del contenedor. Para el volumen del Mac: monta la raíz del sistema en el contenedor (p. ej. -v /:/host:ro en Docker Desktop) o define BICHI_HOST_DISK_ROOT=/host.';
+    hostMetricsNote = hostMetricsNote ? `${hostMetricsNote}\n\n${diskHint}` : diskHint;
   }
 
   const userSettings = mergeWithDefaults(loadUserSettingsRaw());
@@ -1350,6 +1958,16 @@ async function collectMetrics() {
       : '',
     diskUsed: misleadingDocker || !mainFs ? null : bytesToGiBUsedOneDec(mainFs.used || 0),
     diskTotal: misleadingDocker || !mainFs ? null : bytesToGiBTotalInt(mainFs.size || 0),
+    diskFree: misleadingDocker || !mainFs ? null : bytesToGiBUsedOneDec(mainFs.available || 0),
+    diskMount: misleadingDocker || !mainFs ? null : String(mainFs.mount || '').trim() || null,
+    diskNote:
+      misleadingDocker || !mainFs
+        ? ''
+        : process.platform === 'darwin'
+          ? 'macOS: df/statfs del volumen de datos (APFS). “Almacenamiento” puede redondear en GB decimal o contar snapshots/purgable distinto.'
+          : hostDiskRoot && String(mainFs.mount || '').startsWith(hostDiskRoot)
+            ? 'Disco del host vía montaje (BICHI_HOST_DISK_ROOT o /host).'
+            : '',
     hostOs: hostOsLabel,
     hostname,
     deviceName,
@@ -1367,6 +1985,7 @@ async function collectMetrics() {
     uptime: outUptime,
     timestamp: Date.now(),
     topCpu: outTopCpu,
+    hostActions: hostActionsPayload(process.platform, metricsRepresentHost),
     services: outServices,
     containers,
     dockerImages: dockerImagesSafe,
@@ -2197,6 +2816,306 @@ function listExtraCronFileLines() {
   }
 }
 
+function resolveExtraCronWritePath() {
+  const p = resolveCronExtraFilePath();
+  if (p) return p;
+  return path.join(REPO_ROOT, 'config', 'cron.extra');
+}
+
+function readExtraCronLinesForWrite() {
+  const p = resolveExtraCronWritePath();
+  if (!fs.existsSync(p)) return [];
+  try {
+    return fs.readFileSync(p, 'utf8').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function writeExtraCronLines(lines) {
+  const p = resolveExtraCronWritePath();
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, lines.length ? `${lines.join('\n')}\n` : '', 'utf8');
+  return { ok: true };
+}
+
+function isSafeCronCommand(cmd) {
+  const t = String(cmd || '').trim();
+  if (!t || t.length > 4000) return false;
+  return !/[\r\n\0]/.test(t);
+}
+
+function buildCronLineFromScheduleAndCommand(scheduleRaw, commandRaw) {
+  const sch = String(scheduleRaw || '').trim();
+  const cmd = String(commandRaw || '').trim();
+  if (!sch || !cmd) return { ok: false, error: 'Programación y comando requeridos' };
+  if (!isSafeCronCommand(cmd)) return { ok: false, error: 'Comando inválido' };
+  if (sch.startsWith('@')) {
+    if (sch === '@reboot') return { ok: true, line: `${sch} ${cmd}` };
+    if (!CRON_MACROS[sch]) return { ok: false, error: 'Macro @ no reconocida' };
+    const line = `${sch} ${cmd}`;
+    if (!parseUserStyleCronLine(line, 'user', 0)) return { ok: false, error: 'Línea cron inválida' };
+    return { ok: true, line };
+  }
+  const parts = sch.split(/\s+/);
+  if (parts.length !== 5) return { ok: false, error: 'Usa 5 campos o una macro (@daily, @hourly, @reboot, …)' };
+  const line = `${parts[0]} ${parts[1]} ${parts[2]} ${parts[3]} ${parts[4]} ${cmd}`;
+  if (!parseUserStyleCronLine(line, 'user', 0)) return { ok: false, error: 'Línea cron inválida' };
+  return { ok: true, line };
+}
+
+function writeUserCrontabLines(lines) {
+  if (process.platform === 'win32') return { ok: false, error: 'No hay crontab de usuario en Windows' };
+  const text = lines.length ? `${lines.map((l) => String(l).trimEnd()).join('\n')}\n` : '';
+  try {
+    const r = spawnSync('crontab', ['-'], {
+      input: text,
+      encoding: 'utf8',
+      maxBuffer: 500_000,
+      windowsHide: true,
+    });
+    if (r.error) return { ok: false, error: r.error.message || String(r.error) };
+    if (r.status !== 0) {
+      const msg = (r.stderr || r.stdout || '').trim() || `crontab terminó con código ${r.status}`;
+      return { ok: false, error: msg };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+function parseCronMutationId(idRaw) {
+  const s = String(idRaw || '').trim();
+  const rb = s.match(/^(user|extra)-reboot-(\d+)$/);
+  if (rb) return { target: rb[1], lineIndex: Number(rb[2]), reboot: true };
+  const m = s.match(/^(user|extra|system|windows)-(\d+)$/);
+  if (!m || !Number.isFinite(Number(m[2]))) return null;
+  return { target: m[1], lineIndex: Number(m[2]), reboot: false };
+}
+
+function getLinesForCronTarget(target) {
+  if (target === 'user') return [...listUserCrontabLines()];
+  if (target === 'extra') return readExtraCronLinesForWrite();
+  if (target === 'system') {
+    try {
+      const p = '/etc/crontab';
+      if (!fs.existsSync(p)) return [];
+      return fs.readFileSync(p, 'utf8').split(/\r?\n/);
+    } catch {
+      return [];
+    }
+  }
+  return null;
+}
+
+function writeLinesForCronTarget(target, lines) {
+  if (target === 'user') return writeUserCrontabLines(lines);
+  if (target === 'extra') return writeExtraCronLines(lines);
+  if (target === 'system') {
+    if (!BICHI_CRON_ALLOW_SYSTEM) {
+      return { ok: false, error: 'Editar /etc/crontab requiere BICHI_CRON_ALLOW_SYSTEM=1 y permisos de escritura' };
+    }
+    try {
+      const p = '/etc/crontab';
+      fs.writeFileSync(p, lines.join('\n') + (lines.length ? '\n' : ''), 'utf8');
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message ? e.message : e) };
+    }
+  }
+  return { ok: false, error: 'Destino no soportado' };
+}
+
+function cronDeleteLine(target, lineIndex) {
+  const lines = getLinesForCronTarget(target);
+  if (!lines) return { ok: false, error: 'Destino no soportado' };
+  if (lineIndex < 0 || lineIndex >= lines.length) return { ok: false, error: 'Índice de línea inválido' };
+  lines.splice(lineIndex, 1);
+  return writeLinesForCronTarget(target, lines);
+}
+
+function cronReplaceLine(target, lineIndex, newLine) {
+  const lines = getLinesForCronTarget(target);
+  if (!lines) return { ok: false, error: 'Destino no soportado' };
+  if (lineIndex < 0 || lineIndex >= lines.length) return { ok: false, error: 'Índice de línea inválido' };
+  lines[lineIndex] = newLine;
+  return writeLinesForCronTarget(target, lines);
+}
+
+function cronAppendLine(target, newLine) {
+  const lines = getLinesForCronTarget(target);
+  if (!lines) return { ok: false, error: 'Destino no soportado' };
+  lines.push(newLine);
+  return writeLinesForCronTarget(target, lines);
+}
+
+async function deleteWindowsCronTaskByIndex(idx) {
+  windowsTasksCache = { at: 0, list: [] };
+  const list = await fetchWindowsTasksRaw();
+  const t = list[idx];
+  if (!t) return { ok: false, error: 'Tarea de Windows no encontrada (índice)' };
+  const tn = String(t.name || '').replace(/'/g, "''");
+  const tp = String(t.path || '\\').replace(/'/g, "''");
+  const cmd = `Unregister-ScheduledTask -TaskName '${tn}' -TaskPath '${tp}' -Confirm:$false`;
+  try {
+    await execFileAsync(
+      getPowerShellPath(),
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cmd],
+      { timeout: 25000, windowsHide: true, maxBuffer: 2_000_000 },
+    );
+    windowsTasksCache = { at: 0, list: [] };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+function sanitizeWindowsTaskName(n) {
+  return String(n || '')
+    .replace(/[^\w\-. ]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);
+}
+
+/** Ruta ejecutable única para schtasks /TR: si no parece .exe/.com, se envuelve en cmd.exe /c … */
+function buildSchtasksTaskRun(command) {
+  const t = String(command || '').trim();
+  if (!t) return '';
+  const firstTok = t.split(/\s+/)[0].replace(/^["']|["']$/g, '');
+  if (/\.(exe|com)$/i.test(firstTok) && !/^cmd\.exe$/i.test(firstTok)) {
+    return t;
+  }
+  if (/\.(bat|cmd)$/i.test(firstTok)) {
+    return `cmd.exe /c ${t}`;
+  }
+  if (/^cmd\.exe\s/i.test(t)) return t;
+  return `cmd.exe /c ${t}`;
+}
+
+function formatSchtasksSt(hour, minute) {
+  const h = Math.min(23, Math.max(0, Number(hour) || 0));
+  const m = Math.min(59, Math.max(0, Number(minute) || 0));
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function formatSchtasksOnceDate(d) {
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+}
+
+async function createWindowsCronTask(body) {
+  const name = sanitizeWindowsTaskName(body.winTaskName || body.name);
+  if (!name) return { ok: false, error: 'Nombre de tarea inválido' };
+  const cmd = String(body.command || '').trim();
+  if (!isSafeCronCommand(cmd)) return { ok: false, error: 'Comando inválido' };
+  const tr = buildSchtasksTaskRun(cmd);
+  if (!tr) return { ok: false, error: 'Comando vacío' };
+
+  const mode = String(body.winSchedule || 'daily').toLowerCase();
+  const hour = Math.min(23, Math.max(0, Number(body.dailyHour) || 9));
+  const minute = Math.min(59, Math.max(0, Number(body.dailyMinute) || 0));
+  const st = formatSchtasksSt(hour, minute);
+
+  let args;
+  if (mode === 'minute' || mode === 'test' || mode === 'everyminute') {
+    /* Prueba: cada minuto (schtasks /SC MINUTE /MO 1) */
+    args = ['/Create', '/TN', name, '/TR', tr, '/SC', 'MINUTE', '/MO', '1', '/F'];
+  } else if (mode === 'once' || mode === 'one') {
+    let runDay = new Date();
+    const [hh, mm] = st.split(':').map((x) => Number(x));
+    const at = new Date(runDay.getFullYear(), runDay.getMonth(), runDay.getDate(), hh, mm, 0, 0);
+    if (at <= new Date()) {
+      runDay = new Date(runDay.getTime() + 86400000);
+    }
+    const sd = formatSchtasksOnceDate(runDay);
+    args = ['/Create', '/TN', name, '/TR', tr, '/SC', 'ONCE', '/SD', sd, '/ST', st, '/F'];
+  } else {
+    /* Diaria (por defecto) */
+    args = ['/Create', '/TN', name, '/TR', tr, '/SC', 'DAILY', '/ST', st, '/F'];
+  }
+
+  const runLevel = String(process.env.BICHI_WIN_SCHTASKS_RL || '').toUpperCase();
+  if (runLevel === 'HIGHEST' || runLevel === 'LIMITED') {
+    args.push('/RL', runLevel);
+  }
+
+  try {
+    const r = spawnSync('schtasks', args, {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 45000,
+      maxBuffer: 2_000_000,
+    });
+    if (r.error) return { ok: false, error: r.error.message || String(r.error) };
+    if (r.status !== 0) {
+      const raw = `${r.stderr || ''}\n${r.stdout || ''}`.trim();
+      const msg = raw || `schtasks terminó con código ${r.status}`;
+      return { ok: false, error: msg };
+    }
+    windowsTasksCache = { at: 0, list: [] };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+async function mutateHostCronTask(body) {
+  const op = String(body.op || '').toLowerCase();
+
+  if (op === 'delete') {
+    const parsed = parseCronMutationId(body.id);
+    if (!parsed) return { ok: false, error: 'id inválido' };
+    if (parsed.target === 'windows') {
+      if (process.platform !== 'win32') return { ok: false, error: 'Tareas Windows solo en win32' };
+      return deleteWindowsCronTaskByIndex(parsed.lineIndex);
+    }
+    if (parsed.target === 'system' && !BICHI_CRON_ALLOW_SYSTEM) {
+      return { ok: false, error: 'No se puede borrar /etc/crontab sin BICHI_CRON_ALLOW_SYSTEM=1' };
+    }
+    if (parsed.target === 'user' && process.platform === 'win32') {
+      return { ok: false, error: 'No hay crontab de usuario en Windows' };
+    }
+    return cronDeleteLine(parsed.target, parsed.lineIndex);
+  }
+
+  if (op === 'create') {
+    const target = String(body.target || 'user').toLowerCase();
+    if (target === 'windows') {
+      if (process.platform !== 'win32') return { ok: false, error: 'Crear tarea Windows solo en win32' };
+      return createWindowsCronTask(body);
+    }
+    const built = buildCronLineFromScheduleAndCommand(body.schedule, body.command);
+    if (!built.ok) return built;
+    if (target === 'user' && process.platform === 'win32') {
+      return { ok: false, error: 'En Windows usa target "windows" o "extra" (archivo cron.extra)' };
+    }
+    if (target !== 'user' && target !== 'extra') {
+      return { ok: false, error: "target debe ser 'user', 'extra' o 'windows'" };
+    }
+    return cronAppendLine(target, built.line);
+  }
+
+  if (op === 'update') {
+    const parsed = parseCronMutationId(body.id);
+    if (!parsed) return { ok: false, error: 'id inválido' };
+    if (parsed.target === 'windows') {
+      return { ok: false, error: 'Editar tareas Windows: elimina y crea de nuevo desde la UI' };
+    }
+    if (parsed.target === 'system' && !BICHI_CRON_ALLOW_SYSTEM) {
+      return { ok: false, error: 'Editar /etc/crontab requiere BICHI_CRON_ALLOW_SYSTEM=1' };
+    }
+    if (parsed.target === 'user' && process.platform === 'win32') {
+      return { ok: false, error: 'No hay crontab de usuario en Windows' };
+    }
+    const built = buildCronLineFromScheduleAndCommand(body.schedule, body.command);
+    if (!built.ok) return built;
+    return cronReplaceLine(parsed.target, parsed.lineIndex, built.line);
+  }
+
+  return { ok: false, error: "op debe ser 'create', 'update' o 'delete'" };
+}
+
 function occurrencesForMonth(expr, year, month1to12) {
   if (!expr) return [];
   const m0 = month1to12 - 1;
@@ -2400,6 +3319,8 @@ async function collectCronPayload(year, month) {
       kind: mapWinPatternToKind(pattern),
       user: null,
       line: fullPath,
+      winPath: (t.path || '').toString(),
+      winName: (t.name || '').toString(),
       _expr: null,
       _winPattern: pattern,
       _winNextRun: t.nextRun || null,
@@ -2579,9 +3500,26 @@ function serveApi(req, res) {
   }
 
   if (pathname === '/api/metrics') {
-    collectMetrics()
+    const METRICS_MAX_MS = Number.parseInt(String(process.env.BICHI_METRICS_MAX_MS || '75000'), 10) || 75000;
+    Promise.race([
+      collectMetrics(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('METRICS_DEADLINE')), METRICS_MAX_MS),
+      ),
+    ])
       .then((data) => json(res, 200, data))
-      .catch((err) => json(res, 500, { error: String(err && err.message ? err.message : err) }));
+      .catch((err) => {
+        const msg = String(err && err.message ? err.message : err);
+        if (msg === 'METRICS_DEADLINE') {
+          console.error('[bichi] /api/metrics: tiempo máximo excedido (' + METRICS_MAX_MS + ' ms)');
+          json(res, 503, {
+            error: 'La recolección de métricas excedió el tiempo máximo',
+            code: 'METRICS_TIMEOUT',
+          });
+          return;
+        }
+        json(res, 500, { error: msg });
+      });
     return;
   }
 
@@ -2619,6 +3557,206 @@ function serveApi(req, res) {
       .catch((err) =>
         json(res, 500, { error: String(err && err.message ? err.message : err) }),
       );
+    return;
+  }
+
+  // ── Host: procesos (señales) y servicios ──────────────────────────────────
+
+  if (pathname === '/api/host/process/signal' && req.method === 'POST') {
+    if (!assertHostActionAuth(req, res)) return;
+    readBody(req, 4096)
+      .then((raw) => {
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          json(res, 400, { ok: false, error: 'JSON inválido' });
+          return;
+        }
+        const signal = String(body.signal || 'term').toLowerCase();
+        if (signal !== 'term' && signal !== 'kill') {
+          json(res, 400, { ok: false, error: "signal debe ser 'term' o 'kill'" });
+          return;
+        }
+        const r = runProcessSignal(body.pid, signal);
+        json(res, r.ok ? 200 : 400, r);
+      })
+      .catch((e) => json(res, 500, { ok: false, error: String(e && e.message ? e.message : e) }));
+    return;
+  }
+
+  if (pathname === '/api/host/service/action' && req.method === 'POST') {
+    if (!assertHostActionAuth(req, res)) return;
+    readBody(req, 4096)
+      .then(async (raw) => {
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          json(res, 400, { ok: false, error: 'JSON inválido' });
+          return;
+        }
+        const name = body && body.name != null ? String(body.name).trim() : '';
+        const action = String(body.action || '').toLowerCase();
+        if (!name) {
+          json(res, 400, { ok: false, error: 'name requerido' });
+          return;
+        }
+        if (!['stop', 'start', 'restart'].includes(action)) {
+          json(res, 400, { ok: false, error: "action debe ser 'stop', 'start' o 'restart'" });
+          return;
+        }
+        const r = await runServiceHostAction(name, action);
+        json(res, r.ok ? 200 : 400, r);
+      })
+      .catch((e) => json(res, 500, { ok: false, error: String(e && e.message ? e.message : e) }));
+    return;
+  }
+
+  if (pathname === '/api/host/cron/task' && req.method === 'POST') {
+    if (!assertHostActionAuth(req, res)) return;
+    readBody(req, 96 * 1024)
+      .then(async (raw) => {
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          json(res, 400, { ok: false, error: 'JSON inválido' });
+          return;
+        }
+        try {
+          const r = await mutateHostCronTask(body);
+          json(res, r.ok ? 200 : 400, r);
+        } catch (e) {
+          json(res, 500, { ok: false, error: String(e && e.message ? e.message : e) });
+        }
+      })
+      .catch((e) => json(res, 500, { ok: false, error: String(e && e.message ? e.message : e) }));
+    return;
+  }
+
+  // ── Docker container actions ──────────────────────────────────────────────
+
+  if (/\/api\/docker\/ctnr\/(start|stop|restart|delete)$/.test(pathname) && req.method === 'POST') {
+    const action = pathname.replace(/^\/api\/docker\/ctnr\//, '');
+    readBody(req, 4096)
+      .then((raw) => {
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          json(res, 400, { ok: false, error: 'JSON inválido' });
+          return;
+        }
+        const name = body && body.name ? String(body.name).trim() : '';
+        if (!name) {
+          json(res, 400, { ok: false, error: 'Nombre de contenedor requerido' });
+          return;
+        }
+        const argMap = {
+          start: ['start', name],
+          stop: ['stop', name],
+          restart: ['restart', name],
+          delete: ['rm', '-f', name],
+        };
+        const dockerArgs = argMap[action];
+        if (!dockerArgs) {
+          json(res, 400, { ok: false, error: 'Acción desconocida' });
+          return;
+        }
+        const dockerBin = String(process.env.DOCKER_BIN || 'docker').trim() || 'docker';
+        const r = spawnSync(dockerBin, dockerArgs, {
+          encoding: 'utf8',
+          stdio: 'pipe',
+          shell: false,
+          env: process.env,
+          maxBuffer: 2 * 1024 * 1024,
+        });
+        if (r.error) {
+          json(res, 400, { ok: false, error: r.error.message || String(r.error) });
+          return;
+        }
+        if (r.status !== 0) {
+          const msg = (r.stderr || r.stdout || '').trim() || `docker terminó con código ${r.status}`;
+          json(res, 400, { ok: false, error: msg });
+          return;
+        }
+        json(res, 200, { ok: true, action, name });
+      })
+      .catch((e) => json(res, 400, { ok: false, error: String(e && e.message ? e.message : e) }));
+    return;
+  }
+
+  function runDockerSpawn(args) {
+    const dockerBin = String(process.env.DOCKER_BIN || 'docker').trim() || 'docker';
+    return spawnSync(dockerBin, args, {
+      encoding: 'utf8',
+      stdio: 'pipe',
+      shell: false,
+      env: process.env,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+  }
+
+  if (pathname === '/api/docker/img/delete' && req.method === 'POST') {
+    readBody(req, 4096)
+      .then((raw) => {
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          json(res, 400, { ok: false, error: 'JSON inválido' });
+          return;
+        }
+        const id = body && body.id ? String(body.id).trim() : '';
+        if (!id || id === '—') {
+          json(res, 400, { ok: false, error: 'ID de imagen requerido' });
+          return;
+        }
+        const r = runDockerSpawn(['rmi', '-f', id]);
+        if (r.error) {
+          json(res, 400, { ok: false, error: r.error.message || String(r.error) });
+          return;
+        }
+        if (r.status !== 0) {
+          const msg = (r.stderr || r.stdout || '').trim() || `docker rmi terminó con código ${r.status}`;
+          json(res, 400, { ok: false, error: msg });
+          return;
+        }
+        json(res, 200, { ok: true, id });
+      })
+      .catch((e) => json(res, 400, { ok: false, error: String(e && e.message ? e.message : e) }));
+    return;
+  }
+
+  if (pathname === '/api/docker/vol/delete' && req.method === 'POST') {
+    readBody(req, 4096)
+      .then((raw) => {
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          json(res, 400, { ok: false, error: 'JSON inválido' });
+          return;
+        }
+        const volName = body && body.name ? String(body.name).trim() : '';
+        if (!volName || volName === '—') {
+          json(res, 400, { ok: false, error: 'Nombre de volumen requerido' });
+          return;
+        }
+        const r = runDockerSpawn(['volume', 'rm', volName]);
+        if (r.error) {
+          json(res, 400, { ok: false, error: r.error.message || String(r.error) });
+          return;
+        }
+        if (r.status !== 0) {
+          const msg = (r.stderr || r.stdout || '').trim() || `docker volume rm terminó con código ${r.status}`;
+          json(res, 400, { ok: false, error: msg });
+          return;
+        }
+        json(res, 200, { ok: true, name: volName });
+      })
+      .catch((e) => json(res, 400, { ok: false, error: String(e && e.message ? e.message : e) }));
     return;
   }
 
@@ -2662,7 +3800,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  Web estática: ${DIST_DIR}${distOk ? '' : ' (ejecuta bun run build:astro antes)'}`);
   console.log(`  Datos: ${DATA_DIR}`);
   console.log(
-    `  API: /api/metrics · /api/openclaw · /api/logs · /api/cron · /api/settings · /api/perf/daily`,
+    `  API: /api/metrics · /api/host/process/signal · /api/host/service/action · /api/host/cron/task · /api/docker/ctnr/* · /api/docker/img/delete · /api/docker/vol/delete · /api/openclaw · /api/logs · /api/cron · /api/settings · /api/perf/daily`,
   );
   console.log(`  CORS: ${CORS_ORIGIN} (producción: BICHI_CORS_ORIGIN)`);
   if (SETTINGS_WRITE_DISABLED) console.log('  Ajustes POST: desactivados (BICHI_DISABLE_SETTINGS_WRITE=1)');

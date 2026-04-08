@@ -57,6 +57,8 @@ function normComm(s: string): string {
   return (s || '').replace(/^\(/, '').replace(/\)$/, '').split('/').pop() || '';
 }
 
+const PROCESS_FALLBACK = '—';
+
 export function processActivityDescription(comm: string, cmd: string, apiDesc?: string): string {
   const d = (apiDesc || '').trim();
   if (d) return d;
@@ -66,7 +68,7 @@ export function processActivityDescription(comm: string, cmd: string, apiDesc?: 
   for (const [k, v] of Object.entries(COMM_HINTS)) {
     if (cmdLow.includes(k)) return v;
   }
-  return `Proceso del host «${comm || 'desconocido'}» (nombre corto del binario); revisa el comando completo en /procesos si necesitas el path.`;
+  return PROCESS_FALLBACK;
 }
 
 export function serviceActivityDescription(serviceName: string, apiDesc?: string): string {

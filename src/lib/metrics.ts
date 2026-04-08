@@ -44,10 +44,24 @@ export function healthLevel(cpu: number, mem: number, disk: number): HealthLevel
   return worst === 2 ? 'crit' : worst === 1 ? 'warn' : 'ok';
 }
 
+/** Tiempo máximo de espera al servidor de métricas (evita pantallas “Cargando…” infinitas). */
+const METRICS_FETCH_MS = 78000;
+
 export async function fetchMetrics(): Promise<any> {
-  const r = await apiFetch('/api/metrics');
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), METRICS_FETCH_MS);
+  try {
+    const r = await apiFetch('/api/metrics', { signal: ctrl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('Tiempo de espera agotado al cargar métricas (¿API o Docker bloqueados?)');
+    }
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 function defaultEmailSubjectPrefix(): string {
@@ -153,11 +167,74 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
       const r = await fetch(url, { ...init, cache: 'no-store' });
       if (r.ok) return r;
       last = r;
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') throw e;
       /* siguiente URL */
     }
   }
   return last ?? new Response(null, { status: 404 });
+}
+
+/**
+ * POST a rutas `/api/docker/...`. Si la respuesta no es 404 “HTML ajeno”, devuelve el cuerpo JSON de error sin seguir probando URLs.
+ */
+export async function apiPostDocker(path: string, body: Record<string, unknown>): Promise<Response> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  };
+  const port = bichiApiPort();
+  const base = bichiApiBaseUrl();
+  const urls: string[] = [];
+  if (base) urls.push(`${base}${path}`);
+  urls.push(path);
+  if (import.meta.env.DEV) {
+    if (typeof globalThis !== 'undefined' && 'location' in globalThis) {
+      const host = (globalThis as unknown as Window).location?.hostname;
+      if (host) urls.push(`http://${host}:${port}${path}`);
+    }
+    urls.push(`http://127.0.0.1:${port}${path}`, `http://localhost:${port}${path}`);
+  }
+  const uniq = [...new Set(urls)];
+
+  let last: Response | undefined;
+  for (const url of uniq) {
+    try {
+      const r = await fetch(url, init);
+      if (r.ok) return r;
+      const ct = r.headers.get('content-type') || '';
+      if (r.status === 404 && !ct.includes('application/json')) {
+        last = r;
+        continue;
+      }
+      return r;
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') throw e;
+    }
+  }
+  return last ?? new Response(null, { status: 404 });
+}
+
+export async function apiPostDockerCtnr(
+  action: 'start' | 'stop' | 'restart' | 'delete',
+  name: string,
+): Promise<Response> {
+  return apiPostDocker(`/api/docker/ctnr/${action}`, { name });
+}
+
+export async function apiPostDockerImgDelete(id: string): Promise<Response> {
+  return apiPostDocker('/api/docker/img/delete', { id });
+}
+
+export async function apiPostDockerVolDelete(name: string): Promise<Response> {
+  return apiPostDocker('/api/docker/vol/delete', { name });
+}
+
+/** POST /api/host/* (procesos y servicios); misma resolución de URL que Docker. */
+export async function apiPostHost(path: string, body: Record<string, unknown>): Promise<Response> {
+  return apiPostDocker(path, body);
 }
 
 /**
@@ -232,12 +309,13 @@ export function updateHeader(data: any) {
   const badge = $('health-badge') as HTMLElement | null;
   if (badge) {
     badge.dataset.health = hostOk ? level : 'na';
-    const labels: Record<string, string> = { ok: 'Estable', warn: 'Atención', crit: 'Crítico', na: '—' };
-    const text = $('health-badge-text');
-    if (text) text.textContent = hostOk ? labels[level] : '—';
-    badge.title = hostOk
-      ? `Estado del host: ${labels[level]} (CPU ${Math.round(cpu)}%)`
-      : 'Métricas del PC no disponibles (API en contenedor sin identidad de host). Usa bun run deploy.';
+    const labels: Record<string, string> = { ok: 'Estable', warn: 'Atención', crit: 'Crítico', na: 'Sin datos' };
+    const short = hostOk ? labels[level] : labels.na;
+    const detail = hostOk
+      ? `Estado del host: ${short} · CPU ${Math.round(cpu)}%`
+      : 'Métricas del equipo no disponibles: la API corre en contenedor sin identidad de host. Ejecuta la API en el host o configura BICHI_HOST_* (véase despliegue).';
+    badge.setAttribute('aria-label', detail);
+    badge.title = detail;
   }
 
   const pill = document.getElementById('uptime-pill') as HTMLElement | null;
@@ -339,6 +417,10 @@ export interface SystemCronJob {
   kind: 'daily' | 'weekly' | 'monthly' | 'custom';
   user: string | null;
   line: string;
+  /** Solo Windows: ruta TaskPath (p. ej. `\`). */
+  winPath?: string;
+  /** Solo Windows: nombre de la tarea. */
+  winName?: string;
 }
 
 export type CronCalendarPayload = {

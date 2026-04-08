@@ -2,7 +2,7 @@
 
 let copyToastTimer: ReturnType<typeof setTimeout> | undefined;
 
-function flashCopied(el: HTMLElement) {
+export function flashCopied(el: HTMLElement) {
   el.classList.add('is-copied');
   if (copyToastTimer) clearTimeout(copyToastTimer);
   copyToastTimer = setTimeout(() => el.classList.remove('is-copied'), 1400);

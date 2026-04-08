@@ -1,0 +1,30 @@
+---
+/** Misma fila de pestañas que Docker (debajo de título + descripción en cada página de la sección). */
+export type SistemaSectionId = 'sistema' | 'rendimiento' | 'procesos' | 'servicios' | 'tareas-programadas';
+
+interface Props {
+  active: SistemaSectionId;
+}
+
+const { active } = Astro.props;
+
+const items: { id: SistemaSectionId; label: string; href: string }[] = [
+  { id: 'sistema', label: 'Resumen', href: '/sistema' },
+  { id: 'rendimiento', label: 'Rendimiento', href: '/rendimiento' },
+  { id: 'procesos', label: 'Procesos', href: '/procesos' },
+  { id: 'servicios', label: 'Servicios', href: '/servicios' },
+  { id: 'tareas-programadas', label: 'Tareas programadas', href: '/tareas-programadas' },
+];
+---
+<nav class="logs-tabs sistema-section-tabs" role="tablist" aria-label="Secciones de Sistema">
+  {items.map((item) => (
+    <a
+      href={item.href}
+      class:list={['logs-tab', { active: active === item.id }]}
+      role="tab"
+      aria-selected={active === item.id ? 'true' : 'false'}
+    >
+      {item.label}
+    </a>
+  ))}
+</nav>

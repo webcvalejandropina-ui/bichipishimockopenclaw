@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { Package, RefreshCw } from 'lucide';
+import { Package, RefreshCw, Play, Square, RotateCw, Trash2, Copy } from 'lucide';
 
 const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 ---
@@ -19,15 +19,74 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     </div>
 
     <div class="page-toolbar dk-toolbar">
-      <input type="text" class="page-search" id="dk-search" placeholder="Buscar…" />
-      <div class="dk-ctnr-filters" id="dk-ctnr-filters">
-        <button type="button" class="page-filter-btn active" data-filter="all">Todos</button>
-        <button type="button" class="page-filter-btn" data-filter="up">En marcha</button>
-        <button type="button" class="page-filter-btn" data-filter="down">Detenidos</button>
+      <div class="dk-search-wrap">
+        <input type="text" class="page-search" id="dk-search" placeholder="Buscar…" />
+        <button type="button" class="dk-search-clear" id="dk-search-clear" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>Limpiar</button>
       </div>
-      <button type="button" class="page-filter-btn" id="dk-refresh" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-        <span set:html={iRefresh} /> Actualizar
+      <div class="dk-ctnr-filters" id="dk-ctnr-filters">
+        <button type="button" class="page-filter-btn active" data-filter="all">Todos <span class="dk-filter-count" data-filter-count="all">—</span></button>
+        <button type="button" class="page-filter-btn" data-filter="up">En marcha <span class="dk-filter-count" data-filter-count="up">—</span></button>
+        <button type="button" class="page-filter-btn" data-filter="down">Detenidos <span class="dk-filter-count" data-filter-count="down">—</span></button>
+        <button type="button" class="page-filter-btn" data-filter="ports">Con puertos <span class="dk-filter-count" data-filter-count="ports">—</span></button>
+        <button type="button" class="page-filter-btn" data-filter="issues">Con incidencias <span class="dk-filter-count" data-filter-count="issues">—</span></button>
+        <button type="button" class="page-filter-btn" data-filter="hot">Calientes <span class="dk-filter-count" data-filter-count="hot">—</span></button>
+      </div>
+      <label class="dk-sort-wrap" for="dk-sort">
+        <span class="dk-sort-label">Orden</span>
+        <select id="dk-sort" class="dk-sort-select" aria-label="Ordenar vista Docker">
+          <option value="status">Estado</option>
+          <option value="cpu">CPU ↓</option>
+          <option value="mem">RAM ↓</option>
+          <option value="name">Nombre A-Z</option>
+          <option value="ports">Puertos</option>
+          <option value="created">Fecha ↓</option>
+          <option value="size">Tamaño ↓</option>
+        </select>
+      </label>
+      <button type="button" class="page-filter-btn" id="dk-reset-view" hidden>Limpiar vista</button>
+      <button type="button" class="page-filter-btn" id="dk-autorefresh" aria-pressed="true">Auto: ON</button>
+      <button
+        type="button"
+        class="page-icon-btn"
+        id="dk-refresh"
+        aria-label="Actualizar vista Docker"
+        title="Actualizar contenedores, imágenes o volúmenes"
+      >
+        <span set:html={iRefresh} aria-hidden="true" />
       </button>
+    </div>
+
+    <div class="dk-meta-stack">
+      <div class="dk-shortcuts" role="toolbar" aria-label="Atajos de teclado de Docker">
+        <button
+          type="button"
+          class="dk-shortcut"
+          data-dk-shortcut="search"
+          title="Enfocar búsqueda (tecla /)"
+        >
+          <kbd>/</kbd><span class="dk-shortcut__text">buscar</span>
+        </button>
+        <button
+          type="button"
+          class="dk-shortcut"
+          data-dk-shortcut="refresh"
+          title="Refrescar vista Docker (tecla R)"
+        >
+          <kbd>R</kbd><span class="dk-shortcut__text">refrescar</span>
+        </button>
+        <button
+          type="button"
+          class="dk-shortcut"
+          data-dk-shortcut="clear"
+          title="Limpiar búsqueda o quitar foco (Escape)"
+        >
+          <kbd>Esc</kbd><span class="dk-shortcut__text">limpiar / salir</span>
+        </button>
+      </div>
+      <section class="dk-context" aria-label="Resumen de la vista actual">
+        <p class="dk-results" id="dk-results">Cargando vista…</p>
+        <div class="dk-summary" id="dk-summary" aria-live="polite" hidden></div>
+      </section>
     </div>
 
     <div class="page-stat-strip" id="dk-stats-ctnr">
@@ -38,13 +97,20 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 
     <div class="page-stat-strip dk-stats-panel" id="dk-stats-img" hidden>
       <div class="page-stat"><span class="page-stat-value skeleton" id="is-total">—</span><span class="page-stat-label">Imágenes</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="is-inuse">—</span><span class="page-stat-label">En uso</span></div>
       <div class="page-stat"><span class="page-stat-value skeleton" id="is-size">—</span><span class="page-stat-label">Tamaño en disco</span></div>
       <div class="page-stat"><span class="page-stat-value skeleton" id="is-dangling">—</span><span class="page-stat-label">Sin etiqueta</span></div>
     </div>
 
     <div class="page-stat-strip dk-stats-panel" id="dk-stats-vol" hidden>
       <div class="page-stat"><span class="page-stat-value skeleton" id="vs-total">—</span><span class="page-stat-label">Volúmenes</span></div>
+      <div class="page-stat"><span class="page-stat-value skeleton" id="vs-inuse">—</span><span class="page-stat-label">En uso</span></div>
       <div class="page-stat"><span class="page-stat-value skeleton" id="vs-drivers">—</span><span class="page-stat-label">Drivers</span></div>
+    </div>
+
+    <div class="dk-feedback" id="dk-feedback" aria-live="polite">
+      <span class="dk-feedback__status" id="dk-feedback-text">Cargando estado Docker…</span>
+      <span class="dk-feedback__meta" id="dk-feedback-meta"></span>
     </div>
 
     <div class="logs-panel active" id="dk-panel-ctnr" role="tabpanel">
@@ -104,6 +170,27 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         ))}
       </div>
     </div>
+
+    <div
+      class="dk-modal"
+      id="dk-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dk-modal-title"
+      aria-hidden="true"
+      hidden
+    >
+      <div class="dk-modal__backdrop" data-dk-modal-dismiss tabindex="-1" aria-hidden="true"></div>
+      <div class="dk-modal__panel">
+        <h3 class="dk-modal__title" id="dk-modal-title"></h3>
+        <p class="dk-modal__body" id="dk-modal-body"></p>
+        <pre class="dk-modal__detail" id="dk-modal-detail" hidden></pre>
+        <div class="dk-modal__actions">
+          <button type="button" class="dk-modal__btn dk-modal__btn--ghost" id="dk-modal-cancel">Cancelar</button>
+          <button type="button" class="dk-modal__btn dk-modal__btn--primary" id="dk-modal-confirm">Confirmar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <style>
@@ -113,25 +200,390 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       align-items: center;
       gap: 8px;
     }
+    .dk-sort-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-card);
+      color: var(--text-soft);
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-display);
+    }
+    .dk-filter-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      padding: 0 6px;
+      height: 20px;
+      margin-left: 6px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--text) 8%, transparent);
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .dk-sort-label {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .dk-sort-select {
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-weight: 800;
+      min-width: 96px;
+      outline: none;
+      cursor: pointer;
+    }
+    .dk-search-wrap {
+      position: relative;
+      flex: 1 1 260px;
+      min-width: min(100%, 240px);
+      display: flex;
+      align-items: center;
+    }
+    .dk-search-wrap .page-search {
+      width: 100%;
+      min-width: 0;
+      padding-right: 82px;
+    }
+    .dk-search-clear {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 800;
+      font-family: var(--font-display);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .dk-search-clear:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+    .dk-meta-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 4px 0 14px;
+    }
+    .dk-shortcuts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .dk-shortcut {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      margin: 0;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-soft);
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      letter-spacing: 0.02em;
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+      transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.12s ease;
+    }
+    .dk-shortcut:hover {
+      background: var(--bg-card-hover, var(--bg-subtle));
+      border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+      color: var(--text);
+    }
+    .dk-shortcut:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .dk-shortcut:active {
+      transform: scale(0.98);
+    }
+    .dk-shortcut__text {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .dk-shortcut:hover .dk-shortcut__text {
+      color: var(--text-soft);
+    }
+    .dk-shortcut kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 7px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text);
+      font: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--text) 10%, transparent);
+    }
+    .dk-context {
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
     .dk-page .logs-panel:not(.active) {
       display: none;
     }
     .dk-page .logs-panel.active {
       display: block;
     }
+    .dk-feedback {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px 14px;
+      margin: 0 0 16px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg-card);
+      box-shadow: var(--shadow-card);
+      color: var(--muted);
+      font-size: 13px;
+      transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+    }
+    /* Sin flex-grow: si no, en columna (móvil) los hijos estiran altura y queda un bloque vacío enorme */
+    .dk-feedback__status {
+      color: var(--text);
+      font-weight: 700;
+      font-family: var(--font-display);
+      line-height: 1.4;
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .dk-feedback__meta {
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.45;
+      text-align: right;
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: min(100%, 380px);
+      color: var(--muted);
+    }
+    @media (max-width: 640px) {
+      .dk-feedback {
+        flex-direction: column;
+        align-items: stretch;
+        align-content: flex-start;
+        gap: 6px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+      }
+      .dk-feedback__status {
+        flex: 0 0 auto;
+        width: 100%;
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .dk-feedback__meta {
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: none;
+        text-align: left;
+        font-size: 11px;
+        line-height: 1.4;
+        margin-top: 2px;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+      }
+    }
+    .dk-feedback[data-freshness='stale'] {
+      border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+      background: color-mix(in srgb, var(--warn) 10%, var(--bg-card));
+    }
+    .dk-feedback[data-freshness='stale'] .dk-feedback__status {
+      color: color-mix(in srgb, var(--warn) 75%, var(--text));
+    }
+    .dk-feedback[data-freshness='paused'] {
+      border-color: color-mix(in srgb, var(--blue) 40%, var(--border));
+      background: color-mix(in srgb, var(--blue) 8%, var(--bg-card));
+    }
+    .info-card {
+      position: relative;
+    }
+    .info-card[data-busy='true'] {
+      opacity: 0.72;
+    }
   </style>
 
   <script>
-    import { fetchMetrics, updateHeader } from '../lib/metrics';
+    import {
+      apiPostDockerCtnr,
+      apiPostDockerImgDelete,
+      apiPostDockerVolDelete,
+      fetchMetrics,
+      updateHeader,
+    } from '../lib/metrics';
     import { iconToSvg } from '../lib/lucide-svg-string';
-    import { Package, Layers, Database } from 'lucide';
+    import { Package, Layers, Database, Play, Square, RotateCw, Trash2, Copy } from 'lucide';
     import { escHtml } from '../lib/process-hints';
 
     const iPkg = iconToSvg(Package, { width: 18, height: 18 });
     const iLayers = iconToSvg(Layers, { width: 18, height: 18 });
     const iVol = iconToSvg(Database, { width: 18, height: 18 });
+    const iPlay = iconToSvg(Play, { width: 18, height: 18 });
+    const iStop = iconToSvg(Square, { width: 18, height: 18 });
+    const iRestart = iconToSvg(RotateCw, { width: 18, height: 18 });
+    const iTrash = iconToSvg(Trash2, { width: 18, height: 18 });
+    const iCopy = iconToSvg(Copy, { width: 14, height: 14 });
 
     const $ = (id: string) => document.getElementById(id)!;
+
+    let dockerModalResolve: ((v: 'confirm' | 'cancel') => void) | null = null;
+    let dockerModalPrevFocus: HTMLElement | null = null;
+    let dockerModalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+
+    function dockerModalDetachKeys() {
+      if (dockerModalKeyHandler) {
+        document.removeEventListener('keydown', dockerModalKeyHandler);
+        dockerModalKeyHandler = null;
+      }
+    }
+
+    function dockerModalClose(result: 'confirm' | 'cancel') {
+      const root = $('dk-modal');
+      root.hidden = true;
+      root.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('dk-modal-open');
+      dockerModalDetachKeys();
+      const r = dockerModalResolve;
+      dockerModalResolve = null;
+      try {
+        dockerModalPrevFocus?.focus();
+      } catch {
+        /* ignore */
+      }
+      dockerModalPrevFocus = null;
+      r?.(result);
+    }
+
+    function initDockerModal() {
+      const root = $('dk-modal');
+      if ((root as HTMLElement & { _dkModalInit?: boolean })._dkModalInit) return;
+      (root as HTMLElement & { _dkModalInit?: boolean })._dkModalInit = true;
+      $('dk-modal-confirm').addEventListener('click', () => dockerModalClose('confirm'));
+      $('dk-modal-cancel').addEventListener('click', () => dockerModalClose('cancel'));
+      root.querySelector('.dk-modal__backdrop')?.addEventListener('click', () => {
+        const mode = root.dataset.mode;
+        dockerModalClose(mode === 'alert' ? 'confirm' : 'cancel');
+      });
+    }
+
+    function dockerModalOpen(opts: {
+      mode: 'confirm' | 'alert';
+      title: string;
+      body: string;
+      detail?: string;
+      variant?: 'default' | 'danger';
+      confirmLabel?: string;
+      cancelLabel?: string;
+    }): Promise<'confirm' | 'cancel'> {
+      initDockerModal();
+      return new Promise((resolve) => {
+        dockerModalResolve = resolve;
+        dockerModalPrevFocus = document.activeElement as HTMLElement;
+        const root = $('dk-modal');
+        root.dataset.mode = opts.mode;
+        root.dataset.variant = opts.variant || 'default';
+        $('dk-modal-title').textContent = opts.title;
+        $('dk-modal-body').textContent = opts.body;
+        const det = $('dk-modal-detail');
+        if (opts.detail) {
+          det.textContent = opts.detail;
+          det.hidden = false;
+        } else {
+          det.textContent = '';
+          det.hidden = true;
+        }
+        const cancelBtn = $('dk-modal-cancel') as HTMLButtonElement;
+        const confirmBtn = $('dk-modal-confirm') as HTMLButtonElement;
+        cancelBtn.hidden = opts.mode === 'alert';
+        confirmBtn.textContent = opts.confirmLabel || (opts.mode === 'alert' ? 'Entendido' : 'Confirmar');
+        cancelBtn.textContent = opts.cancelLabel || 'Cancelar';
+        root.hidden = false;
+        root.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('dk-modal-open');
+        dockerModalKeyHandler = (ev: KeyboardEvent) => {
+          if (ev.key !== 'Escape') return;
+          ev.preventDefault();
+          dockerModalClose(opts.mode === 'alert' ? 'confirm' : 'cancel');
+        };
+        document.addEventListener('keydown', dockerModalKeyHandler);
+        confirmBtn.focus();
+      });
+    }
+
+    async function dockerModalConfirm(opts: {
+      title: string;
+      body: string;
+      detail?: string;
+      variant?: 'default' | 'danger';
+      confirmLabel?: string;
+      cancelLabel?: string;
+    }): Promise<boolean> {
+      const r = await dockerModalOpen({ ...opts, mode: 'confirm' });
+      return r === 'confirm';
+    }
+
+    async function dockerModalAlert(opts: { title: string; body: string; detail?: string }) {
+      await dockerModalOpen({
+        mode: 'alert',
+        variant: 'default',
+        title: opts.title,
+        body: opts.body,
+        detail: opts.detail,
+        confirmLabel: 'Entendido',
+      });
+    }
+
+    function dockerActionVerbEs(action: string): string {
+      const m: Record<string, string> = {
+        start: 'Iniciar',
+        stop: 'Detener',
+        restart: 'Reiniciar',
+        delete: 'Eliminar',
+      };
+      return m[action] || action;
+    }
 
     let allCtrs: any[] = [];
     let allImgs: any[] = [];
@@ -139,6 +591,59 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     let filter = 'all';
     let tab: 'ctnr' | 'img' | 'vol' = 'ctnr';
     let dataLoaded = false;
+    let actionInFlight = false;
+    let lastLoadedAt = 0;
+    let autoRefreshEnabled = true;
+    let hiddenAutoPause = false;
+    let sortBy: 'status' | 'cpu' | 'mem' | 'name' | 'ports' | 'created' | 'size' = 'status';
+    const storageKey = 'bichipishi:docker:view';
+    const staleRefreshMs = 30000;
+
+    function defaultSortForTab(nextTab: 'ctnr' | 'img' | 'vol') {
+      return nextTab === 'ctnr' ? 'status' : nextTab === 'img' ? 'created' : 'name';
+    }
+
+    function saveViewState() {
+      try {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            filter,
+            tab,
+            autoRefreshEnabled,
+            sortBy,
+            search: ($('dk-search') as HTMLInputElement)?.value || '',
+          }),
+        );
+      } catch {
+        // ignore storage failures
+      }
+    }
+
+    function restoreViewState() {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        if (state.tab === 'ctnr' || state.tab === 'img' || state.tab === 'vol') {
+          tab = state.tab;
+        }
+        if (['all', 'up', 'down', 'ports', 'issues', 'hot'].includes(state.filter)) {
+          filter = state.filter;
+        }
+        if (typeof state.autoRefreshEnabled === 'boolean') {
+          autoRefreshEnabled = state.autoRefreshEnabled;
+        }
+        if (['status', 'cpu', 'mem', 'name', 'ports', 'created', 'size'].includes(state.sortBy)) {
+          sortBy = state.sortBy;
+        }
+        if (typeof state.search === 'string') {
+          ($('dk-search') as HTMLInputElement).value = state.search;
+        }
+      } catch {
+        // ignore malformed storage
+      }
+    }
 
     function fmtBytes(n: number) {
       if (n == null || !Number.isFinite(n) || n <= 0) return '—';
@@ -161,6 +666,370 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         });
       } catch {
         return '—';
+      }
+    }
+
+    function fmtClock(ts: number) {
+      if (!ts) return '—';
+      try {
+        return new Date(ts).toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+      } catch {
+        return '—';
+      }
+    }
+
+    function fmtAge(ms: number) {
+      if (!Number.isFinite(ms) || ms < 0) return 'ahora';
+      const sec = Math.floor(ms / 1000);
+      if (sec < 5) return 'ahora';
+      if (sec < 60) return `hace ${sec}s`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `hace ${min} min`;
+      const hr = Math.floor(min / 60);
+      return `hace ${hr} h`;
+    }
+
+    function updateFreshnessState() {
+      const box = $('dk-feedback');
+      if (!lastLoadedAt) {
+        delete box.dataset.freshness;
+        return;
+      }
+      const ageMs = Date.now() - lastLoadedAt;
+      if (!autoRefreshEnabled) {
+        box.dataset.freshness = 'paused';
+        const pauseReason = hiddenAutoPause ? 'pausado por pestaña oculta' : 'auto-refresh desactivado';
+        $('dk-feedback-meta').textContent = `Datos congelados ${fmtAge(ageMs)} · ${pauseReason} · última actualización ${fmtClock(lastLoadedAt)}`;
+        return;
+      }
+      box.dataset.freshness = ageMs >= 45000 ? 'stale' : 'fresh';
+      $('dk-feedback-meta').textContent = `Última actualización ${fmtClock(lastLoadedAt)} · ${fmtAge(ageMs)}`;
+    }
+
+    function updateViewHelpers() {
+      syncSearchUi();
+      syncFilterButtons();
+      syncSortUi();
+      syncAutoRefreshUi();
+      syncResetViewUi();
+    }
+
+    function setFeedback(status: string, meta = '') {
+      $('dk-feedback-text').textContent = status;
+      $('dk-feedback-meta').textContent = meta;
+      if (!meta) {
+        delete $('dk-feedback').dataset.freshness;
+      }
+    }
+
+    function setResults(html: string) {
+      $('dk-results').innerHTML = html;
+    }
+
+    function setSummary(
+      chips: Array<{ label: string; value: string | number; tone?: 'ok' | 'crit' | 'warn' | 'info'; filterKey?: string }>,
+    ) {
+      const box = $('dk-summary');
+      if (!chips.length) {
+        box.hidden = true;
+        box.innerHTML = '';
+        return;
+      }
+      box.hidden = false;
+      box.innerHTML = chips
+        .map((chip) => {
+          const tone = chip.tone || 'info';
+          const active = chip.filterKey && chip.filterKey === filter ? 'true' : 'false';
+          if (chip.filterKey) {
+            return `<button type="button" class="dk-summary-chip" data-tone="${tone}" data-summary-filter="${escHtml(chip.filterKey)}" data-active="${active}" title="Filtrar por ${escHtml(chip.label)}"><span class="dk-summary-chip__value">${escHtml(String(chip.value))}</span><span class="dk-summary-chip__label">${escHtml(chip.label)}</span></button>`;
+          }
+          return `<span class="dk-summary-chip" data-tone="${tone}"><span class="dk-summary-chip__value">${escHtml(String(chip.value))}</span><span class="dk-summary-chip__label">${escHtml(chip.label)}</span></span>`;
+        })
+        .join('');
+    }
+
+    function syncAutoRefreshUi() {
+      const btn = $('dk-autorefresh') as HTMLButtonElement;
+      btn.textContent = `Auto: ${autoRefreshEnabled ? 'ON' : 'OFF'}`;
+      btn.setAttribute('aria-pressed', autoRefreshEnabled ? 'true' : 'false');
+      btn.classList.toggle('active', autoRefreshEnabled);
+      btn.title = autoRefreshEnabled
+        ? 'La vista se actualiza sola cada 15 segundos'
+        : 'La vista no se actualizará sola hasta reactivarlo';
+    }
+
+    function syncSearchUi() {
+      const hasQuery = Boolean(($('dk-search') as HTMLInputElement).value.trim());
+      $('dk-search-clear').hidden = !hasQuery;
+    }
+
+    function syncSortUi() {
+      const select = $('dk-sort') as HTMLSelectElement;
+      if (select.value !== sortBy) {
+        select.value = sortBy;
+      }
+      const hiddenForTab =
+        (tab === 'ctnr' && (sortBy === 'created' || sortBy === 'size')) ||
+        (tab === 'img' && (sortBy === 'status' || sortBy === 'cpu' || sortBy === 'mem' || sortBy === 'ports')) ||
+        (tab === 'vol' && sortBy !== 'name' && sortBy !== 'created');
+      select.title = hiddenForTab
+        ? 'La ordenación actual no aplica a esta pestaña; usando un criterio compatible.'
+        : 'Ordenar elementos visibles';
+    }
+
+    function hasCustomViewState() {
+      const search = (($('dk-search') as HTMLInputElement)?.value || '').trim();
+      return filter !== 'all' || sortBy !== defaultSortForTab(tab) || Boolean(search) || !autoRefreshEnabled;
+    }
+
+    function syncResetViewUi() {
+      $('dk-reset-view').hidden = !hasCustomViewState();
+    }
+
+    function renderEmptyState(message: string) {
+      const showReset = hasCustomViewState();
+      return `<div class="page-empty" style="grid-column:1/-1;display:grid;gap:10px;justify-items:start">
+        <span>${escHtml(message)}</span>
+        ${showReset ? '<button type="button" class="page-filter-btn" data-dk-empty-reset="true">Limpiar vista y volver</button>' : ''}
+      </div>`;
+    }
+
+    function resetView() {
+      filter = 'all';
+      sortBy = defaultSortForTab(tab);
+      autoRefreshEnabled = true;
+      const input = $('dk-search') as HTMLInputElement;
+      input.value = '';
+      syncSearchUi();
+      syncFilterButtons();
+      syncSortUi();
+      syncAutoRefreshUi();
+      syncResetViewUi();
+      saveViewState();
+      setFeedback('Vista Docker restablecida', lastLoadedAt ? `Última actualización ${fmtClock(lastLoadedAt)}` : 'Listo para volver a filtrar');
+      updateFreshnessState();
+      render();
+    }
+
+    function containerScoreStatus(item: any) {
+      return String(item.status || '').toLowerCase().includes('up') ? 0 : 1;
+    }
+
+    function hasPorts(item: any) {
+      const ports = String(item.ports || '').trim().toLowerCase();
+      return ports && ports !== '—' && ports !== 'sin puertos expuestos' ? 0 : 1;
+    }
+
+    function sortContainers(items: any[]) {
+      const sorted = [...items];
+      sorted.sort((a: any, b: any) => {
+        if (sortBy === 'cpu') return Number(b.cpu || 0) - Number(a.cpu || 0) || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+        if (sortBy === 'mem') return Number(b.mem || 0) - Number(a.mem || 0) || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+        if (sortBy === 'name') return String(a.name || '').localeCompare(String(b.name || ''), 'es');
+        if (sortBy === 'ports') return hasPorts(a) - hasPorts(b) || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+        return containerScoreStatus(a) - containerScoreStatus(b)
+          || Number(b.cpu || 0) - Number(a.cpu || 0)
+          || Number(b.mem || 0) - Number(a.mem || 0)
+          || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+      });
+      return sorted;
+    }
+
+    function sortImages(items: any[]) {
+      const sorted = [...items];
+      sorted.sort((a: any, b: any) => {
+        if (sortBy === 'name') return String(a.repo || '').localeCompare(String(b.repo || ''), 'es');
+        if (sortBy === 'size') return Number(b.size || 0) - Number(a.size || 0) || String(a.repo || '').localeCompare(String(b.repo || ''), 'es');
+        return Number(b.created || 0) - Number(a.created || 0) || String(a.repo || '').localeCompare(String(b.repo || ''), 'es');
+      });
+      return sorted;
+    }
+
+    function sortVolumes(items: any[]) {
+      const sorted = [...items];
+      sorted.sort((a: any, b: any) => {
+        if (sortBy === 'created') return Number(b.created || 0) - Number(a.created || 0) || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+        return String(a.name || '').localeCompare(String(b.name || ''), 'es');
+      });
+      return sorted;
+    }
+
+    async function doAction(name: string, action: string) {
+      if (actionInFlight) return;
+      const verb = dockerActionVerbEs(action);
+      const ok = await dockerModalConfirm({
+        title: action === 'delete' ? 'Eliminar contenedor' : `${verb} contenedor`,
+        body:
+          action === 'delete'
+            ? `Se eliminará de forma forzada el contenedor «${name}».`
+            : `Vas a ${verb.toLowerCase()} el contenedor «${name}».`,
+        detail: action === 'delete' ? 'Los procesos dentro del contenedor se detendrán de inmediato.' : undefined,
+        variant: action === 'delete' ? 'danger' : 'default',
+        confirmLabel: verb,
+        cancelLabel: 'Cancelar',
+      });
+      if (!ok) return;
+      actionInFlight = true;
+      render();
+      setFeedback(`${verb} «${name}»…`, 'Ejecutando acción sobre Docker');
+      try {
+        const r = await apiPostDockerCtnr(action as 'start' | 'stop' | 'restart' | 'delete', name);
+        let j: { ok?: boolean; error?: string } = {};
+        try {
+          j = await r.json();
+        } catch {
+          j = { ok: false, error: r.status ? `HTTP ${r.status}` : 'Respuesta inválida' };
+        }
+        if (r.ok && j.ok) {
+          setFeedback(`Listo: ${verb.toLowerCase()} «${name}»`, 'Recargando estado del daemon');
+          await load(true);
+        } else {
+          const err = j.error || `HTTP ${r.status}`;
+          setFeedback(`Error al ${action === 'delete' ? 'eliminar' : action} «${name}»`, err);
+          await dockerModalAlert({
+            title: 'No se pudo completar la acción',
+            body: `Docker no aceptó la operación sobre el contenedor «${name}».`,
+            detail: err,
+          });
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        setFeedback(`Error al ${action === 'delete' ? 'eliminar' : action} «${name}»`, msg);
+        await dockerModalAlert({
+          title: 'Error de conexión o cliente',
+          body: 'No se pudo hablar con la API de métricas o la petición falló antes de llegar a Docker.',
+          detail: msg,
+        });
+      } finally {
+        actionInFlight = false;
+        render();
+      }
+    }
+
+    async function deleteDockerImage(id: string, label: string) {
+      if (actionInFlight) return;
+      const safeLabel = label || id;
+      const ok = await dockerModalConfirm({
+        title: 'Eliminar imagen',
+        body: `Se ejecutará docker rmi sobre «${safeLabel}» (ID ${id}).`,
+        detail: 'Si algún contenedor sigue usando esta imagen, Docker rechazará el borrado hasta que lo liberes.',
+        variant: 'danger',
+        confirmLabel: 'Eliminar imagen',
+        cancelLabel: 'Cancelar',
+      });
+      if (!ok) return;
+      actionInFlight = true;
+      render();
+      setFeedback(`Eliminando imagen «${safeLabel}»…`, 'docker rmi');
+      try {
+        const r = await apiPostDockerImgDelete(id);
+        let j: { ok?: boolean; error?: string } = {};
+        try {
+          j = await r.json();
+        } catch {
+          j = { ok: false, error: r.status ? `HTTP ${r.status}` : 'Respuesta inválida' };
+        }
+        if (r.ok && j.ok) {
+          setFeedback(`Imagen eliminada (${id})`, 'Recargando listado');
+          await load(true);
+        } else {
+          const err = j.error || `HTTP ${r.status}`;
+          setFeedback('No se pudo eliminar la imagen', err);
+          await dockerModalAlert({
+            title: 'No se pudo eliminar la imagen',
+            body: `La referencia «${safeLabel}» no se ha podido quitar del daemon.`,
+            detail: err,
+          });
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        setFeedback('No se pudo eliminar la imagen', msg);
+        await dockerModalAlert({
+          title: 'Error al eliminar la imagen',
+          body: 'Revisa la conexión con la API y que Docker responda en el host.',
+          detail: msg,
+        });
+      } finally {
+        actionInFlight = false;
+        render();
+      }
+    }
+
+    async function deleteDockerVolume(name: string) {
+      if (actionInFlight) return;
+      const ok = await dockerModalConfirm({
+        title: 'Eliminar volumen',
+        body: `Se eliminará el volumen «${name}» del daemon Docker.`,
+        detail: 'Los datos almacenados en ese volumen se pierden salvo que tengas copia en otro sitio. Los contenedores que lo usen deben estar detenidos y desmontados.',
+        variant: 'danger',
+        confirmLabel: 'Eliminar volumen',
+        cancelLabel: 'Cancelar',
+      });
+      if (!ok) return;
+      actionInFlight = true;
+      render();
+      setFeedback(`Eliminando volumen «${name}»…`, 'docker volume rm');
+      try {
+        const r = await apiPostDockerVolDelete(name);
+        let j: { ok?: boolean; error?: string } = {};
+        try {
+          j = await r.json();
+        } catch {
+          j = { ok: false, error: r.status ? `HTTP ${r.status}` : 'Respuesta inválida' };
+        }
+        if (r.ok && j.ok) {
+          setFeedback(`Volumen eliminado: ${name}`, 'Recargando listado');
+          await load(true);
+        } else {
+          const err = j.error || `HTTP ${r.status}`;
+          setFeedback('No se pudo eliminar el volumen', err);
+          await dockerModalAlert({
+            title: 'No se pudo eliminar el volumen',
+            body: `Docker devolvió un error al intentar quitar «${name}».`,
+            detail: err,
+          });
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        setFeedback('No se pudo eliminar el volumen', msg);
+        await dockerModalAlert({
+          title: 'Error al eliminar el volumen',
+          body: 'Revisa la conexión con la API y el estado del daemon.',
+          detail: msg,
+        });
+      } finally {
+        actionInFlight = false;
+        render();
+      }
+    }
+
+    async function copyText(value: string, successLabel: string, emptyLabel: string) {
+      const text = String(value || '').trim();
+      if (!text || text === '—' || text === 'Sin puertos expuestos') {
+        setFeedback(emptyLabel, 'No había nada útil que copiar');
+        return;
+      }
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', 'true');
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        setFeedback(successLabel, text.length > 52 ? `${text.slice(0, 52)}…` : text);
+      } catch (error) {
+        setFeedback('No se pudo copiar al portapapeles', (error as Error)?.message || 'Permiso denegado por el navegador');
       }
     }
 
@@ -197,8 +1066,52 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
             ? 'Buscar imagen o ID…'
             : 'Buscar volumen…';
       ($('dk-search') as HTMLInputElement).placeholder = ph;
+      if (next === 'img' && ['status', 'cpu', 'mem', 'ports'].includes(sortBy)) {
+        sortBy = 'created';
+      }
+      if (next === 'vol' && !['name', 'created'].includes(sortBy)) {
+        sortBy = 'name';
+      }
+      if (next === 'ctnr' && ['created', 'size'].includes(sortBy)) {
+        sortBy = 'status';
+      }
+      syncSortUi();
+      syncResetViewUi();
+      saveViewState();
 
       render();
+    }
+
+    function syncFilterButtons() {
+      document.querySelectorAll<HTMLButtonElement>('#dk-ctnr-filters [data-filter]').forEach((b) => {
+        b.classList.toggle('active', b.dataset.filter === filter);
+      });
+    }
+
+    function hasContainerIssues(item: any) {
+      const status = String(item?.status || '').toLowerCase();
+      return !status.includes('up') || status.includes('unhealthy') || status.includes('restarting') || status.includes('dead') || status.includes('failed') || status.includes('exit');
+    }
+
+    function updateContainerFilterCounts(items: any[]) {
+      const counts = {
+        all: items.length,
+        up: items.filter((c: any) => String(c.status || '').toLowerCase().includes('up')).length,
+        down: items.filter((c: any) => !String(c.status || '').toLowerCase().includes('up')).length,
+        ports: items.filter((c: any) => {
+          const ports = String(c.ports || '').trim().toLowerCase();
+          return ports && ports !== '—' && ports !== 'sin puertos expuestos';
+        }).length,
+        issues: items.filter((c: any) => hasContainerIssues(c)).length,
+        hot: items.filter((c: any) => Number(c.cpu) >= 50 || Number(c.mem) >= 50).length,
+      };
+      document.querySelectorAll<HTMLElement>('[data-filter-count]').forEach((node) => {
+        const key = node.dataset.filterCount as keyof typeof counts | undefined;
+        if (!key) return;
+        const value = counts[key];
+        node.textContent = String(value);
+        node.parentElement?.setAttribute('title', `${value} contenedores para este filtro`);
+      });
     }
 
     document.querySelectorAll<HTMLButtonElement>('.dk-page .logs-tab').forEach((b) => {
@@ -208,8 +1121,11 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       });
     });
 
-    async function load() {
+    async function load(fromAction = false) {
       try {
+        if (!fromAction) {
+          setFeedback('Actualizando estado Docker…', actionInFlight ? 'Hay una acción en curso' : 'Consultando API local');
+        }
         const d = await fetchMetrics();
         updateHeader(d);
         allCtrs = Array.isArray(d.containers) ? d.containers : [];
@@ -220,21 +1136,33 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         setStat('ds-total', String(allCtrs.length));
         setStat('ds-up', String(ups.length));
         setStat('ds-down', String(allCtrs.length - ups.length));
+        updateContainerFilterCounts(allCtrs);
 
         const totalBytes = Number(d.dockerImagesTotalBytes) || 0;
         const dangling = allImgs.filter((im: any) => im.repo === '<sin etiqueta>').length;
+        const imgsInUse = allImgs.filter((im: any) => im.inUse).length;
         setStat('is-total', String(allImgs.length));
+        setStat('is-inuse', String(imgsInUse));
         setStat('is-size', fmtBytes(totalBytes));
         setStat('is-dangling', String(dangling));
 
         const drivers = [...new Set(allVols.map((v: any) => v.driver || 'local'))];
+        const volsInUse = allVols.filter((v: any) => v.inUse).length;
         setStat('vs-total', String(allVols.length));
+        setStat('vs-inuse', String(volsInUse));
         setStat('vs-drivers', drivers.length ? drivers.slice(0, 3).join(', ') + (drivers.length > 3 ? '…' : '') : '—');
 
+        lastLoadedAt = Date.now();
         dataLoaded = true;
+        setFeedback(
+          `Estado Docker al día · ${allCtrs.filter((c: any) => c.status?.toLowerCase().includes('up')).length}/${allCtrs.length} contenedores activos`,
+          `Última actualización ${fmtClock(lastLoadedAt)}`,
+        );
+        updateFreshnessState();
         render();
       } catch (e) {
         console.error(e);
+        setFeedback('No se pudieron cargar datos Docker', 'Comprueba daemon/API y vuelve a intentar');
         ['ctnr-grid', 'img-grid', 'vol-grid'].forEach((gid) => {
           const g = $(gid);
           g.removeAttribute('aria-busy');
@@ -244,6 +1172,14 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       }
     }
 
+    function matchesContainerSearch(item: any, query: string) {
+      if (!query) return true;
+      const hay = [item?.name, item?.status, item?.ports]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+      return hay.includes(query);
+    }
+
     function render() {
       if (!dataLoaded) return;
       const q = ($('dk-search') as HTMLInputElement).value.toLowerCase().trim();
@@ -251,34 +1187,111 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       if (tab === 'ctnr') {
         const grid = $('ctnr-grid');
         grid.removeAttribute('aria-busy');
-        let filtered = allCtrs.filter((c: any) => (c.name || '').toLowerCase().includes(q));
+        let filtered = allCtrs.filter((c: any) => matchesContainerSearch(c, q));
         if (filter === 'up') filtered = filtered.filter((c: any) => c.status?.toLowerCase().includes('up'));
         if (filter === 'down') filtered = filtered.filter((c: any) => !c.status?.toLowerCase().includes('up'));
+        if (filter === 'ports') filtered = filtered.filter((c: any) => {
+          const ports = String(c.ports || '').trim().toLowerCase();
+          return ports && ports !== '—' && ports !== 'sin puertos expuestos';
+        });
+        if (filter === 'issues') filtered = filtered.filter((c: any) => hasContainerIssues(c));
+        if (filter === 'hot') filtered = filtered.filter((c: any) => Number(c.cpu) >= 50 || Number(c.mem) >= 50);
+        filtered = sortContainers(filtered);
+
+        const filterLabel =
+          filter === 'up'
+            ? 'en marcha'
+            : filter === 'down'
+              ? 'detenidos'
+              : filter === 'ports'
+                ? 'con puertos expuestos'
+                : filter === 'issues'
+                  ? 'con incidencias'
+                  : filter === 'hot'
+                    ? 'calientes (CPU/RAM ≥50%)'
+                    : '';
+        const sortLabel =
+          sortBy === 'cpu'
+            ? 'CPU ↓'
+            : sortBy === 'mem'
+              ? 'RAM ↓'
+              : sortBy === 'name'
+                ? 'nombre A-Z'
+                : sortBy === 'ports'
+                  ? 'puertos primero'
+                  : 'estado';
+        const esc = escHtml;
+        setResults(
+          `Mostrando <strong>${esc(String(filtered.length))}</strong> de <strong>${esc(String(allCtrs.length))}</strong> contenedores` +
+            (filterLabel ? ` · <span class="dk-results-meta">Filtro: ${esc(filterLabel)}</span>` : '') +
+            (q ? ` · <span class="dk-results-meta">Búsqueda: «${esc(q)}»</span>` : '') +
+            ` · <span class="dk-results-meta">Orden: ${esc(sortLabel)}</span>`,
+        );
+
+        const visibleUp = filtered.filter((c: any) => c.status?.toLowerCase().includes('up')).length;
+        const visibleDown = filtered.length - visibleUp;
+        const visiblePorts = filtered.filter((c: any) => {
+          const ports = String(c.ports || '').trim().toLowerCase();
+          return ports && ports !== '—' && ports !== 'sin puertos expuestos';
+        }).length;
+        const visibleIssues = filtered.filter((c: any) => hasContainerIssues(c)).length;
+        const visibleHot = filtered.filter((c: any) => Number(c.cpu) >= 50 || Number(c.mem) >= 50).length;
+        setSummary([
+          { label: 'en marcha', value: visibleUp, tone: visibleUp ? 'ok' : 'info', filterKey: 'up' },
+          { label: 'detenidos', value: visibleDown, tone: visibleDown ? 'crit' : 'info', filterKey: 'down' },
+          { label: 'con incidencias', value: visibleIssues, tone: visibleIssues ? 'crit' : 'ok', filterKey: 'issues' },
+          { label: 'con puertos', value: visiblePorts, tone: visiblePorts ? 'info' : 'warn', filterKey: 'ports' },
+          { label: 'calientes (CPU/RAM ≥50%)', value: visibleHot, tone: visibleHot ? 'warn' : 'ok', filterKey: 'hot' },
+        ]);
 
         if (!filtered.length) {
-          grid.innerHTML = '<div class="page-empty" style="grid-column:1/-1">Sin contenedores que coincidan</div>';
+          const emptyMsg =
+            filter === 'ports'
+              ? 'No hay contenedores con puertos expuestos que coincidan con la búsqueda actual'
+              : filter === 'issues'
+                ? 'No hay contenedores con incidencias que coincidan con la búsqueda actual'
+                : filter === 'hot'
+                  ? 'No hay contenedores calientes (CPU/RAM ≥50%) que coincidan con la búsqueda actual'
+                  : 'Sin contenedores que coincidan';
+          grid.innerHTML = renderEmptyState(emptyMsg);
           return;
         }
 
         grid.innerHTML = filtered.map((c: any, i: number) => {
           const up = c.status?.toLowerCase().includes('up');
+          const hasIssues = hasContainerIssues(c);
           const cpu = c.cpu != null ? `${c.cpu}% CPU` : null;
           const mem = c.mem != null ? `${c.mem}% RAM` : null;
-          return `<div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
+          const name = escHtml(c.name);
+          return `<div class="info-card" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
             <div class="info-card-header">
               <div class="info-card-icon ${up ? 'green' : 'red'}">${iPkg}</div>
               <div>
-                <div class="info-card-title">${escHtml(c.name)}</div>
+                <div class="dk-field-row">
+                  <div class="info-card-title dk-field-row__text">${name}</div>
+                  <button class="dk-copy-btn" type="button" title="Copiar nombre" aria-label="Copiar nombre del contenedor" data-dk-copy="name" data-dk-value="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+                </div>
                 <div class="info-card-sub">${escHtml(c.status || '—')}</div>
               </div>
             </div>
             <div class="info-card-body info-card-body--break-long" style="font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)">
-              ${escHtml(c.ports || 'Sin puertos expuestos')}
+              <div class="dk-field-row">
+                <span class="dk-field-row__text">${escHtml(c.ports || 'Sin puertos expuestos')}</span>
+                <button class="dk-copy-btn" type="button" title="Copiar puertos" aria-label="Copiar puertos del contenedor" data-dk-copy="ports" data-dk-value="${encodeURIComponent(c.ports || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+              </div>
             </div>
             <div class="info-card-footer">
               <span class="pill ${up ? 'pill-ok' : 'pill-crit'}">${up ? 'En marcha' : 'Detenido'}</span>
+              ${hasIssues ? '<span class="pill pill-crit">Incidencia</span>' : ''}
               ${cpu ? `<span class="pill pill-info">${cpu}</span>` : ''}
               ${mem ? `<span class="pill pill-info">${mem}</span>` : ''}
+            </div>
+            <div class="info-card-actions dk-card-actions" role="group" aria-label="Acciones del contenedor">
+              ${up
+                ? `<button class="card-action-btn card-action-btn--stop" type="button" title="Detener contenedor" aria-label="Detener contenedor" data-dk-action="stop" data-dk-name="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iStop}</button>
+                   <button class="card-action-btn card-action-btn--restart" type="button" title="Reiniciar contenedor" aria-label="Reiniciar contenedor" data-dk-action="restart" data-dk-name="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iRestart}</button>`
+                : `<button class="card-action-btn card-action-btn--start" type="button" title="Iniciar contenedor" aria-label="Iniciar contenedor" data-dk-action="start" data-dk-name="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iPlay}</button>`}
+              <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar contenedor" aria-label="Eliminar contenedor" data-dk-action="delete" data-dk-name="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iTrash}</button>
             </div>
           </div>`;
         }).join('');
@@ -287,39 +1300,75 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       if (tab === 'img') {
         const grid = $('img-grid');
         grid.removeAttribute('aria-busy');
-        const filtered = allImgs.filter((im: any) => {
+        const filtered = sortImages(allImgs.filter((im: any) => {
           if (!q) return true;
           const hay = `${im.repo || ''} ${im.id || ''} ${(im.tags || []).join(' ')}`.toLowerCase();
           return hay.includes(q);
-        });
+        }));
+
+        const sortLabel = sortBy === 'size' ? 'tamaño ↓' : sortBy === 'name' ? 'nombre A-Z' : 'fecha ↓';
+        const esc = escHtml;
+        setResults(
+          `Mostrando <strong>${esc(String(filtered.length))}</strong> de <strong>${esc(String(allImgs.length))}</strong> imágenes` +
+            (q ? ` · <span class="dk-results-meta">Búsqueda: «${esc(q)}»</span>` : '') +
+            ` · <span class="dk-results-meta">Orden: ${esc(sortLabel)}</span>`,
+        );
+        const danglingCount = filtered.filter((im: any) => im.repo === '<sin etiqueta>').length;
+        const imgsInUseVis = filtered.filter((im: any) => im.inUse).length;
+        const totalVisibleBytes = filtered.reduce((sum: number, im: any) => sum + (Number(im.size) || 0), 0);
+        setSummary([
+          { label: 'visibles', value: filtered.length, tone: 'info' },
+          { label: 'en uso', value: imgsInUseVis, tone: imgsInUseVis ? 'ok' : 'info' },
+          { label: 'sin etiqueta', value: danglingCount, tone: danglingCount ? 'warn' : 'ok' },
+          { label: 'tamaño visible', value: fmtBytes(totalVisibleBytes), tone: 'info' },
+        ]);
 
         if (!filtered.length) {
           const msg =
             allImgs.length === 0
               ? 'No hay imágenes en la respuesta de la API (reinicia el servidor y comprueba Docker).'
               : 'Sin imágenes que coincidan';
-          grid.innerHTML = `<div class="page-empty" style="grid-column:1/-1">${msg}</div>`;
+          grid.innerHTML = renderEmptyState(msg);
           return;
         }
 
         grid.innerHTML = filtered.map((im: any, i: number) => {
           const dangling = im.repo === '<sin etiqueta>';
+          const inUse = Boolean(im.inUse);
+          const nCont = Number(im.usedByContainers) || 0;
+          const usePill = inUse
+            ? nCont > 0
+              ? `<span class="pill pill-ok">En uso · ${nCont} ${nCont === 1 ? 'contenedor' : 'contenedores'}</span>`
+              : '<span class="pill pill-ok">En uso</span>'
+            : '<span class="pill pill-warn">Sin usar</span>';
+          const iconTone = inUse ? 'green' : dangling ? 'yellow' : 'blue';
           const extra =
             Array.isArray(im.tags) && im.tags.length > 1
               ? `<div class="info-card-htop">${im.tags.slice(1).map((t: string) => escHtml(t)).join('<br/>')}</div>`
               : '';
-          return `<div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
+          return `<div class="info-card" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
             <div class="info-card-header">
-              <div class="info-card-icon ${dangling ? 'yellow' : 'blue'}">${iLayers}</div>
+              <div class="info-card-icon ${iconTone}">${iLayers}</div>
               <div>
-                <div class="info-card-title">${escHtml(im.repo || '—')}</div>
-                <div class="info-card-sub">ID ${escHtml(im.id || '—')} · ${escHtml(im.sizeLabel || '—')}</div>
+                <div class="dk-field-row">
+                  <div class="info-card-title dk-field-row__text">${escHtml(im.repo || '—')}</div>
+                  <button class="dk-copy-btn" type="button" title="Copiar repositorio" aria-label="Copiar repositorio de imagen" data-dk-copy="image-repo" data-dk-value="${encodeURIComponent(im.repo || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+                </div>
+                <div class="dk-field-row info-card-sub" style="margin-top:6px">
+                  <span class="dk-field-row__text" style="font-family:ui-monospace,monospace;font-size:11px">ID ${escHtml(im.id || '—')}</span>
+                  <button class="dk-copy-btn" type="button" title="Copiar ID" aria-label="Copiar ID de imagen" data-dk-copy="image-id" data-dk-value="${encodeURIComponent(im.id || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+                </div>
+                <div class="info-card-sub" style="margin-top:4px">${escHtml(im.sizeLabel || '—')}</div>
               </div>
             </div>
             ${extra}
             <div class="info-card-footer">
+              ${usePill}
               <span class="pill pill-info">${escHtml(fmtTs(im.created))}</span>
               ${dangling ? '<span class="pill pill-warn">Sin etiqueta</span>' : ''}
+            </div>
+            <div class="info-card-actions dk-card-actions" role="group" aria-label="Acciones de la imagen">
+              <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar imagen" aria-label="Eliminar imagen de Docker" data-dk-del-img="1" data-dk-img-id="${encodeURIComponent(im.id || '')}" data-dk-img-label="${encodeURIComponent(im.repo || im.id || '')}" ${actionInFlight ? 'disabled' : ''}>${iTrash}</button>
             </div>
           </div>`;
         }).join('');
@@ -328,55 +1377,332 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       if (tab === 'vol') {
         const grid = $('vol-grid');
         grid.removeAttribute('aria-busy');
-        const filtered = allVols.filter((v: any) => {
+        const filtered = sortVolumes(allVols.filter((v: any) => {
           if (!q) return true;
           const hay = `${v.name || ''} ${v.driver || ''} ${v.mountpoint || ''}`.toLowerCase();
           return hay.includes(q);
-        });
+        }));
+
+        const sortLabel = sortBy === 'created' ? 'fecha ↓' : 'nombre A-Z';
+        const esc = escHtml;
+        setResults(
+          `Mostrando <strong>${esc(String(filtered.length))}</strong> de <strong>${esc(String(allVols.length))}</strong> volúmenes` +
+            (q ? ` · <span class="dk-results-meta">Búsqueda: «${esc(q)}»</span>` : '') +
+            ` · <span class="dk-results-meta">Orden: ${esc(sortLabel)}</span>`,
+        );
+        const visibleDrivers = [...new Set(filtered.map((v: any) => v.driver || 'local'))].length;
+        const withMountpoint = filtered.filter((v: any) => String(v.mountpoint || '').trim()).length;
+        const volsInUseVis = filtered.filter((v: any) => v.inUse).length;
+        setSummary([
+          { label: 'visibles', value: filtered.length, tone: 'info' },
+          { label: 'en uso', value: volsInUseVis, tone: volsInUseVis ? 'ok' : 'info' },
+          { label: 'drivers', value: visibleDrivers, tone: 'info' },
+          { label: 'con mountpoint', value: withMountpoint, tone: withMountpoint ? 'ok' : 'warn' },
+        ]);
 
         if (!filtered.length) {
           const msg =
             allVols.length === 0
               ? 'No hay volúmenes en la respuesta de la API (reinicia el servidor y comprueba Docker).'
               : 'Sin volúmenes que coincidan';
-          grid.innerHTML = `<div class="page-empty" style="grid-column:1/-1">${msg}</div>`;
+          grid.innerHTML = renderEmptyState(msg);
           return;
         }
 
         grid.innerHTML = filtered.map((v: any, i: number) => {
           const mp = (v.mountpoint || '').trim() || '—';
-          return `<div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
+          const vInUse = Boolean(v.inUse);
+          const vn = Number(v.usedByContainers) || 0;
+          const volUsePill = vInUse
+            ? vn > 0
+              ? `<span class="pill pill-ok">En uso · ${vn} ${vn === 1 ? 'contenedor' : 'contenedores'}</span>`
+              : '<span class="pill pill-ok">En uso</span>'
+            : '<span class="pill pill-warn">Libre</span>';
+          const volIconTone = vInUse ? 'green' : 'gold';
+          return `<div class="info-card" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
             <div class="info-card-header">
-              <div class="info-card-icon gold">${iVol}</div>
+              <div class="info-card-icon ${volIconTone}">${iVol}</div>
               <div>
-                <div class="info-card-title">${escHtml(v.name || '—')}</div>
+                <div class="dk-field-row">
+                  <div class="info-card-title dk-field-row__text">${escHtml(v.name || '—')}</div>
+                  <button class="dk-copy-btn" type="button" title="Copiar nombre" aria-label="Copiar nombre de volumen" data-dk-copy="volume-name" data-dk-value="${encodeURIComponent(v.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+                </div>
                 <div class="info-card-sub">${escHtml(v.driver || 'local')}${v.scope ? ` · ${escHtml(v.scope)}` : ''}</div>
               </div>
             </div>
             <div class="info-card-body info-card-body--break-long" style="font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);line-height:1.45">
-              ${escHtml(mp)}
+              <div class="dk-field-row">
+                <span class="dk-field-row__text">${escHtml(mp)}</span>
+                <button class="dk-copy-btn" type="button" title="Copiar mountpoint" aria-label="Copiar mountpoint del volumen" data-dk-copy="volume-mountpoint" data-dk-value="${encodeURIComponent(v.mountpoint || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+              </div>
             </div>
             <div class="info-card-footer">
+              ${volUsePill}
               <span class="pill pill-info">${escHtml(fmtTs(v.created))}</span>
+            </div>
+            <div class="info-card-actions dk-card-actions" role="group" aria-label="Acciones del volumen">
+              <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar volumen" aria-label="Eliminar volumen de Docker" data-dk-del-vol="1" data-dk-vol-name="${encodeURIComponent(v.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iTrash}</button>
             </div>
           </div>`;
         }).join('');
       }
     }
 
-    $('dk-search').addEventListener('input', render);
-    $('dk-refresh').addEventListener('click', load);
+    function runDockerShortcut(kind: 'search' | 'refresh' | 'clear') {
+      const input = $('dk-search') as HTMLInputElement;
+      if (kind === 'search') {
+        input.focus();
+        input.select();
+        setFeedback('Buscador enfocado', 'Escribe para filtrar la vista Docker');
+        return;
+      }
+      if (kind === 'refresh') {
+        setFeedback('Actualizando Docker…', lastLoadedAt ? `Última actualización ${fmtClock(lastLoadedAt)}` : 'Consultando API local');
+        void load();
+        return;
+      }
+      if (kind === 'clear') {
+        if (input.value.trim()) {
+          input.value = '';
+          syncSearchUi();
+          syncResetViewUi();
+          saveViewState();
+          render();
+          setFeedback('Búsqueda limpiada', 'Pulsa / para volver a enfocar el buscador');
+          return;
+        }
+        if (document.activeElement === input) {
+          input.blur();
+          setFeedback('Listo', 'Atajo Esc: foco fuera del buscador');
+        }
+      }
+    }
+
+    document.querySelector('.dk-page .dk-shortcuts')?.addEventListener('click', (ev) => {
+      const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('[data-dk-shortcut]');
+      if (!btn) return;
+      const k = btn.dataset.dkShortcut as 'search' | 'refresh' | 'clear' | undefined;
+      if (k === 'search' || k === 'refresh' || k === 'clear') runDockerShortcut(k);
+    });
+
+    $('dk-search').addEventListener('input', () => {
+      syncSearchUi();
+      syncResetViewUi();
+      saveViewState();
+      render();
+    });
+    $('dk-search').addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Escape') return;
+      ev.preventDefault();
+      runDockerShortcut('clear');
+    });
+    $('dk-search-clear').addEventListener('click', () => {
+      const input = $('dk-search') as HTMLInputElement;
+      input.value = '';
+      syncSearchUi();
+      syncResetViewUi();
+      saveViewState();
+      input.focus();
+      setFeedback('Búsqueda limpiada', 'Puedes seguir filtrando o pulsar / para volver rápido');
+      render();
+    });
+
+    document.addEventListener('keydown', (ev) => {
+      const target = ev.target as HTMLElement | null;
+      const tagName = target?.tagName || '';
+      const isTypingTarget = tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || target?.isContentEditable;
+      const input = $('dk-search') as HTMLInputElement;
+
+      if (ev.key === '/' && !isTypingTarget) {
+        ev.preventDefault();
+        runDockerShortcut('search');
+        return;
+      }
+
+      if ((ev.key === 'r' || ev.key === 'R') && !isTypingTarget && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        runDockerShortcut('refresh');
+        return;
+      }
+
+      if (ev.key === 'Escape' && !isTypingTarget && input.value.trim()) {
+        ev.preventDefault();
+        runDockerShortcut('clear');
+      }
+    });
+    $('dk-autorefresh').addEventListener('click', () => {
+      autoRefreshEnabled = !autoRefreshEnabled;
+      hiddenAutoPause = false;
+      syncAutoRefreshUi();
+      syncResetViewUi();
+      saveViewState();
+      if (autoRefreshEnabled) {
+        setFeedback('Auto-refresh reactivado', lastLoadedAt ? `Última actualización ${fmtClock(lastLoadedAt)}` : 'La próxima actualización será automática');
+        if (!actionInFlight && (!lastLoadedAt || Date.now() - lastLoadedAt >= staleRefreshMs)) {
+          void load();
+        }
+      } else {
+        setFeedback('Auto-refresh pausado', lastLoadedAt ? `Datos congelados desde ${fmtClock(lastLoadedAt)}` : 'Usa el botón de refrescar para recargar manualmente');
+      }
+      updateFreshnessState();
+    });
+    $('dk-sort').addEventListener('change', (ev) => {
+      sortBy = (ev.target as HTMLSelectElement).value as typeof sortBy;
+      syncSortUi();
+      syncResetViewUi();
+      saveViewState();
+      render();
+    });
+    $('dk-reset-view').addEventListener('click', resetView);
+    $('dk-refresh').addEventListener('click', () => {
+      void load();
+    });
 
     document.querySelectorAll('#dk-ctnr-filters [data-filter]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('#dk-ctnr-filters [data-filter]').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
         filter = (btn as HTMLElement).dataset.filter!;
+        syncFilterButtons();
+        syncResetViewUi();
+        saveViewState();
         render();
       });
     });
 
+    ['ctnr-grid', 'img-grid', 'vol-grid'].forEach((gridId) => {
+      $(gridId).addEventListener('click', (ev) => {
+        const resetBtn = (ev.target as HTMLElement).closest<HTMLButtonElement>('[data-dk-empty-reset]');
+        if (!resetBtn) return;
+        resetView();
+      });
+    });
+
+    function handleCopyClick(ev: Event) {
+      const target = ev.target as HTMLElement;
+      const copyBtn = target.closest<HTMLButtonElement>('[data-dk-copy]');
+      if (!copyBtn) return false;
+      const kind = copyBtn.dataset.dkCopy;
+      const value = copyBtn.dataset.dkValue ? decodeURIComponent(copyBtn.dataset.dkValue) : '';
+      if (kind === 'name') {
+        void copyText(value, 'Nombre del contenedor copiado', 'Este contenedor no tiene nombre para copiar');
+        return true;
+      }
+      if (kind === 'ports') {
+        void copyText(value, 'Puertos del contenedor copiados', 'Este contenedor no expone puertos');
+        return true;
+      }
+      if (kind === 'image-id') {
+        void copyText(value, 'ID de imagen copiado', 'Esta imagen no tiene ID utilizable');
+        return true;
+      }
+      if (kind === 'image-repo') {
+        void copyText(value, 'Repositorio de imagen copiado', 'Esta imagen no tiene repositorio utilizable');
+        return true;
+      }
+      if (kind === 'volume-name') {
+        void copyText(value, 'Nombre del volumen copiado', 'Este volumen no tiene nombre utilizable');
+        return true;
+      }
+      if (kind === 'volume-mountpoint') {
+        void copyText(value, 'Mountpoint del volumen copiado', 'Este volumen no expone mountpoint');
+        return true;
+      }
+      return false;
+    }
+
+    $('ctnr-grid').addEventListener('click', (ev) => {
+      const target = ev.target as HTMLElement;
+      if (handleCopyClick(ev)) return;
+
+      const btn = target.closest<HTMLButtonElement>('[data-dk-action]');
+      if (!btn) return;
+      const action = btn.dataset.dkAction;
+      const name = btn.dataset.dkName ? decodeURIComponent(btn.dataset.dkName) : '';
+      if (!action || !name) return;
+      doAction(name, action);
+    });
+
+    $('img-grid').addEventListener('click', (ev) => {
+      const target = ev.target as HTMLElement;
+      if (handleCopyClick(ev)) return;
+      const imgDel = target.closest<HTMLButtonElement>('[data-dk-del-img]');
+      if (imgDel) {
+        const id = imgDel.dataset.dkImgId ? decodeURIComponent(imgDel.dataset.dkImgId) : '';
+        const label = imgDel.dataset.dkImgLabel ? decodeURIComponent(imgDel.dataset.dkImgLabel) : id;
+        if (id) void deleteDockerImage(id, label);
+      }
+    });
+
+    $('vol-grid').addEventListener('click', (ev) => {
+      const target = ev.target as HTMLElement;
+      if (handleCopyClick(ev)) return;
+      const volDel = target.closest<HTMLButtonElement>('[data-dk-del-vol]');
+      if (volDel) {
+        const volName = volDel.dataset.dkVolName ? decodeURIComponent(volDel.dataset.dkVolName) : '';
+        if (volName) void deleteDockerVolume(volName);
+      }
+    });
+
+    $('dk-summary').addEventListener('click', (ev) => {
+      const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('[data-summary-filter]');
+      if (!btn || tab !== 'ctnr') return;
+      const nextFilter = btn.dataset.summaryFilter;
+      if (!nextFilter) return;
+      filter = nextFilter === filter ? 'all' : nextFilter;
+      syncFilterButtons();
+      syncResetViewUi();
+      saveViewState();
+      render();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (autoRefreshEnabled) {
+          hiddenAutoPause = true;
+          autoRefreshEnabled = false;
+          syncAutoRefreshUi();
+          syncResetViewUi();
+          saveViewState();
+          updateFreshnessState();
+        }
+        return;
+      }
+      if (hiddenAutoPause) {
+        hiddenAutoPause = false;
+        autoRefreshEnabled = true;
+        syncAutoRefreshUi();
+        syncResetViewUi();
+        saveViewState();
+        setFeedback('Auto-refresh reactivado al volver a la pestaña', lastLoadedAt ? `Última actualización ${fmtClock(lastLoadedAt)}` : 'Recargando vista Docker');
+        if (!actionInFlight && (!lastLoadedAt || Date.now() - lastLoadedAt >= staleRefreshMs)) {
+          void load();
+        } else {
+          updateFreshnessState();
+        }
+        return;
+      }
+      if (!actionInFlight && autoRefreshEnabled && lastLoadedAt && Date.now() - lastLoadedAt >= staleRefreshMs) {
+        setFeedback('Pestaña recuperada: refrescando estado Docker…', `Última actualización ${fmtClock(lastLoadedAt)}`);
+        void load();
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      if (document.hidden) return;
+      if (actionInFlight || !autoRefreshEnabled) return;
+      if (!lastLoadedAt || Date.now() - lastLoadedAt < staleRefreshMs) return;
+      setFeedback('Ventana activa: refrescando estado Docker…', `Última actualización ${fmtClock(lastLoadedAt)}`);
+      void load();
+    });
+
+    restoreViewState();
+    updateViewHelpers();
+    showTab(tab);
     load();
-    setInterval(load, 15000);
+    setInterval(() => {
+      updateFreshnessState();
+      if (document.hidden || actionInFlight || !autoRefreshEnabled) return;
+      load();
+    }, 15000);
+    setInterval(updateFreshnessState, 1000);
   </script>
 </Layout>

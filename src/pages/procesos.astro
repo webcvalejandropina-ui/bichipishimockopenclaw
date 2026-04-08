@@ -1,27 +1,54 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import SistemaSectionTabs from '../components/SistemaSectionTabs.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { Monitor, RefreshCw } from 'lucide';
+import { ListTree, RefreshCw, ScanSearch } from 'lucide';
 
 const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+const iResample = iconToSvg(ScanSearch, { width: 16, height: 16 });
+const iPageTitle = iconToSvg(ListTree, { width: 22, height: 22 });
 ---
 <Layout activePage="procesos">
-  <div class="wrapper">
+  <div class="wrapper dk-page">
     <div class="page-header">
-      <h2 class="page-title">Procesos</h2>
-      <p class="page-desc">
-        Lista ordenada por CPU según la API (mismo instantáneo que el dashboard). El recuento total del host puede ser mayor:
-        aquí ves los que más CPU reportan en ese momento, no todo el Monitor de actividad.
-      </p>
+      <div class="dk-page-title-row">
+        <span class="dk-page-title-icon" set:html={iPageTitle} aria-hidden="true" />
+        <div>
+          <h2 class="page-title">Procesos</h2>
+          <p class="page-desc">
+            Lista ordenada por CPU según la API (mismo instantáneo que el dashboard). Puedes <strong>detener</strong> (SIGTERM / cierre ordenado) o
+            <strong>forzar cierre</strong> (SIGKILL / taskkill) con confirmación; en Windows/macOS/Linux el backend usa la vía nativa. Requiere permisos
+            suficientes en el host. Si la API exige token (<code>BICHI_SETTINGS_TOKEN</code> o <code>BICHI_HOST_ACTION_TOKEN</code>), la UI debe poder enviarlo
+            (mismo origen o proxy). <strong>No reinicia</strong> procesos arbitrarios: para eso usa la pestaña Servicios o el supervisor del programa.
+          </p>
+        </div>
+      </div>
     </div>
+
+    <SistemaSectionTabs active="procesos" />
 
     <div class="page-toolbar">
       <input type="text" class="page-search" id="proc-search" placeholder="Buscar proceso por nombre o PID..." />
       <button type="button" class="page-filter-btn active" data-sort="cpu">CPU ↓</button>
       <button type="button" class="page-filter-btn" data-sort="name">Nombre</button>
       <button type="button" class="page-filter-btn" data-sort="pid">PID</button>
-      <button type="button" class="page-filter-btn" id="proc-refresh" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-        <span set:html={iRefresh} /> Actualizar
+      <button
+        type="button"
+        class="page-icon-btn"
+        id="proc-resample"
+        aria-label="Forzar detección: nuevo muestreo"
+        title="Confirmar y pedir de nuevo el instantáneo al SO (sin caché del navegador)"
+      >
+        <span set:html={iResample} aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="page-icon-btn"
+        id="proc-refresh"
+        aria-label="Actualizar lista de procesos"
+        title="Volver a cargar procesos desde la API"
+      >
+        <span set:html={iRefresh} aria-hidden="true" />
       </button>
     </div>
 
@@ -44,6 +71,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
               <th>CPU %</th>
               <th class="col-proc-bar">Uso</th>
               <th>Comando</th>
+              <th class="col-proc-actions">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -55,32 +83,173 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
                 <td><span class="skeleton skel-cell skel-cell--pct">&nbsp;</span></td>
                 <td class="col-proc-bar"><span class="skeleton skel-cell skel-cell--bar">&nbsp;</span></td>
                 <td><span class="skeleton skel-cell skel-cell--cmd">&nbsp;</span></td>
+                <td class="col-proc-actions"><span class="skeleton skel-cell" style="display:inline-block;width:76px">&nbsp;</span></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
     </div>
+
+    <div
+      class="dk-modal"
+      id="proc-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="proc-modal-title"
+      aria-hidden="true"
+      hidden
+    >
+      <div class="dk-modal__backdrop" data-proc-modal-dismiss tabindex="-1" aria-hidden="true"></div>
+      <div class="dk-modal__panel">
+        <h3 class="dk-modal__title" id="proc-modal-title"></h3>
+        <p class="dk-modal__body" id="proc-modal-body"></p>
+        <pre class="dk-modal__detail" id="proc-modal-detail" hidden></pre>
+        <div class="dk-modal__actions">
+          <button type="button" class="dk-modal__btn dk-modal__btn--ghost" id="proc-modal-cancel">Cancelar</button>
+          <button type="button" class="dk-modal__btn dk-modal__btn--primary" id="proc-modal-confirm">Confirmar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    import { fetchMetrics, updateHeader, statusColor, metricsRepresentHost } from '../lib/metrics';
+    import { fetchMetrics, updateHeader, statusColor, metricsRepresentHost, apiPostHost } from '../lib/metrics';
     import { processActivityDescription, escHtml } from '../lib/process-hints';
-    import { initCopyableValues } from '../lib/copy-field';
+    import { copyTextToClipboard, flashCopied } from '../lib/copy-field';
+    import { iconToSvg } from '../lib/lucide-svg-string';
+    import { Copy, Square, OctagonX } from 'lucide';
+
+    const rowStop = iconToSvg(Square, { width: 14, height: 14 });
+    const rowKill = iconToSvg(OctagonX, { width: 14, height: 14 });
+    const rowCopy = iconToSvg(Copy, { width: 14, height: 14 });
 
     const $ = (id: string) => document.getElementById(id)!;
 
     function attrEsc(s: string) {
       return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     }
+
+    function procCopyCell(textClass: string, bodyHtml: string, ariaLabel: string) {
+      return `<div class="dk-field-row proc-copy-row">
+    <span class="proc-copy-row__text ${textClass}">${bodyHtml}</span>
+    <button type="button" class="dk-copy-btn" data-proc-copy-btn aria-label="${attrEsc(ariaLabel)}" title="Copiar">${rowCopy}</button>
+  </div>`;
+    }
     let allProcs: any[] = [];
     let sortBy = 'cpu';
     let dataLoaded = false;
+    let lastHostActions: { process?: { term?: boolean; kill?: boolean } } | null = null;
+    let procModalResolve: ((v: 'confirm' | 'cancel') => void) | null = null;
+    let procModalPrevFocus: HTMLElement | null = null;
+    let procModalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+    let procActionInFlight = false;
+
+    function procModalDetachKeys() {
+      if (procModalKeyHandler) {
+        document.removeEventListener('keydown', procModalKeyHandler);
+        procModalKeyHandler = null;
+      }
+    }
+
+    function procModalClose(result: 'confirm' | 'cancel') {
+      const root = $('proc-modal');
+      root.hidden = true;
+      root.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('dk-modal-open');
+      procModalDetachKeys();
+      const r = procModalResolve;
+      procModalResolve = null;
+      try {
+        procModalPrevFocus?.focus();
+      } catch {
+        /* ignore */
+      }
+      procModalPrevFocus = null;
+      r?.(result);
+    }
+
+    function initProcModal() {
+      const root = $('proc-modal');
+      if ((root as HTMLElement & { _bichiInit?: boolean })._bichiInit) return;
+      (root as HTMLElement & { _bichiInit?: boolean })._bichiInit = true;
+      $('proc-modal-confirm').addEventListener('click', () => procModalClose('confirm'));
+      $('proc-modal-cancel').addEventListener('click', () => procModalClose('cancel'));
+      root.querySelector('.dk-modal__backdrop')?.addEventListener('click', () => procModalClose('cancel'));
+    }
+
+    function procModalOpen(opts: {
+      mode: 'confirm' | 'alert';
+      title: string;
+      body: string;
+      detail?: string;
+      variant?: 'default' | 'danger';
+      confirmLabel?: string;
+      cancelLabel?: string;
+    }): Promise<'confirm' | 'cancel'> {
+      initProcModal();
+      return new Promise((resolve) => {
+        procModalResolve = resolve;
+        procModalPrevFocus = document.activeElement as HTMLElement;
+        const root = $('proc-modal');
+        root.dataset.mode = opts.mode;
+        root.dataset.variant = opts.variant || 'default';
+        $('proc-modal-title').textContent = opts.title;
+        $('proc-modal-body').textContent = opts.body;
+        const det = $('proc-modal-detail');
+        if (opts.detail) {
+          det.textContent = opts.detail;
+          det.hidden = false;
+        } else {
+          det.textContent = '';
+          det.hidden = true;
+        }
+        const cancelBtn = $('proc-modal-cancel') as HTMLButtonElement;
+        const confirmBtn = $('proc-modal-confirm') as HTMLButtonElement;
+        cancelBtn.hidden = opts.mode === 'alert';
+        confirmBtn.textContent = opts.confirmLabel || (opts.mode === 'alert' ? 'Entendido' : 'Confirmar');
+        cancelBtn.textContent = opts.cancelLabel || 'Cancelar';
+        root.hidden = false;
+        root.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('dk-modal-open');
+        procModalKeyHandler = (ev: KeyboardEvent) => {
+          if (ev.key !== 'Escape') return;
+          ev.preventDefault();
+          procModalClose(opts.mode === 'alert' ? 'confirm' : 'cancel');
+        };
+        document.addEventListener('keydown', procModalKeyHandler);
+        confirmBtn.focus();
+      });
+    }
+
+    async function procModalConfirm(opts: {
+      title: string;
+      body: string;
+      detail?: string;
+      variant?: 'default' | 'danger';
+      confirmLabel?: string;
+      cancelLabel?: string;
+    }): Promise<boolean> {
+      const r = await procModalOpen({ ...opts, mode: 'confirm' });
+      return r === 'confirm';
+    }
+
+    async function procModalAlert(opts: { title: string; body: string; detail?: string }) {
+      await procModalOpen({
+        mode: 'alert',
+        variant: 'default',
+        title: opts.title,
+        body: opts.body,
+        detail: opts.detail,
+        confirmLabel: 'Entendido',
+      });
+    }
 
     async function load() {
       try {
         const d = await fetchMetrics();
         updateHeader(d);
+        lastHostActions = d.hostActions && typeof d.hostActions === 'object' ? d.hostActions : null;
         if (!metricsRepresentHost(d)) {
           $('proc-table-wrap').removeAttribute('aria-busy');
           const note =
@@ -108,17 +277,31 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         $('proc-table-wrap').removeAttribute('aria-busy');
         $('proc-table-wrap').innerHTML =
           '<div class="page-empty">No se pudo obtener datos del monitor (¿API en marcha?)</div>';
+      } finally {
+        $('proc-refresh').classList.remove('is-spinning');
+        $('proc-resample').classList.remove('is-spinning');
       }
+    }
+
+    /** Columna siempre visible con datos del host; si la API antigua no envía hostActions.process, se asume term+kill. */
+    function procSignalAllowed(kind: 'term' | 'kill') {
+      const p = lastHostActions?.process;
+      if (p == null) return true;
+      return kind === 'kill' ? !!p.kill : !!p.term;
     }
 
     function render() {
       if (!dataLoaded) return;
       $('proc-table-wrap').removeAttribute('aria-busy');
       const search = ($('proc-search') as HTMLInputElement).value.toLowerCase();
-      let filtered = allProcs.filter((p: any) =>
-        (p.comm || '').toLowerCase().includes(search) ||
-        String(p.pid).includes(search)
-      );
+      let filtered = allProcs.filter((p: any) => {
+        if (!search) return true;
+        const hay = [p.comm, p.cmd, String(p.pid)]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(search);
+      });
 
       if (sortBy === 'cpu') filtered.sort((a: any, b: any) => (b.cpu || 0) - (a.cpu || 0));
       else if (sortBy === 'name') filtered.sort((a: any, b: any) => (a.comm || '').localeCompare(b.comm || ''));
@@ -129,29 +312,121 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         return;
       }
 
+      const thActions = '<th class="col-proc-actions">Acciones</th>';
+      const canTerm = procSignalAllowed('term');
+      const canKill = procSignalAllowed('kill');
+
       $('proc-table-wrap').innerHTML = `<div class="table-scroll"><table class="data-table data-table--procs">
-        <thead><tr><th>PID</th><th>Proceso</th><th>Actividad</th><th>CPU %</th><th class="col-proc-bar">Uso</th><th>Comando</th></tr></thead>
-        <tbody>${filtered.map((p: any, i: number) => {
-          const col = statusColor(p.cpu || 0, 'cpu');
-          const act = processActivityDescription(p.comm || '', p.cmd || '', p.desc);
-          const comm = p.comm || '?';
-          const cmd = p.cmd || '—';
-          const tip = `PID ${p.pid} · ${comm}${p.cmd ? ` · ${cmd.slice(0, 500)}${cmd.length > 500 ? '…' : ''}` : ''}`;
+        <thead><tr><th>PID</th><th>Proceso</th><th>Actividad</th><th>CPU %</th><th class="col-proc-bar">Uso</th><th>Comando</th>${thActions}</tr></thead>
+        <tbody>${filtered.map((pr: any, i: number) => {
+          const col = statusColor(pr.cpu || 0, 'cpu');
+          const act = processActivityDescription(pr.comm || '', pr.cmd || '', pr.desc);
+          const comm = pr.comm || '?';
+          const cmd = pr.cmd || '—';
+          const tip = `PID ${pr.pid} · ${comm}${pr.cmd ? ` · ${cmd.slice(0, 500)}${cmd.length > 500 ? '…' : ''}` : ''}`;
+          const dis = procActionInFlight ? 'disabled' : '';
+          const actions = `<td class="col-proc-actions"><div class="proc-row-actions" role="group" aria-label="Acciones del proceso">
+                ${canTerm ? `<button type="button" class="card-action-btn card-action-btn--stop" title="Detener (cierre ordenado)" aria-label="Detener proceso" data-proc-signal="term" data-proc-pid="${pr.pid}" data-proc-comm="${attrEsc(comm)}" ${dis}>${rowStop}</button>` : ''}
+                ${canKill ? `<button type="button" class="card-action-btn card-action-btn--danger" title="Forzar cierre" aria-label="Forzar cierre del proceso" data-proc-signal="kill" data-proc-pid="${pr.pid}" data-proc-comm="${attrEsc(comm)}" ${dis}>${rowKill}</button>` : ''}
+              </div></td>`;
           return `<tr style="animation:listSlideIn 0.3s ease ${i * 20}ms both" title="${attrEsc(tip)}">
-            <td class="col-pid js-copy-val" data-copy-text="${attrEsc(String(p.pid))}" style="font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)">${p.pid}</td>
-            <td class="col-name col-name--full js-copy-val" data-copy-text="${attrEsc(comm)}">${escHtml(comm)}</td>
+            <td class="col-pid">${procCopyCell('proc-copy-row__text--pid', String(pr.pid), 'Copiar PID')}</td>
+            <td class="col-name col-name--full">${procCopyCell('proc-copy-row__text--name', escHtml(comm), 'Copiar nombre del proceso')}</td>
             <td class="col-activity">${escHtml(act)}</td>
-            <td class="col-metric" style="color:${col}">${(p.cpu ?? 0).toFixed(1)}%</td>
-            <td class="col-bar col-proc-bar"><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.min(p.cpu||0,100)}%;background:${col}"></div></div></td>
-            <td class="col-cmd col-cmd--full js-copy-val" data-copy-text="${attrEsc(cmd)}">${escHtml(cmd)}</td>
+            <td class="col-metric" style="color:${col}">${(pr.cpu ?? 0).toFixed(1)}%</td>
+            <td class="col-bar col-proc-bar"><div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.min(pr.cpu||0,100)}%;background:${col}"></div></div></td>
+            <td class="col-cmd col-cmd--full">${procCopyCell('proc-copy-row__text--cmd', escHtml(cmd), 'Copiar comando')}</td>
+            ${actions}
           </tr>`;
         }).join('')}</tbody>
       </table></div>`;
-      initCopyableValues($('proc-table-wrap'));
     }
 
+    async function onProcSignal(pid: number, comm: string, signal: 'term' | 'kill') {
+      if (procActionInFlight) return;
+      const sigLabel = signal === 'kill' ? 'SIGKILL / forzar' : 'SIGTERM / cierre ordenado';
+      const ok = await procModalConfirm({
+        title: signal === 'kill' ? 'Forzar cierre del proceso' : 'Detener proceso',
+        body: `Vas a enviar ${sigLabel} al proceso «${comm}» (PID ${pid}). Puede cerrarse de inmediato y perder datos no guardados.`,
+        detail:
+          signal === 'kill'
+            ? 'No hay segunda oportunidad: el SO elimina el proceso sin permitir que termine limpio.'
+            : 'Primero se pide un cierre ordenado; el programa puede ignorar la señal o tardar unos segundos.',
+        variant: signal === 'kill' ? 'danger' : 'default',
+        confirmLabel: signal === 'kill' ? 'Forzar cierre' : 'Detener',
+      });
+      if (!ok) return;
+      procActionInFlight = true;
+      render();
+      try {
+        const r = await apiPostHost('/api/host/process/signal', { pid, signal });
+        let j: { ok?: boolean; error?: string } = {};
+        try {
+          j = await r.json();
+        } catch {
+          j = { ok: false, error: r.status ? `HTTP ${r.status}` : 'Respuesta inválida' };
+        }
+        if (r.ok && j.ok) {
+          await load();
+        } else {
+          await procModalAlert({
+            title: 'No se pudo completar',
+            body: 'El sistema operativo o la API rechazó la operación (permisos, PID inexistente, etc.).',
+            detail: j.error || `HTTP ${r.status}`,
+          });
+        }
+      } catch (e) {
+        await procModalAlert({
+          title: 'Error de red',
+          body: 'No se pudo contactar con la API de métricas.',
+          detail: (e as Error).message,
+        });
+      } finally {
+        procActionInFlight = false;
+        render();
+      }
+    }
+
+    $('proc-table-wrap').addEventListener('click', (ev) => {
+      const copyBtn = (ev.target as HTMLElement).closest('[data-proc-copy-btn]') as HTMLButtonElement | null;
+      if (copyBtn) {
+        const wrap = copyBtn.closest('.proc-copy-row');
+        const textEl = wrap?.querySelector('.proc-copy-row__text');
+        const raw = (textEl?.textContent ?? '').trim();
+        if (!raw || raw === '—') return;
+        ev.preventDefault();
+        void copyTextToClipboard(raw).then((ok) => {
+          if (ok) flashCopied(copyBtn);
+        });
+        return;
+      }
+      const btn = (ev.target as HTMLElement).closest('[data-proc-signal]') as HTMLButtonElement | null;
+      if (!btn || procActionInFlight) return;
+      const sig = btn.dataset.procSignal as 'term' | 'kill';
+      const pid = Number(btn.dataset.procPid);
+      const comm = btn.dataset.procComm || '?';
+      if (!sig || !Number.isFinite(pid)) return;
+      ev.preventDefault();
+      void onProcSignal(pid, comm, sig);
+    });
+
     $('proc-search').addEventListener('input', render);
-    $('proc-refresh').addEventListener('click', load);
+    $('proc-refresh').addEventListener('click', () => {
+      $('proc-refresh').classList.add('is-spinning');
+      void load();
+    });
+
+    $('proc-resample').addEventListener('click', async () => {
+      const ok = await procModalConfirm({
+        title: 'Forzar detección',
+        body:
+          'Se volverá a consultar al sistema por un instantáneo nuevo de procesos (la API no guarda colas: es la misma lectura que el refresco, sin usar caché del navegador).',
+        confirmLabel: 'Actualizar ahora',
+      });
+      if (!ok) return;
+      $('proc-resample').classList.add('is-spinning');
+      await load();
+    });
 
     document.querySelectorAll('[data-sort]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -162,7 +437,6 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       });
     });
 
-    initCopyableValues(document.body);
     load();
     setInterval(load, 12000);
   </script>

@@ -1,0 +1,572 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SistemaSectionTabs from '../components/SistemaSectionTabs.astro';
+import { iconToSvg } from '../lib/lucide-svg-string';
+import { CalendarClock, RefreshCw } from 'lucide';
+
+const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+const iPageTitle = iconToSvg(CalendarClock, { width: 22, height: 22 });
+---
+<Layout activePage="tareas-programadas">
+  <div class="wrapper dk-page">
+    <div class="page-header">
+      <div class="dk-page-title-row">
+        <span class="dk-page-title-icon" set:html={iPageTitle} aria-hidden="true" />
+        <div>
+          <h2 class="page-title">Tareas programadas</h2>
+          <p class="page-desc">
+            Misma vista que el <strong>calendario del dashboard</strong>: tareas reales que la API lee del sistema (<strong>crontab</strong> del usuario, <code>/etc/crontab</code>,
+            <code>config/cron.extra</code> o <strong>Programador de tareas</strong> en Windows). Desde aquí puedes <strong>añadir, editar o eliminar</strong> entradas mutables: crontab de
+            usuario y fichero extra en Linux/macOS; en Windows, borrar tareas listadas y crear tareas con <code>schtasks</code> (diaria, una vez o <strong>cada minuto</strong> para pruebas). Las entradas de <code>/etc/crontab</code> solo se
+            modifican si la API corre con permisos de escritura y <code>BICHI_CRON_ALLOW_SYSTEM=1</code>. Las mutaciones usan el mismo token que procesos y servicios si está configurado.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <SistemaSectionTabs active="tareas-programadas" />
+
+    <div class="page-toolbar">
+      <button type="button" class="page-filter-btn page-filter-btn--primary" id="tp-new-task">Nueva tarea</button>
+      <button type="button" class="page-icon-btn" id="tp-refresh-cal" aria-label="Recargar calendario" title="Recargar desde la API">
+        <span set:html={iRefresh} aria-hidden="true" />
+      </button>
+    </div>
+
+    <p class="sys-page-results" id="tp-host-hint" hidden></p>
+
+    <details class="tp-cron-test-guide">
+      <summary>Probar tareas en macOS (temporal) o en Windows</summary>
+      <div class="tp-cron-test-guide__body">
+        <p><strong>macOS</strong> (crontab del usuario, la misma fuente que lee la API con <code>crontab -l</code>):</p>
+        <ol>
+          <li>
+            Pulsa <strong>Nueva tarea</strong> → destino <strong>Crontab del usuario</strong>. Para ver actividad en ~1 minuto usa programación
+            <code class="tp-cron-test-guide__code">* * * * *</code> (cada minuto; quítala después).
+          </li>
+          <li>
+            Comando de prueba con rutas absolutas, por ejemplo:
+            <code class="tp-cron-test-guide__code">/bin/date &gt;&gt; /tmp/bichi-cron-test.log</code>
+            o <code class="tp-cron-test-guide__code">/usr/bin/logger -t bichi-cron "ping"</code>
+          </li>
+          <li>
+            Guarda, recarga el calendario y comprueba la lista. Verifica el resultado:
+            <code class="tp-cron-test-guide__code">tail -f /tmp/bichi-cron-test.log</code> o <code class="tp-cron-test-guide__code">log show --predicate 'eventMessage CONTAINS "bichi-cron"' --last 5m</code>
+          </li>
+          <li>
+            <strong>Importante:</strong> en macOS recientes cron corre con un entorno mínimo (<code>PATH</code> corto). Usa rutas completas (<code>/bin/sh</code>, <code>/usr/local/bin/…</code>). Si no escribe en un directorio protegido por privacidad, prueba con <code>/tmp</code> o concede permisos al binario que corresponda en Ajustes del sistema.
+          </li>
+          <li>Cuando termines, <strong>Elimina</strong> la entrada desde esta página o ejecuta <code class="tp-cron-test-guide__code">crontab -e</code> y borra la línea.</li>
+        </ol>
+        <p><strong>Windows</strong> (desde esta página): al crear tarea elige <strong>Cada minuto (prueba)</strong> para comprobar sin esperar al día siguiente; luego elimínala desde la lista. Opcional en el servidor: <code>BICHI_WIN_SCHTASKS_RL=HIGHEST</code> si necesitas más privilegios.</p>
+      </div>
+    </details>
+
+    <div class="card calendar-card tp-cron-card" id="tp-cron-card" style="padding:20px">
+      <div class="card-header cron-card-header">
+        <h3>Tareas del sistema</h3>
+        <div class="cron-month-nav">
+          <button type="button" class="card-arrow" id="tp-cal-prev" aria-label="Mes anterior">&#8592;</button>
+          <span id="tp-cal-month-label" class="cron-month-label"></span>
+          <button type="button" class="card-arrow" id="tp-cal-next" aria-label="Mes siguiente">&#8594;</button>
+        </div>
+      </div>
+      <p class="cron-lede">
+        Lista completa y calendario como en el inicio. Usa <strong>Editar</strong> / <strong>Eliminar</strong> en cada fila (o en el panel del día seleccionado). <strong>Nueva tarea</strong> abre el
+        formulario (crontab usuario, archivo extra o tarea Windows diaria).
+      </p>
+      <div class="cron-status-bar" id="tp-cron-status-bar" aria-live="polite"></div>
+      <div class="cron-master-list" id="tp-cron-master-list" aria-label="Listado de tareas"></div>
+      <h4 class="cron-cal-heading">Calendario del mes</h4>
+      <p class="cron-cal-sub">Puntos de color = tipo de recurrencia. Toca un día para filtrar la lista de la derecha.</p>
+      <div class="cron-freq-legend cron-freq-legend--compact">
+        <span class="cron-freq-item"><span class="cron-freq-dot cal-dot daily"></span> Diario</span>
+        <span class="cron-freq-item"><span class="cron-freq-dot cal-dot weekly"></span> Semanal</span>
+        <span class="cron-freq-item"><span class="cron-freq-dot cal-dot monthly"></span> Mensual</span>
+        <span class="cron-freq-item"><span class="cron-freq-dot cal-dot custom"></span> Otro</span>
+      </div>
+      <div class="cron-layout">
+        <div class="cron-cal-wrap">
+          <div class="cal-full-grid" id="tp-cal-grid"></div>
+        </div>
+        <div class="cron-sidebar" id="tp-cron-sidebar">
+          <div class="cron-date-title" id="tp-cron-date-title">Toca un día en el calendario</div>
+          <div class="cron-jobs-scroll">
+            <div id="tp-cron-jobs-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="dk-modal"
+      id="tp-form-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tp-form-title"
+      aria-hidden="true"
+      hidden
+    >
+      <div class="dk-modal__backdrop" data-tp-form-dismiss tabindex="-1" aria-hidden="true"></div>
+      <div class="dk-modal__panel">
+        <h3 class="dk-modal__title" id="tp-form-title">Nueva tarea</h3>
+        <div class="stk-form-fields" id="tp-fields-unix">
+          <label>
+            Destino
+            <select id="tp-f-target" class="tp-form-select">
+              <option value="user">Crontab del usuario</option>
+              <option value="extra">Archivo extra (config/cron.extra)</option>
+            </select>
+          </label>
+          <label>
+            Programación (5 campos o macro: @daily, @hourly, @reboot…)
+            <input type="text" id="tp-f-schedule" class="stk-input-mono" placeholder="0 * * * *" maxlength="200" autocomplete="off" />
+          </label>
+          <label>
+            Comando
+            <textarea id="tp-f-cmd" maxlength="4000" rows="3" spellcheck="false"></textarea>
+          </label>
+        </div>
+        <div class="stk-form-fields" id="tp-fields-win" hidden>
+          <label>
+            Nombre de la tarea (Windows)
+            <input type="text" id="tp-f-win-name" maxlength="200" autocomplete="off" placeholder="BichiPruebaCron" />
+          </label>
+          <label>
+            Tipo de programación
+            <select id="tp-f-win-sched" class="tp-form-select">
+              <option value="daily">Diaria (hora fija)</option>
+              <option value="minute">Cada minuto (prueba; recuerda borrarla)</option>
+              <option value="once">Una vez (hoy o mañana a la hora indicada)</option>
+            </select>
+          </label>
+          <label>
+            Comando a ejecutar
+            <textarea id="tp-f-win-cmd" maxlength="4000" rows="3" spellcheck="false" placeholder="echo ok &gt;&gt; %TEMP%\bichi-cron-test.txt"></textarea>
+          </label>
+          <div id="tp-win-time-wrap">
+            <label>
+              Hora (24 h, para diaria o una vez)
+              <input type="text" id="tp-f-win-time" class="stk-input-mono" placeholder="9:00" maxlength="8" autocomplete="off" />
+            </label>
+          </div>
+          <p class="info-card-svc-hint" style="margin:0">
+            Se usa <code>schtasks</code>. Los comandos de consola se ejecutan vía <code>cmd.exe /c</code> salvo que indiques una ruta <code>.exe</code>. Para tareas avanzadas usa el Programador de tareas del sistema.
+          </p>
+        </div>
+        <div class="dk-modal__actions">
+          <button type="button" class="dk-modal__btn dk-modal__btn--ghost" id="tp-form-cancel">Cancelar</button>
+          <button type="button" class="dk-modal__btn dk-modal__btn--primary" id="tp-form-save">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="dk-modal"
+      id="tp-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tp-modal-title"
+      aria-hidden="true"
+      hidden
+    >
+      <div class="dk-modal__backdrop" data-tp-modal-dismiss tabindex="-1" aria-hidden="true"></div>
+      <div class="dk-modal__panel">
+        <h3 class="dk-modal__title" id="tp-modal-title"></h3>
+        <p class="dk-modal__body" id="tp-modal-body"></p>
+        <pre class="dk-modal__detail" id="tp-modal-detail" hidden></pre>
+        <div class="dk-modal__actions">
+          <button type="button" class="dk-modal__btn dk-modal__btn--ghost" id="tp-modal-cancel">Cancelar</button>
+          <button type="button" class="dk-modal__btn dk-modal__btn--primary" id="tp-modal-confirm">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { fetchMetrics, updateHeader, metricsRepresentHost, apiPostHost, type SystemCronJob } from '../lib/metrics';
+    import { escHtml } from '../lib/process-hints';
+    import { mountCronCalendar } from '../lib/cron-calendar-client';
+
+    const $ = (id: string) => document.getElementById(id)!;
+
+    let cronApi: { refresh: () => Promise<void> } | null = null;
+    let lastPlatform = '';
+    let tpModalResolve: ((v: 'confirm' | 'cancel') => void) | null = null;
+    let tpModalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+    let tpModalPrevFocus: HTMLElement | null = null;
+    let editingJobId: string | null = null;
+
+    function tpModalDetachKeys() {
+      if (tpModalKeyHandler) {
+        document.removeEventListener('keydown', tpModalKeyHandler);
+        tpModalKeyHandler = null;
+      }
+    }
+
+    function tpModalClose(result: 'confirm' | 'cancel') {
+      const root = $('tp-modal');
+      root.hidden = true;
+      root.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('dk-modal-open');
+      tpModalDetachKeys();
+      const r = tpModalResolve;
+      tpModalResolve = null;
+      try {
+        tpModalPrevFocus?.focus();
+      } catch {
+        /* ignore */
+      }
+      tpModalPrevFocus = null;
+      r?.(result);
+    }
+
+    function initTpModal() {
+      const root = $('tp-modal');
+      if ((root as HTMLElement & { _bichiInit?: boolean })._bichiInit) return;
+      (root as HTMLElement & { _bichiInit?: boolean })._bichiInit = true;
+      $('tp-modal-confirm').addEventListener('click', () => tpModalClose('confirm'));
+      $('tp-modal-cancel').addEventListener('click', () => tpModalClose('cancel'));
+      root.querySelector('[data-tp-modal-dismiss]')?.addEventListener('click', () => tpModalClose('cancel'));
+    }
+
+    function tpModalOpen(opts: {
+      mode: 'confirm' | 'alert';
+      title: string;
+      body: string;
+      detail?: string;
+      variant?: 'default' | 'danger';
+      confirmLabel?: string;
+    }): Promise<'confirm' | 'cancel'> {
+      initTpModal();
+      return new Promise((resolve) => {
+        tpModalResolve = resolve;
+        tpModalPrevFocus = document.activeElement as HTMLElement;
+        const root = $('tp-modal');
+        root.dataset.mode = opts.mode;
+        root.dataset.variant = opts.variant || 'default';
+        $('tp-modal-title').textContent = opts.title;
+        $('tp-modal-body').textContent = opts.body;
+        const det = $('tp-modal-detail');
+        if (opts.detail) {
+          det.textContent = opts.detail;
+          det.hidden = false;
+        } else {
+          det.textContent = '';
+          det.hidden = true;
+        }
+        const cancelBtn = $('tp-modal-cancel') as HTMLButtonElement;
+        const confirmBtn = $('tp-modal-confirm') as HTMLButtonElement;
+        cancelBtn.hidden = opts.mode === 'alert';
+        confirmBtn.textContent = opts.confirmLabel || (opts.mode === 'alert' ? 'Entendido' : 'Confirmar');
+        root.hidden = false;
+        root.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('dk-modal-open');
+        tpModalKeyHandler = (ev: KeyboardEvent) => {
+          if (ev.key !== 'Escape') return;
+          ev.preventDefault();
+          tpModalClose(opts.mode === 'alert' ? 'confirm' : 'cancel');
+        };
+        document.addEventListener('keydown', tpModalKeyHandler);
+        confirmBtn.focus();
+      });
+    }
+
+    async function tpModalConfirm(opts: {
+      title: string;
+      body: string;
+      detail?: string;
+      variant?: 'default' | 'danger';
+      confirmLabel?: string;
+    }): Promise<boolean> {
+      const r = await tpModalOpen({ ...opts, mode: 'confirm' });
+      return r === 'confirm';
+    }
+
+    async function tpModalAlert(opts: { title: string; body: string; detail?: string }) {
+      await tpModalOpen({
+        mode: 'alert',
+        variant: 'default',
+        title: opts.title,
+        body: opts.body,
+        detail: opts.detail,
+        confirmLabel: 'Entendido',
+      });
+    }
+
+    async function postCron(body: Record<string, unknown>) {
+      const r = await apiPostHost('/api/host/cron/task', body);
+      let j: { ok?: boolean; error?: string } = {};
+      try {
+        j = await r.json();
+      } catch {
+        j = { ok: false, error: r.status ? `HTTP ${r.status}` : 'Respuesta inválida' };
+      }
+      return { r, j };
+    }
+
+    function closeForm() {
+      const root = $('tp-form-modal');
+      root.hidden = true;
+      root.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('dk-modal-open');
+      editingJobId = null;
+    }
+
+    function openFormCreate() {
+      editingJobId = null;
+      $('tp-form-title').textContent = 'Nueva tarea';
+      const win = lastPlatform === 'win32';
+      ($('tp-fields-unix') as HTMLElement).hidden = win;
+      ($('tp-fields-win') as HTMLElement).hidden = !win;
+      ($('tp-f-schedule') as HTMLInputElement).value = '0 9 * * *';
+      ($('tp-f-cmd') as HTMLTextAreaElement).value = '';
+      ($('tp-f-target') as HTMLSelectElement).value = 'user';
+      ($('tp-f-win-name') as HTMLInputElement).value = '';
+      ($('tp-f-win-cmd') as HTMLTextAreaElement).value = '';
+      ($('tp-f-win-time') as HTMLInputElement).value = '9:00';
+      ($('tp-f-win-sched') as HTMLSelectElement).value = 'daily';
+      syncWinTimeWrap();
+      $('tp-form-modal').hidden = false;
+      $('tp-form-modal').setAttribute('aria-hidden', 'false');
+      document.body.classList.add('dk-modal-open');
+      if (win) ($('tp-f-win-name') as HTMLInputElement).focus();
+      else ($('tp-f-schedule') as HTMLInputElement).focus();
+    }
+
+    function openFormEdit(job: SystemCronJob) {
+      if (job.source === 'windows') {
+        void tpModalAlert({
+          title: 'Tarea de Windows',
+          body: 'Las tareas del Programador no se pueden editar desde aquí. Elimínala y crea una nueva con «Nueva tarea» si aplica.',
+        });
+        return;
+      }
+      editingJobId = job.id;
+      $('tp-form-title').textContent = 'Editar tarea';
+      ($('tp-fields-unix') as HTMLElement).hidden = false;
+      ($('tp-fields-win') as HTMLElement).hidden = true;
+      ($('tp-f-target') as HTMLSelectElement).value = job.source === 'extra' ? 'extra' : 'user';
+      ($('tp-f-target') as HTMLSelectElement).disabled = true;
+      ($('tp-f-schedule') as HTMLInputElement).value = job.schedule;
+      ($('tp-f-cmd') as HTMLTextAreaElement).value = job.command;
+      $('tp-form-modal').hidden = false;
+      $('tp-form-modal').setAttribute('aria-hidden', 'false');
+      document.body.classList.add('dk-modal-open');
+      ($('tp-f-schedule') as HTMLInputElement).focus();
+    }
+
+    function syncWinTimeWrap() {
+      const v = ($('tp-f-win-sched') as HTMLSelectElement).value;
+      ($('tp-win-time-wrap') as HTMLElement).hidden = v === 'minute';
+    }
+
+    function parseWinTime(s: string): { hour: number; minute: number } | null {
+      const t = String(s || '').trim();
+      const m = t.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      const hour = Number(m[1]);
+      const minute = Number(m[2]);
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+      if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+      return { hour, minute };
+    }
+
+    async function saveForm() {
+      const saveBtn = $('tp-form-save') as HTMLButtonElement;
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
+      try {
+        const win = lastPlatform === 'win32' && !editingJobId;
+        if (win) {
+          const name = ($('tp-f-win-name') as HTMLInputElement).value.trim();
+          const command = ($('tp-f-win-cmd') as HTMLTextAreaElement).value.trim();
+          const winSchedule = ($('tp-f-win-sched') as HTMLSelectElement).value;
+          if (!name || !command) {
+            await tpModalAlert({ title: 'Faltan datos', body: 'Indica nombre de tarea y comando.' });
+            return;
+          }
+          let dailyHour = 9;
+          let dailyMinute = 0;
+          if (winSchedule !== 'minute') {
+            const tm = parseWinTime(($('tp-f-win-time') as HTMLInputElement).value);
+            if (!tm) {
+              await tpModalAlert({ title: 'Hora inválida', body: 'Usa formato HH:MM (24 h), por ejemplo 9:00 o 14:30.' });
+              return;
+            }
+            dailyHour = tm.hour;
+            dailyMinute = tm.minute;
+          }
+          const { r, j } = await postCron({
+            op: 'create',
+            target: 'windows',
+            winTaskName: name,
+            command,
+            winSchedule,
+            dailyHour,
+            dailyMinute,
+          });
+          if (r.ok && j.ok) {
+            closeForm();
+            await cronApi?.refresh();
+          } else {
+            await tpModalAlert({
+              title: 'No se pudo crear',
+              body: j.error || `HTTP ${r.status}`,
+              detail:
+                r.status === 401
+                  ? 'Token requerido: BICHI_HOST_ACTION_TOKEN o BICHI_SETTINGS_TOKEN (cabecera Authorization o X-Bichi-Token).'
+                  : '',
+            });
+          }
+          return;
+        }
+
+        const schedule = ($('tp-f-schedule') as HTMLInputElement).value.trim();
+        const command = ($('tp-f-cmd') as HTMLTextAreaElement).value.trim();
+        const target = ($('tp-f-target') as HTMLSelectElement).value as 'user' | 'extra';
+        if (!schedule || !command) {
+          await tpModalAlert({ title: 'Faltan datos', body: 'Rellena programación (cron) y comando.' });
+          return;
+        }
+
+        if (editingJobId) {
+          const { r, j } = await postCron({ op: 'update', id: editingJobId, schedule, command });
+          if (r.ok && j.ok) {
+            ($('tp-f-target') as HTMLSelectElement).disabled = false;
+            closeForm();
+            await cronApi?.refresh();
+          } else {
+            await tpModalAlert({
+              title: 'No se pudo guardar',
+              body: j.error || `HTTP ${r.status}`,
+              detail:
+                r.status === 401
+                  ? 'Token requerido en la API (mismas cabeceras que procesos/servicios).'
+                  : '',
+            });
+          }
+          return;
+        }
+
+        const { r, j } = await postCron({ op: 'create', target, schedule, command });
+        if (r.ok && j.ok) {
+          closeForm();
+          await cronApi?.refresh();
+        } else {
+          await tpModalAlert({
+            title: 'No se pudo crear',
+            body: j.error || `HTTP ${r.status}`,
+            detail:
+              r.status === 401
+                ? 'Token requerido en la API (mismas cabeceras que procesos/servicios).'
+                : j.error && String(j.error).includes('crontab')
+                  ? 'macOS: revisa que la API tenga permiso para ejecutar crontab y que el comando sea válido.'
+                  : '',
+          });
+        }
+      } catch (e) {
+        await tpModalAlert({
+          title: 'Error al guardar',
+          body: 'No se pudo completar la petición (red, CORS o API caída).',
+          detail: (e as Error).message,
+        });
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+
+    function initFormModal() {
+      const root = $('tp-form-modal');
+      if ((root as HTMLElement & { _bichiInit?: boolean })._bichiInit) return;
+      (root as HTMLElement & { _bichiInit?: boolean })._bichiInit = true;
+      $('tp-form-cancel').addEventListener('click', () => {
+        ($('tp-f-target') as HTMLSelectElement).disabled = false;
+        closeForm();
+      });
+      root.querySelector('[data-tp-form-dismiss]')?.addEventListener('click', () => {
+        ($('tp-f-target') as HTMLSelectElement).disabled = false;
+        closeForm();
+      });
+      $('tp-form-save').addEventListener('click', () => void saveForm());
+      $('tp-f-win-sched').addEventListener('change', syncWinTimeWrap);
+    }
+
+    $('tp-new-task').addEventListener('click', () => {
+      initFormModal();
+      openFormCreate();
+    });
+
+    $('tp-refresh-cal').addEventListener('click', () => {
+      $('tp-refresh-cal').classList.add('is-spinning');
+      void (cronApi?.refresh() ?? Promise.resolve()).finally(() => {
+        $('tp-refresh-cal').classList.remove('is-spinning');
+      });
+    });
+
+    async function boot() {
+      try {
+        const d = await fetchMetrics();
+        updateHeader(d);
+        lastPlatform = String(d.platform || '');
+        const hint = $('tp-host-hint');
+        if (!metricsRepresentHost(d)) {
+          const note =
+            typeof d.hostMetricsNote === 'string' && d.hostMetricsNote.trim()
+              ? d.hostMetricsNote.trim()
+              : 'La API no refleja el PC anfitrión (p. ej. Docker).';
+          hint.textContent = `${note} El calendario muestra el cron/tareas del entorno donde corre la API.`;
+          hint.hidden = false;
+        } else {
+          hint.hidden = true;
+        }
+
+        cronApi = mountCronCalendar({
+          escHtml,
+          mode: 'editable',
+          delegationRootId: 'tp-cron-card',
+          ids: {
+            calGrid: 'tp-cal-grid',
+            calMonthLabel: 'tp-cal-month-label',
+            calPrev: 'tp-cal-prev',
+            calNext: 'tp-cal-next',
+            cronStatusBar: 'tp-cron-status-bar',
+            cronMasterList: 'tp-cron-master-list',
+            cronDateTitle: 'tp-cron-date-title',
+            cronJobsList: 'tp-cron-jobs-list',
+          },
+          editable: {
+            confirmDelete: (job) =>
+              tpModalConfirm({
+                title: 'Eliminar tarea',
+                body: `¿Eliminar esta entrada? (${job.source}: ${job.schedule.slice(0, 80)}${job.schedule.length > 80 ? '…' : ''})`,
+                variant: 'danger',
+                confirmLabel: 'Eliminar',
+              }),
+            openCreate: () => {
+              initFormModal();
+              openFormCreate();
+            },
+            openEdit: (job) => {
+              initFormModal();
+              openFormEdit(job);
+            },
+            performDelete: async (job) => {
+              const { r, j } = await postCron({ op: 'delete', id: job.id });
+              return { ok: !!(r.ok && j.ok), error: j.error || (r.status ? `HTTP ${r.status}` : undefined) };
+            },
+          },
+        });
+      } catch (e) {
+        console.error(e);
+        await tpModalAlert({
+          title: 'Error',
+          body: 'No se pudieron cargar las métricas del host.',
+          detail: (e as Error).message,
+        });
+      }
+    }
+
+    void boot();
+  </script>
+</Layout>

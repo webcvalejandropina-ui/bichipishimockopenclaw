@@ -17,8 +17,14 @@ const iDismiss = iconToSvg(X, { width: 16, height: 16 });
       <button type="button" class="page-filter-btn active" data-filter="all">Todas</button>
       <button type="button" class="page-filter-btn" data-filter="warn">Advertencias</button>
       <button type="button" class="page-filter-btn" data-filter="crit">Críticas</button>
-      <button type="button" class="page-filter-btn" id="alert-refresh" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-        <span set:html={iRefresh} /> Actualizar
+      <button
+        type="button"
+        class="page-icon-btn"
+        id="alert-refresh"
+        aria-label="Actualizar alertas"
+        title="Volver a cargar alertas desde la API"
+      >
+        <span set:html={iRefresh} aria-hidden="true" />
       </button>
     </div>
 

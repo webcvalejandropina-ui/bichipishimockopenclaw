@@ -417,7 +417,7 @@ const { appName } = getBuildBrand();
       position: absolute;
       top: 7px;
       z-index: 3;
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+      /* Sin filter para evitar blur - la sombra se hace con box-shadow */
     }
     .pm-lens {
       width: 9px;
@@ -463,7 +463,7 @@ const { appName } = getBuildBrand();
       width: 7px; height: 4px;
       background: rgba(255,255,230,.3);
       border-radius: 50%;
-      filter: blur(1.5px);
+      /* Sin blur para evitar pixelación */
       pointer-events: none;
     }
   }
@@ -476,22 +476,22 @@ const { appName } = getBuildBrand();
       right: auto;
     }
     .pine-mobile::before {
-      width: 20px;
-      height: 20px;
+      width: 60px;
+      height: 60px;
     }
     .pm-wrapper {
       animation: gentleBob 5.5s cubic-bezier(.42,1,.58,1) infinite;
     }
-    /* Crown: medium — proportional to 18px body, clear visual presence */
-    .pm-leaf-c { width: 8px; height: 13px; }
-    .pm-leaf-l, .pm-leaf-r { width: 6px; height: 10px; margin-right: -1.5px; margin-left: -1.5px; }
-    /* Body: 18px — intermediate between SE (12px) and tablet (24px) */
-    .pm-body { width: 18px; height: 18px; }
-    .pm-glasses { top: 4px; gap: 0.5px; }
-    .pm-lens { width: 6.5px; height: 4px; border-radius: 3px 3px 2px 2px; }
-    .pm-bridge { width: 2px; height: 0.7px; margin-top: 0.3px; }
-    .pm-body::after { top: 1.5px; left: 3px; width: 4px; height: 2.5px; }
-    .pm-leaf-c::before { top: 1px; left: 2.5px; width: 0.8px; height: 4px; }
+    /* Crown: medium — proportional to 48px body, clear visual presence */
+    .pm-leaf-c { width: 20px; height: 30px; }
+    .pm-leaf-l, .pm-leaf-r { width: 14px; height: 24px; margin-right: -3px; margin-left: -3px; }
+    /* Body: 48px — much larger for clear rendering */
+    .pm-body { width: 48px; height: 48px; }
+    .pm-glasses { top: 12px; gap: 2px; }
+    .pm-lens { width: 16px; height: 10px; border-radius: 4px 4px 3px 3px; }
+    .pm-bridge { width: 6px; height: 2px; margin-top: 1px; }
+    .pm-body::after { top: 4px; left: 8px; width: 10px; height: 6px; }
+    .pm-leaf-c::before { top: 3px; left: 7px; width: 2px; height: 10px; }
 
     /* Charts: 85px canvas — proportional to 18px body, crisp doughnut */
     .chart-card canvas { height: 85px !important; }
@@ -500,36 +500,7 @@ const { appName } = getBuildBrand();
     .chart-title { font-size: 10px; letter-spacing: .09em; }
   }
 
-  /* ─── 501–639px: Large phones / small tablets — larger pineapple for bigger screens ─── */
-  @media (min-width: 501px) and (max-width: 639px) {
-    .pine-mobile {
-      top: max(54px, calc(env(safe-area-inset-top) + 48px));
-      left: max(10px, env(safe-area-inset-left));
-      right: auto;
-    }
-    .pine-mobile::before {
-      width: 22px;
-      height: 22px;
-    }
-    .pm-wrapper {
-      animation: gentleBob 5.5s cubic-bezier(.42,1,.58,1) infinite;
-    }
-    .pm-leaf-c { width: 11px; height: 16px; }
-    .pm-leaf-l, .pm-leaf-r { width: 7px; height: 12px; margin-right: -1.5px; margin-left: -1.5px; }
-    /* Body: 24px — full size for large phones and small tablets */
-    .pm-body { width: 24px; height: 24px; }
-    .pm-glasses { top: 5px; gap: 0.7px; }
-    .pm-lens { width: 8px; height: 5.5px; border-radius: 3.5px 3.5px 3px 3px; }
-    .pm-bridge { width: 2.5px; height: 0.8px; margin-top: 0.3px; }
-    .pm-body::after { top: 2px; left: 4px; width: 5px; height: 3px; }
-    .pm-leaf-c::before { top: 1px; left: 3px; width: 1px; height: 5px; }
-    /* Charts: 90px canvas — generous for larger screens */
-    .chart-card canvas { height: 90px !important; }
-    .chart-meta { font-size: 9.5px; gap: 1px; }
-    .chart-meta span:first-child { font-size: 11px; }
-  }
-
-  /* ─── 375–430px: iPhone SE / 12 / 13 / 14 — ultra-compact pineapple, minimal footprint ─── */
+  /* ─── 375–430px: iPhone SE / 12 / 13 / 14 — compact pineapple but BIGGER ─── */
   @media (min-width: 375px) and (max-width: 430px) {
     .pine-mobile {
       top: max(54px, calc(env(safe-area-inset-top) + 48px));
@@ -537,8 +508,8 @@ const { appName } = getBuildBrand();
       right: auto;
     }
     .pine-mobile::before {
-      width: 14px;
-      height: 14px;
+      width: 50px;
+      height: 50px;
       opacity: .75;
       background: radial-gradient(circle,
         rgba(52,211,153,.18) 0%,
@@ -563,16 +534,16 @@ const { appName } = getBuildBrand();
     .pm-wrapper {
       animation: gentleBob 6.5s cubic-bezier(.42,1,.58,1) infinite;
     }
-    /* Crown: ultra-compact — subtle accent, minimal footprint */
-    .pm-leaf-c { width: 5px; height: 8px; }
-    .pm-leaf-l, .pm-leaf-r { width: 4px; height: 6px; margin-right: -1px; margin-left: -1px; }
-    /* Body: 12px — barely there, just enough to recognize the pineapple shape */
-    .pm-body { width: 12px; height: 12px; }
-    .pm-glasses { top: 2px; gap: 0.3px; }
-    .pm-lens { width: 4.5px; height: 2.8px; border-radius: 2px 2px 1.5px 1.5px; }
-    .pm-bridge { width: 1.2px; height: 0.5px; margin-top: 0.2px; }
-    .pm-body::after { top: 1px; left: 2px; width: 2.5px; height: 1.5px; }
-    .pm-leaf-c::before { top: 0.5px; left: 1.5px; width: 0.6px; height: 3px; }
+    /* Crown: compact but visible — 16px body */
+    .pm-leaf-c { width: 16px; height: 24px; }
+    .pm-leaf-l, .pm-leaf-r { width: 12px; height: 18px; margin-right: -2px; margin-left: -2px; }
+    /* Body: 40px — readable size */
+    .pm-body { width: 40px; height: 40px; }
+    .pm-glasses { top: 10px; gap: 1.5px; }
+    .pm-lens { width: 14px; height: 8px; border-radius: 3px 3px 2px 2px; }
+    .pm-bridge { width: 4px; height: 1.5px; margin-top: 0.5px; }
+    .pm-body::after { top: 3px; left: 6px; width: 8px; height: 5px; }
+    .pm-leaf-c::before { top: 2px; left: 5px; width: 1.5px; height: 8px; }
 
     /* Charts: 70px canvas — crisp doughnut without dominating the card */
     .chart-card canvas { height: 70px !important; }
@@ -581,7 +552,7 @@ const { appName } = getBuildBrand();
     .chart-title { font-size: 9px; letter-spacing: .09em; }
   }
 
-  /* ─── ≤375px: iPhone SE 1st gen, very small Android — ultra-compact ─── */
+  /* ─── ≤375px: iPhone SE 1st gen, very small Android — minimum readable size ─── */
   @media (max-width: 374px) {
     .pine-mobile {
       top: max(52px, calc(env(safe-area-inset-top) + 44px));
@@ -589,19 +560,19 @@ const { appName } = getBuildBrand();
       right: auto;
     }
     .pine-mobile::before {
-      width: clamp(12px, 3.8vw, 18px);
-      height: clamp(12px, 3.8vw, 18px);
+      width: 44px;
+      height: 44px;
     }
     .pm-wrapper {
       animation: gentleBob 6s cubic-bezier(.42,1,.58,1) infinite;
     }
-    .pm-leaf-c { width: 6px; height: 9px; }
-    .pm-leaf-l, .pm-leaf-r { width: 4.5px; height: 7px; margin-right: -1px; margin-left: -1px; }
-    .pm-body { width: 13px; height: 13px; }
-    .pm-glasses { top: 2.5px; gap: 0.4px; }
-    .pm-lens { width: 5px; height: 3px; border-radius: 2px 2px 1.5px 1.5px; }
-    .pm-bridge { width: 1.5px; height: 0.6px; margin-top: 0.2px; }
-    .pm-body::after { top: 1px; left: 2px; width: 3px; height: 2px; }
-    .pm-leaf-c::before { top: 1px; left: 2px; width: 0.8px; height: 3px; }
+    .pm-leaf-c { width: 14px; height: 20px; }
+    .pm-leaf-l, .pm-leaf-r { width: 10px; height: 16px; margin-right: -2px; margin-left: -2px; }
+    .pm-body { width: 36px; height: 36px; }
+    .pm-glasses { top: 9px; gap: 1.2px; }
+    .pm-lens { width: 12px; height: 7px; border-radius: 3px 3px 2px 2px; }
+    .pm-bridge { width: 3.5px; height: 1.2px; margin-top: 0.4px; }
+    .pm-body::after { top: 3px; left: 5px; width: 7px; height: 4px; }
+    .pm-leaf-c::before { top: 2px; left: 4px; width: 1.2px; height: 7px; }
   }
 </style>

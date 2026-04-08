@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import SistemaSectionTabs from '../components/SistemaSectionTabs.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
 import { RefreshCw, Activity } from 'lucide';
 
@@ -7,23 +8,36 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
 ---
 <Layout activePage="rendimiento">
-  <div class="wrapper perf-page">
-    <div class="perf-top">
-      <div class="page-header perf-header">
-        <div class="perf-title-row">
-          <span class="perf-title-icon" set:html={iActivity} aria-hidden="true" />
-          <div>
-            <h2 class="page-title">Rendimiento por días</h2>
-            <p class="page-desc">
-              Solo se muestran <strong>días ya transcurridos</strong> (hasta hoy), a partir de la base <strong>SQLite</strong> del servidor y, si hace falta, <code>localStorage</code> en el navegador.
-              La tabla y el informe usan únicamente datos disponibles, sin días futuros.
-            </p>
-          </div>
+  <div class="wrapper perf-page dk-page">
+    <div class="page-header perf-header">
+      <div class="dk-page-title-row">
+        <span class="dk-page-title-icon" set:html={iActivity} aria-hidden="true" />
+        <div>
+          <h2 class="page-title">Rendimiento por días</h2>
+          <p class="page-desc">
+            Solo se muestran <strong>días ya transcurridos</strong> (hasta hoy), a partir de la base <strong>SQLite</strong> del servidor y, si hace falta, <code>localStorage</code> en el navegador.
+            La tabla y el informe usan únicamente datos disponibles, sin días futuros.
+          </p>
         </div>
       </div>
-      <button type="button" class="page-filter-btn" id="perf-refresh" style="display:flex;align-items:center;gap:6px">
-        <span set:html={iRefresh} /> Actualizar
+    </div>
+
+    <SistemaSectionTabs active="rendimiento" />
+
+    <div class="sys-top-row perf-top-row">
+      <button
+        type="button"
+        class="page-icon-btn sys-refresh-btn"
+        id="perf-refresh"
+        aria-label="Actualizar datos de rendimiento"
+        title="Recargar histórico y métricas actuales"
+      >
+        <span set:html={iRefresh} aria-hidden="true" />
       </button>
+      <div class="sys-feedback sys-feedback--inline" id="perf-feedback" aria-live="polite">
+        <span class="sys-feedback__status" id="perf-feedback-text">Cargando histórico…</span>
+        <span class="sys-feedback__meta" id="perf-feedback-meta"></span>
+      </div>
     </div>
 
     <div class="page-stat-strip perf-strip" id="perf-live">
@@ -46,12 +60,20 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
     </div>
 
     <div class="sys-panel perf-panel" id="perf-panel">
-      <div class="perf-report" id="perf-report" hidden>
-        <h3 class="perf-report-title">Informe de medias (datos reales)</h3>
-        <p class="perf-report-body" id="perf-report-body"></p>
-      </div>
-      <p class="perf-empty" id="perf-empty" hidden>No hay histórico aún. Abre el dashboard un rato o pulsa Actualizar aquí para registrar muestras.</p>
-      <div class="table-scroll perf-scroll" id="perf-table-wrap" hidden>
+      <div class="perf-data" id="perf-data">
+        <div
+          class="perf-report"
+          id="perf-report"
+          role="region"
+          aria-label="Resumen del histórico"
+          hidden
+        >
+          <p class="perf-report-body" id="perf-report-body"></p>
+        </div>
+        <p class="perf-empty" id="perf-empty" hidden>
+          No hay histórico aún. Abre el dashboard un rato o usa el botón de refrescar de arriba para registrar muestras.
+        </p>
+        <div class="table-scroll perf-scroll" id="perf-table-wrap" hidden>
         <table class="data-table perf-table" id="perf-table">
           <thead>
             <tr>
@@ -67,38 +89,47 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
           </thead>
           <tbody id="perf-tbody"></tbody>
         </table>
+        </div>
       </div>
     </div>
   </div>
 
   <style>
-    .perf-page .perf-top {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 16px;
+    .perf-page .perf-header {
+      margin-bottom: 12px;
     }
-    .perf-title-row {
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-    }
-    .perf-title-icon {
-      flex-shrink: 0;
-      margin-top: 4px;
-      color: var(--accent);
-      display: grid;
-      place-items: center;
+    .perf-page .perf-top-row {
+      margin-bottom: 8px;
     }
     .perf-panel {
       padding: 0;
       overflow: hidden;
     }
+    .perf-data {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .perf-report {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: transparent;
+      flex-shrink: 0;
+    }
+    .perf-report-body {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-soft);
+    }
+    .perf-report-body strong {
+      color: var(--text);
+      font-weight: 700;
+    }
     .perf-scroll {
       margin: 0;
       max-height: min(70vh, 640px);
+      border-radius: 0;
     }
     .perf-table th,
     .perf-table td {
@@ -111,11 +142,13 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
     }
     .perf-empty {
       margin: 0;
-      padding: 28px 20px;
+      padding: 20px 18px;
       text-align: center;
       color: var(--muted);
-      font-size: 14px;
+      font-size: 13px;
       line-height: 1.5;
+      border-bottom: 1px solid transparent;
+      flex-shrink: 0;
     }
     .perf-bar-cell {
       min-width: 88px;
@@ -136,25 +169,6 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
     .perf-table tr.perf-row--today td {
       background: var(--accent-soft);
     }
-    .perf-report {
-      padding: 18px 20px;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-subtle);
-    }
-    .perf-report-title {
-      margin: 0 0 8px;
-      font-family: var(--font-display);
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--text);
-    }
-    .perf-report-body {
-      margin: 0;
-      font-size: 13px;
-      line-height: 1.55;
-      color: var(--muted);
-    }
-    .perf-report-body strong { color: var(--text); }
   </style>
 
   <script>
@@ -171,6 +185,21 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
     } from '../lib/perf-daily';
 
     const $ = (id: string) => document.getElementById(id)!;
+
+    function setPerfFeedback(status: string, meta = '') {
+      const t = document.getElementById('perf-feedback-text');
+      const m = document.getElementById('perf-feedback-meta');
+      if (t) t.textContent = status;
+      if (m) m.textContent = meta;
+    }
+
+    function fmtClock(ts: number) {
+      try {
+        return new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch {
+        return '—';
+      }
+    }
 
     let mergedMap: Record<string, DayPerfAgg> = {};
 
@@ -244,6 +273,7 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
 
     async function load() {
       try {
+        setPerfFeedback('Actualizando…', 'API + SQLite local');
         const d = await fetchMetrics();
         updateHeader(d);
         const hostOk = metricsRepresentHost(d);
@@ -267,8 +297,13 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
 
         renderReport();
         renderTable();
+        setPerfFeedback(
+          hostOk ? 'Histórico y CPU/RAM/disco actuales' : 'Histórico local (métricas del host limitadas)',
+          `${fmtClock(Date.now())} · auto 60s`,
+        );
       } catch (e) {
         console.error(e);
+        setPerfFeedback('Error al cargar', '¿API en marcha? Pulsa ⟳');
         const rep = document.getElementById('perf-report');
         if (rep) rep.hidden = true;
         ['pl-cpu', 'pl-mem', 'pl-disk', 'pl-days'].forEach((id) => {

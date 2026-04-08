@@ -1,27 +1,43 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import SistemaSectionTabs from '../components/SistemaSectionTabs.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
 import { Settings, RefreshCw } from 'lucide';
 
 const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
 ---
 <Layout activePage="servicios">
-  <div class="wrapper">
+  <div class="wrapper dk-page">
     <div class="page-header">
-      <h2 class="page-title">Servicios</h2>
-      <p class="page-desc">
-        Datos reales del host: systemd/init en Linux, Win32 en Windows, coincidencia de procesos en macOS.
-        Personaliza con <code>BICHI_SERVICES</code> y <code>BICHI_SERVICES_MAX</code> en la API.
-      </p>
+      <div class="dk-page-title-row">
+        <span class="dk-page-title-icon" set:html={iPageTitle} aria-hidden="true" />
+        <div>
+          <h2 class="page-title">Servicios</h2>
+          <p class="page-desc">
+            Datos reales del host: <strong>Linux</strong> (systemctl), <strong>Windows</strong> (PowerShell Start/Stop/Restart-Service), <strong>macOS/BSD</strong> (lista
+            heurística; las acciones de servicio suelen no aplicar). Puedes iniciar, detener o reiniciar con confirmación. Personaliza con
+            <code>BICHI_SERVICES</code> y <code>BICHI_SERVICES_MAX</code> en la API. Si defines token en el servidor, la petición debe incluir la misma cabecera que en ajustes.
+          </p>
+        </div>
+      </div>
     </div>
+
+    <SistemaSectionTabs active="servicios" />
 
     <div class="page-toolbar">
       <input type="text" class="page-search" id="svc-search" placeholder="Buscar servicio..." />
       <button type="button" class="page-filter-btn active" data-filter="all">Todos</button>
       <button type="button" class="page-filter-btn" data-filter="active">Activos</button>
       <button type="button" class="page-filter-btn" data-filter="inactive">Inactivos</button>
-      <button type="button" class="page-filter-btn" id="svc-refresh" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-        <span set:html={iRefresh} /> Actualizar
+      <button
+        type="button"
+        class="page-icon-btn"
+        id="svc-refresh"
+        aria-label="Actualizar servicios"
+        title="Volver a cargar servicios desde la API"
+      >
+        <span set:html={iRefresh} aria-hidden="true" />
       </button>
     </div>
 
@@ -51,24 +67,189 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         </div>
       ))}
     </div>
+
+    <div
+      class="dk-modal"
+      id="svc-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="svc-modal-title"
+      aria-hidden="true"
+      hidden
+    >
+      <div class="dk-modal__backdrop" tabindex="-1" aria-hidden="true"></div>
+      <div class="dk-modal__panel">
+        <h3 class="dk-modal__title" id="svc-modal-title"></h3>
+        <p class="dk-modal__body" id="svc-modal-body"></p>
+        <pre class="dk-modal__detail" id="svc-modal-detail" hidden></pre>
+        <div class="dk-modal__actions">
+          <button type="button" class="dk-modal__btn dk-modal__btn--ghost" id="svc-modal-cancel">Cancelar</button>
+          <button type="button" class="dk-modal__btn dk-modal__btn--primary" id="svc-modal-confirm">Confirmar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    import { fetchMetrics, updateHeader, metricsRepresentHost } from '../lib/metrics';
+    import { fetchMetrics, updateHeader, metricsRepresentHost, apiPostHost } from '../lib/metrics';
     import { serviceActivityDescription, escHtml } from '../lib/process-hints';
     import { iconToSvg } from '../lib/lucide-svg-string';
-    import { Settings } from 'lucide';
+    import { Settings, Play, Square, RotateCw } from 'lucide';
 
     const iSvc = iconToSvg(Settings, { width: 18, height: 18 });
+    const iPlay = iconToSvg(Play, { width: 18, height: 18 });
+    const iStop = iconToSvg(Square, { width: 18, height: 18 });
+    const iRestart = iconToSvg(RotateCw, { width: 18, height: 18 });
     const $ = (id: string) => document.getElementById(id)!;
     let allSvcs: any[] = [];
     let filter = 'all';
     let dataLoaded = false;
+    let lastPlatform = '';
+    let lastSvcHost: {
+      service?: {
+        mode?: string;
+        hint?: string;
+        cliStopTemplate?: string;
+        cliStartTemplate?: string;
+        cliRestartTemplate?: string;
+        cliNote?: string;
+        openTerminal?: string;
+        openTerminalHelp?: string;
+      };
+    } | null = null;
+    let svcModalResolve: ((v: 'confirm' | 'cancel') => void) | null = null;
+    let svcModalPrevFocus: HTMLElement | null = null;
+    let svcModalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+    let svcActionInFlight = false;
+
+    function svcModalDetachKeys() {
+      if (svcModalKeyHandler) {
+        document.removeEventListener('keydown', svcModalKeyHandler);
+        svcModalKeyHandler = null;
+      }
+    }
+
+    function svcModalClose(result: 'confirm' | 'cancel') {
+      const root = $('svc-modal');
+      root.hidden = true;
+      root.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('dk-modal-open');
+      svcModalDetachKeys();
+      const r = svcModalResolve;
+      svcModalResolve = null;
+      try {
+        svcModalPrevFocus?.focus();
+      } catch {
+        /* ignore */
+      }
+      svcModalPrevFocus = null;
+      r?.(result);
+    }
+
+    function initSvcModal() {
+      const root = $('svc-modal');
+      if ((root as HTMLElement & { _bichiInit?: boolean })._bichiInit) return;
+      (root as HTMLElement & { _bichiInit?: boolean })._bichiInit = true;
+      $('svc-modal-confirm').addEventListener('click', () => svcModalClose('confirm'));
+      $('svc-modal-cancel').addEventListener('click', () => svcModalClose('cancel'));
+      root.querySelector('.dk-modal__backdrop')?.addEventListener('click', () => svcModalClose('cancel'));
+    }
+
+    function svcModalOpen(opts: {
+      mode: 'confirm' | 'alert';
+      title: string;
+      body: string;
+      detail?: string;
+      variant?: 'default' | 'danger';
+      confirmLabel?: string;
+      cancelLabel?: string;
+    }): Promise<'confirm' | 'cancel'> {
+      initSvcModal();
+      return new Promise((resolve) => {
+        svcModalResolve = resolve;
+        svcModalPrevFocus = document.activeElement as HTMLElement;
+        const root = $('svc-modal');
+        root.dataset.mode = opts.mode;
+        root.dataset.variant = opts.variant || 'default';
+        $('svc-modal-title').textContent = opts.title;
+        $('svc-modal-body').textContent = opts.body;
+        const det = $('svc-modal-detail');
+        if (opts.detail) {
+          det.textContent = opts.detail;
+          det.hidden = false;
+        } else {
+          det.textContent = '';
+          det.hidden = true;
+        }
+        const cancelBtn = $('svc-modal-cancel') as HTMLButtonElement;
+        const confirmBtn = $('svc-modal-confirm') as HTMLButtonElement;
+        cancelBtn.hidden = opts.mode === 'alert';
+        confirmBtn.textContent = opts.confirmLabel || (opts.mode === 'alert' ? 'Entendido' : 'Confirmar');
+        cancelBtn.textContent = opts.cancelLabel || 'Cancelar';
+        root.hidden = false;
+        root.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('dk-modal-open');
+        svcModalKeyHandler = (ev: KeyboardEvent) => {
+          if (ev.key !== 'Escape') return;
+          ev.preventDefault();
+          svcModalClose(opts.mode === 'alert' ? 'confirm' : 'cancel');
+        };
+        document.addEventListener('keydown', svcModalKeyHandler);
+        confirmBtn.focus();
+      });
+    }
+
+    async function svcModalConfirm(opts: {
+      title: string;
+      body: string;
+      detail?: string;
+      variant?: 'default' | 'danger';
+      confirmLabel?: string;
+      cancelLabel?: string;
+    }): Promise<boolean> {
+      const r = await svcModalOpen({ ...opts, mode: 'confirm' });
+      return r === 'confirm';
+    }
+
+    async function svcModalAlert(opts: { title: string; body: string; detail?: string }) {
+      await svcModalOpen({
+        mode: 'alert',
+        variant: 'default',
+        title: opts.title,
+        body: opts.body,
+        detail: opts.detail,
+        confirmLabel: 'Entendido',
+      });
+    }
+
+    function attrEsc(s: string) {
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    function quoteSvcName(name: string) {
+      if (lastPlatform === 'win32') return "'" + String(name).replace(/'/g, "''") + "'";
+      return "'" + String(name).replace(/'/g, "'\\''") + "'";
+    }
+
+    function buildSvcCliCommands(rawName: string, running: boolean) {
+      const svc = lastSvcHost?.service;
+      if (!svc?.cliStopTemplate || !svc.cliStartTemplate) return '';
+      const q = quoteSvcName(rawName);
+      const stop = svc.cliStopTemplate.replace(/\{\{name\}\}/g, q);
+      const start = svc.cliStartTemplate.replace(/\{\{name\}\}/g, q);
+      const restart = (svc.cliRestartTemplate || '').replace(/\{\{name\}\}/g, q);
+      if (running) {
+        return restart ? `${stop}\n# o reiniciar:\n${restart}` : stop;
+      }
+      return start;
+    }
 
     async function load() {
       try {
         const d = await fetchMetrics();
         updateHeader(d);
+        lastPlatform = String(d.platform || '');
+        lastSvcHost = d.hostActions && typeof d.hostActions === 'object' ? d.hostActions : null;
         if (!metricsRepresentHost(d)) {
           $('svc-grid').removeAttribute('aria-busy');
           const note =
@@ -97,6 +278,11 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       }
     }
 
+    function serviceActionsAvailable() {
+      const m = lastSvcHost?.service?.mode;
+      return m === 'systemd' || m === 'windows';
+    }
+
     function render() {
       if (!dataLoaded) return;
       $('svc-grid').removeAttribute('aria-busy');
@@ -110,9 +296,36 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         return;
       }
 
+      const ctlOk = serviceActionsAvailable();
+      const hint = lastSvcHost?.service?.hint || '';
+
       $('svc-grid').innerHTML = filtered.map((s: any, i: number) => {
         const title = (s.name || '').replace(/\.service$/i, '').replace(/\.timer$/i, '');
         const htop = serviceActivityDescription(s.name || '', s.desc);
+        const rawName = String(s.name || '');
+        const enc = encodeURIComponent(rawName);
+        const dis = svcActionInFlight ? 'disabled' : '';
+        const cmdPreview = buildSvcCliCommands(rawName, !!s.running);
+        const otHelp = lastSvcHost?.service?.openTerminalHelp || '';
+        const cliNote = lastSvcHost?.service?.cliNote || '';
+        const runFlag = s.running ? '1' : '0';
+        const actions = ctlOk
+          ? `<div class="info-card-actions dk-card-actions" role="group" aria-label="Acciones del servicio">
+              ${s.running
+                ? `<button type="button" class="card-action-btn card-action-btn--stop" title="Detener servicio" aria-label="Detener servicio" data-svc-action="stop" data-svc-name="${enc}" ${dis}>${iStop}</button>
+                   <button type="button" class="card-action-btn card-action-btn--restart" title="Reiniciar servicio" aria-label="Reiniciar servicio" data-svc-action="restart" data-svc-name="${enc}" ${dis}>${iRestart}</button>`
+                : `<button type="button" class="card-action-btn card-action-btn--start" title="Iniciar servicio" aria-label="Iniciar servicio" data-svc-action="start" data-svc-name="${enc}" ${dis}>${iPlay}</button>`}
+            </div>`
+          : cmdPreview
+            ? `<div class="info-card-actions dk-card-actions svc-cli-fallback" role="group" aria-label="Comandos en terminal">
+                <pre class="svc-cli-snippet">${escHtml(cmdPreview)}</pre>
+                <div class="svc-cli-btns">
+                  <button type="button" class="page-filter-btn" data-svc-copy-cli data-svc-name="${enc}" data-svc-running="${runFlag}" ${dis}>Copiar comando</button>
+                  <button type="button" class="page-filter-btn" data-svc-open-terminal ${dis} title="${attrEsc(otHelp)}">Abrir Terminal</button>
+                </div>
+                ${cliNote ? `<p class="info-card-svc-hint">${escHtml(cliNote)}</p>` : ''}
+              </div>`
+            : `<div class="info-card-actions dk-card-actions"><span class="info-card-svc-hint">${escHtml(hint || 'Sin comandos')}</span></div>`;
         return `
         <div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
           <div class="info-card-header">
@@ -127,9 +340,111 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
             <span class="pill ${s.active ? 'pill-ok' : 'pill-crit'}">${s.active ? 'Activo' : 'Inactivo'}</span>
             <span class="pill ${s.running ? 'pill-ok' : 'pill-crit'}">${s.running ? 'Ejecutando' : 'Detenido'}</span>
           </div>
+          ${actions}
         </div>`;
       }).join('');
     }
+
+    async function runSvcAction(action: 'start' | 'stop' | 'restart', name: string) {
+      if (svcActionInFlight || !serviceActionsAvailable()) return;
+      const verb =
+        action === 'start' ? 'Iniciar' : action === 'stop' ? 'Detener' : 'Reiniciar';
+      const ok = await svcModalConfirm({
+        title: `${verb} servicio`,
+        body: `Vas a ${verb.toLowerCase()} el servicio «${name}» en el host donde corre la API.`,
+        detail:
+          action === 'stop'
+            ? 'Los clientes que dependan de este servicio pueden dejar de responder hasta que vuelva a iniciarse.'
+            : undefined,
+        variant: action === 'stop' ? 'danger' : 'default',
+        confirmLabel: verb,
+      });
+      if (!ok) return;
+      svcActionInFlight = true;
+      render();
+      try {
+        const r = await apiPostHost('/api/host/service/action', { name, action });
+        let j: { ok?: boolean; error?: string } = {};
+        try {
+          j = await r.json();
+        } catch {
+          j = { ok: false, error: r.status ? `HTTP ${r.status}` : 'Respuesta inválida' };
+        }
+        if (r.ok && j.ok) {
+          await load();
+        } else {
+          await svcModalAlert({
+            title: 'No se pudo completar',
+            body: 'El sistema rechazó la operación (permisos, nombre de unidad, políticas).',
+            detail: j.error || `HTTP ${r.status}`,
+          });
+        }
+      } catch (e) {
+        await svcModalAlert({
+          title: 'Error de red',
+          body: 'No se pudo contactar con la API de métricas.',
+          detail: (e as Error).message,
+        });
+      } finally {
+        svcActionInFlight = false;
+        render();
+      }
+    }
+
+    $('svc-grid').addEventListener('click', (ev) => {
+      const termBtn = (ev.target as HTMLElement).closest('[data-svc-open-terminal]') as HTMLButtonElement | null;
+      if (termBtn && !svcActionInFlight) {
+        ev.preventDefault();
+        const line = String(lastSvcHost?.service?.openTerminal || '').trim();
+        const help = String(lastSvcHost?.service?.openTerminalHelp || '').trim();
+        void (async () => {
+          try {
+            if (line) await navigator.clipboard.writeText(line);
+            await svcModalAlert({
+              title: 'Abrir Terminal',
+              body:
+                help ||
+                (line
+                  ? 'Se copió en el portápapeles un comando para lanzar el terminal. Pégalo donde puedas ejecutarlo (Spotlight, otra consola, etc.).'
+                  : 'Abre la aplicación Terminal desde el sistema y ejecuta manualmente el comando del servicio.'),
+              detail: line || undefined,
+            });
+          } catch {
+            await svcModalAlert({
+              title: 'Terminal',
+              body: 'No se pudo usar el portapapeles; copia manualmente el comando mostrado en la tarjeta.',
+              detail: line || undefined,
+            });
+          }
+        })();
+        return;
+      }
+      const copyBtn = (ev.target as HTMLElement).closest('[data-svc-copy-cli]') as HTMLButtonElement | null;
+      if (copyBtn && !svcActionInFlight) {
+        ev.preventDefault();
+        const encN = copyBtn.dataset.svcName || '';
+        const running = copyBtn.dataset.svcRunning === '1';
+        const name = decodeURIComponent(encN);
+        const txt = buildSvcCliCommands(name, running);
+        if (!txt) return;
+        void navigator.clipboard.writeText(txt).then(() => {
+          const prev = copyBtn.textContent;
+          copyBtn.textContent = 'Copiado';
+          window.setTimeout(() => {
+            copyBtn.textContent = prev || 'Copiar comando';
+          }, 1600);
+        });
+        return;
+      }
+      const btn = (ev.target as HTMLElement).closest('[data-svc-action]') as HTMLButtonElement | null;
+      if (!btn || svcActionInFlight) return;
+      const action = btn.dataset.svcAction as 'start' | 'stop' | 'restart';
+      const enc = btn.dataset.svcName || '';
+      if (!action || !enc) return;
+      ev.preventDefault();
+      const name = decodeURIComponent(enc);
+      void runSvcAction(action, name);
+    });
 
     $('svc-search').addEventListener('input', render);
     $('svc-refresh').addEventListener('click', load);

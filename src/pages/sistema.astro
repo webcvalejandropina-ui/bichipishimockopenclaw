@@ -1,8 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import SistemaSectionTabs from '../components/SistemaSectionTabs.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { Cpu, MemoryStick, HardDrive, Clock, Monitor, RefreshCw, CircuitBoard } from 'lucide';
+import { Cpu, MemoryStick, HardDrive, Clock, Monitor, RefreshCw, CircuitBoard, Copy } from 'lucide';
 
+const iPageTitle = iconToSvg(Monitor, { width: 22, height: 22 });
 const icons = {
   cpu: iconToSvg(Cpu, { width: 18, height: 18 }),
   mem: iconToSvg(MemoryStick, { width: 18, height: 18 }),
@@ -11,87 +13,119 @@ const icons = {
   clock: iconToSvg(Clock, { width: 18, height: 18 }),
   monitor: iconToSvg(Monitor, { width: 18, height: 18 }),
   refresh: iconToSvg(RefreshCw, { width: 16, height: 16 }),
+  copy: iconToSvg(Copy, { width: 14, height: 14 }),
 };
 ---
 <Layout activePage="sistema">
-  <div class="wrapper sistema-page">
-    <div class="sistema-top">
-      <div class="page-header sistema-page-header">
-        <h2 class="page-title">Sistema</h2>
-        <p class="page-desc">Hardware, uso de recursos y tiempo de actividad del host que ejecuta la API.</p>
+  <div class="wrapper dk-page sistema-page sys-page">
+    <div class="page-header">
+      <div class="dk-page-title-row">
+        <span class="dk-page-title-icon" set:html={iPageTitle} aria-hidden="true" />
+        <div>
+          <h2 class="page-title">Sistema</h2>
+          <p class="page-desc">Hardware, uso de recursos y tiempo de actividad del host que ejecuta la API.</p>
+        </div>
       </div>
-      <button type="button" class="page-filter-btn sistema-refresh" id="sys-refresh">
-        <span class="sistema-refresh-inner">
-          <span set:html={icons.refresh} />
-          <span>Actualizar</span>
-        </span>
-      </button>
     </div>
 
-    <div class="sistema-hero" aria-label="Resumen de recursos">
-      <div class="sistema-stat-card" data-metric="cpu">
-        <span class="sistema-stat-value skeleton" id="st-cpu">—%</span>
-        <span class="sistema-stat-label">CPU</span>
+    <SistemaSectionTabs active="sistema" />
+
+    <div class="sys-top-row">
+      <button
+        type="button"
+        class="page-icon-btn sys-refresh-btn"
+        id="sys-refresh"
+        aria-label="Actualizar métricas del host"
+        title="Volver a pedir datos a la API"
+      >
+        <span set:html={icons.refresh} aria-hidden="true" />
+      </button>
+      <div class="sys-feedback sys-feedback--inline" id="sys-feedback" aria-live="polite">
+        <span class="sys-feedback__status" id="sys-feedback-text">Sincronizando con la API…</span>
+        <span class="sys-feedback__meta" id="sys-feedback-meta"></span>
       </div>
-      <div class="sistema-stat-card" data-metric="mem">
-        <span class="sistema-stat-value skeleton" id="st-mem">—%</span>
-        <span class="sistema-stat-label">RAM</span>
+    </div>
+
+    <p class="sys-page-results" id="sys-results">Cargando…</p>
+
+    <div class="page-stat-strip sys-stat-strip" id="sys-stat-strip" aria-label="Resumen rápido">
+      <div class="page-stat" data-metric="cpu">
+        <span class="page-stat-value skeleton" id="st-cpu">—</span>
+        <span class="page-stat-label">CPU</span>
       </div>
-      <div class="sistema-stat-card" data-metric="disk">
-        <span class="sistema-stat-value skeleton" id="st-disk">—%</span>
-        <span class="sistema-stat-label">Disco</span>
+      <div class="page-stat" data-metric="mem">
+        <span class="page-stat-value skeleton" id="st-mem">—</span>
+        <span class="page-stat-label">RAM</span>
       </div>
-      <div class="sistema-stat-card" data-metric="gpu">
-        <span class="sistema-stat-value skeleton" id="st-gpu">—</span>
-        <span class="sistema-stat-label">GPU</span>
+      <div class="page-stat" data-metric="disk">
+        <span class="page-stat-value skeleton" id="st-disk">—</span>
+        <span class="page-stat-label">Disco</span>
       </div>
-      <div class="sistema-stat-card" data-metric="uptime">
-        <span class="sistema-stat-value skeleton sistema-stat-value--wide" id="st-uptime">—</span>
-        <span class="sistema-stat-label">Uptime</span>
+      <div class="page-stat" data-metric="gpu">
+        <span class="page-stat-value skeleton" id="st-gpu">—</span>
+        <span class="page-stat-label">GPU</span>
+      </div>
+      <div class="page-stat" data-metric="uptime">
+        <span class="page-stat-value page-stat-value--uptime skeleton" id="st-uptime">—</span>
+        <span class="page-stat-label">Uptime</span>
       </div>
     </div>
 
     <div class="sys-panel-grid" id="sys-panels">
-      <div class="sys-panel sys-panel--with-flyout" id="si-info-anchor">
-        <aside class="sysinfo-flyout sysinfo-flyout--panel" id="si-flyout" aria-hidden="true">
-          <p class="sysinfo-flyout-lede">Detalle completo y copiar al pasar el cursor por esta tarjeta</p>
-          <dl class="sysinfo-flyout-dl">
-            <div class="sysinfo-flyout-row">
-              <dt>Equipo</dt>
-              <dd><code class="sysinfo-flyout-code" id="si-fly-device"></code><button type="button" class="sysinfo-flyout-copy" data-sifly="device">Copiar</button></dd>
-            </div>
-            <div class="sysinfo-flyout-row">
-              <dt>Hostname</dt>
-              <dd><code class="sysinfo-flyout-code" id="si-fly-host"></code><button type="button" class="sysinfo-flyout-copy" data-sifly="host">Copiar</button></dd>
-            </div>
-            <div class="sysinfo-flyout-row">
-              <dt>Sistema</dt>
-              <dd><code class="sysinfo-flyout-code" id="si-fly-os"></code><button type="button" class="sysinfo-flyout-copy" data-sifly="os">Copiar</button></dd>
-            </div>
-            <div class="sysinfo-flyout-row">
-              <dt>Red</dt>
-              <dd><code class="sysinfo-flyout-code" id="si-fly-ipv4"></code><button type="button" class="sysinfo-flyout-copy" data-sifly="ipv4">Copiar</button></dd>
-            </div>
-            <div class="sysinfo-flyout-row">
-              <dt>Lectura</dt>
-              <dd><code class="sysinfo-flyout-code" id="si-fly-updated"></code><button type="button" class="sysinfo-flyout-copy" data-sifly="updated">Copiar</button></dd>
-            </div>
-          </dl>
-          <button type="button" class="sysinfo-flyout-copyall" id="si-fly-copyall">Copiar resumen completo</button>
-        </aside>
-        <div class="sys-panel-heading si-info-heading">
+      <div class="sys-panel">
+        <div class="sys-panel-heading">
           <span class="sys-panel-icon" aria-hidden="true" set:html={icons.monitor} />
           <h3 class="sys-panel-title">Información del sistema</h3>
-          <span class="sysinfo-summary-badge">Hover ↑</span>
         </div>
         <div class="sys-grid sys-grid--dense">
-          <div class="sys-item sys-item--full"><span class="sys-key">Nombre del equipo</span><span class="sys-val skeleton sys-val--wrap" id="si-device">—</span></div>
-          <div class="sys-item sys-item--full"><span class="sys-key">Hostname</span><span class="sys-val skeleton sys-val--wrap" id="si-host">—</span></div>
-          <div class="sys-item sys-item--full"><span class="sys-key">Sistema operativo</span><span class="sys-val skeleton sys-val--wrap" id="si-platform">—</span></div>
-          <div class="sys-item sys-item--full"><span class="sys-key">Red (IPv4)</span><span class="sys-val skeleton sys-val--wrap" id="si-ipv4">—</span></div>
-          <div class="sys-item sys-item--full"><span class="sys-key">Última lectura</span><span class="sys-val skeleton" id="si-updated">—</span></div>
+          <div class="sys-item sys-item--full">
+            <span class="sys-key">Nombre del equipo</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-device">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-device" aria-label="Copiar nombre del equipo" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item sys-item--full">
+            <span class="sys-key">Hostname</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-host">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-host" aria-label="Copiar hostname" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item sys-item--full">
+            <span class="sys-key">Sistema operativo</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-platform">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-platform" aria-label="Copiar sistema operativo" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item sys-item--full">
+            <span class="sys-key">Red (IPv4)</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-ipv4">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-ipv4" aria-label="Copiar direcciones IPv4" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item sys-item--full">
+            <span class="sys-key">Última lectura</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton dk-field-row__text" id="si-updated">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-updated" aria-label="Copiar fecha de lectura" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
         </div>
         <p class="sys-mem-note" id="si-host-note" hidden></p>
+        <button type="button" class="sistema-copy-summary" id="si-copy-summary">Copiar resumen de esta tarjeta</button>
       </div>
 
       <div class="sys-panel">
@@ -102,11 +136,32 @@ const icons = {
         <div class="sys-grid sys-grid--dense">
           <div class="sys-item sys-item--full">
             <span class="sys-key">Modelo</span>
-            <span class="sys-val skeleton sys-val--wrap js-copy-val" id="si-cpu-model">—</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-cpu-model">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-cpu-model" aria-label="Copiar modelo de CPU" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
           </div>
-          <div class="sys-item"><span class="sys-key">Núcleos</span><span class="sys-val skeleton js-copy-val" id="si-cpu-cores">—</span></div>
+          <div class="sys-item">
+            <span class="sys-key">Núcleos</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton dk-field-row__text" id="si-cpu-cores">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-cpu-cores" aria-label="Copiar número de núcleos" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
           <div class="sys-item"><span class="sys-key">Uso</span><span class="sys-val skeleton" id="si-cpu-pct">—</span></div>
-          <div class="sys-item sys-item--full"><span class="sys-key">Carga</span><span class="sys-val skeleton sys-val--wrap js-copy-val" id="si-load">—</span></div>
+          <div class="sys-item sys-item--full">
+            <span class="sys-key">Carga</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-load">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-load" aria-label="Copiar carga media" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -116,8 +171,24 @@ const icons = {
           <h3 class="sys-panel-title">Memoria RAM</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
-          <div class="sys-item"><span class="sys-key">Total</span><span class="sys-val skeleton js-copy-val" id="si-mem-total">—</span></div>
-          <div class="sys-item"><span class="sys-key">Usado</span><span class="sys-val skeleton js-copy-val" id="si-mem-used">—</span></div>
+          <div class="sys-item">
+            <span class="sys-key">Total</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton dk-field-row__text" id="si-mem-total">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-mem-total" aria-label="Copiar RAM total" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item">
+            <span class="sys-key">Usado</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton dk-field-row__text" id="si-mem-used">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-mem-used" aria-label="Copiar RAM usada" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
           <div class="sys-item"><span class="sys-key">Uso</span><span class="sys-val skeleton" id="si-mem-pct">—</span></div>
         </div>
         <div class="sys-meter">
@@ -127,20 +198,46 @@ const icons = {
         <p class="sys-mem-note" id="si-mem-note" hidden></p>
       </div>
 
-      <div class="sys-panel">
+      <div class="sys-panel sys-panel--disk">
         <div class="sys-panel-heading">
           <span class="sys-panel-icon sys-panel-icon--disk" aria-hidden="true" set:html={icons.disk} />
           <h3 class="sys-panel-title">Disco principal</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
-          <div class="sys-item"><span class="sys-key">Usado</span><span class="sys-val skeleton js-copy-val" id="si-disk-used">—</span></div>
-          <div class="sys-item"><span class="sys-key">Total</span><span class="sys-val skeleton js-copy-val" id="si-disk-total">—</span></div>
+          <div class="sys-item">
+            <span class="sys-key">Total</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-disk-total">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-disk-total" aria-label="Copiar tamaño total" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item">
+            <span class="sys-key">Libre</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-disk-free">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-disk-free" aria-label="Copiar espacio libre" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item">
+            <span class="sys-key">Usado</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-disk-used">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-disk-used" aria-label="Copiar espacio usado" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
           <div class="sys-item"><span class="sys-key">Uso</span><span class="sys-val skeleton" id="si-disk-pct">—</span></div>
         </div>
         <div class="sys-meter">
           <div class="sys-meter-track"><div class="sys-meter-fill sys-meter-fill--disk" id="si-disk-bar" style="width:0%"></div></div>
           <div class="sys-meter-foot"><span>0%</span><span id="si-disk-foot">100%</span></div>
         </div>
+        <p class="sys-mem-note" id="si-disk-note" hidden></p>
       </div>
 
       <div class="sys-panel">
@@ -151,9 +248,22 @@ const icons = {
         <div class="sys-grid sys-grid--dense">
           <div class="sys-item sys-item--full">
             <span class="sys-key">Modelo</span>
-            <span class="sys-val skeleton sys-val--wrap js-copy-val" id="si-gpu-model">—</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton sys-val--wrap dk-field-row__text" id="si-gpu-model">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-gpu-model" aria-label="Copiar modelo de GPU" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
           </div>
-          <div class="sys-item"><span class="sys-key">VRAM</span><span class="sys-val skeleton js-copy-val" id="si-gpu-vram">—</span></div>
+          <div class="sys-item">
+            <span class="sys-key">VRAM</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton dk-field-row__text" id="si-gpu-vram">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-gpu-vram" aria-label="Copiar VRAM" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
           <div class="sys-item"><span class="sys-key">Uso</span><span class="sys-val skeleton" id="si-gpu-pct">—</span></div>
         </div>
         <div class="sys-meter">
@@ -163,15 +273,39 @@ const icons = {
         <p class="sys-mem-note" id="si-gpu-note" hidden></p>
       </div>
 
-      <div class="sys-panel sys-panel--wide">
+      <div class="sys-panel">
         <div class="sys-panel-heading">
           <span class="sys-panel-icon sys-panel-icon--clock" aria-hidden="true" set:html={icons.clock} />
           <h3 class="sys-panel-title">Tiempo</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
-          <div class="sys-item"><span class="sys-key">Uptime</span><span class="sys-val skeleton js-copy-val" id="si-uptime">—</span></div>
-          <div class="sys-item"><span class="sys-key">Hora</span><span class="sys-val" id="si-time">—</span></div>
-          <div class="sys-item sys-item--full"><span class="sys-key">Fecha</span><span class="sys-val sys-val--wrap" id="si-date">—</span></div>
+          <div class="sys-item">
+            <span class="sys-key">Uptime</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val skeleton dk-field-row__text" id="si-uptime">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-uptime" aria-label="Copiar uptime" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item">
+            <span class="sys-key">Hora</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val dk-field-row__text" id="si-time">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-time" aria-label="Copiar hora" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div class="sys-item sys-item--full">
+            <span class="sys-key">Fecha</span>
+            <div class="sys-item-value dk-field-row">
+              <span class="sys-val sys-val--wrap dk-field-row__text" id="si-date">—</span>
+              <button type="button" class="dk-copy-btn" data-si-copy-target="si-date" aria-label="Copiar fecha" title="Copiar">
+                <span set:html={icons.copy} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -185,57 +319,61 @@ const icons = {
       statusColor,
       metricsRepresentHost,
       hasValidSystemUptime,
+      healthLevel,
     } from '../lib/metrics';
-    import { initCopyableValues } from '../lib/copy-field';
+    import { copyTextToClipboard } from '../lib/copy-field';
 
     const $ = (id: string) => document.getElementById(id)!;
 
-    const SI_FLY_LABELS: Record<string, string> = {
-      device: 'Equipo',
-      host: 'Hostname',
-      os: 'Sistema operativo',
-      ipv4: 'Red (IPv4)',
-      updated: 'Última lectura',
-    };
-    const SI_FLY_KEYS = ['device', 'host', 'os', 'ipv4', 'updated'] as const;
+    function setSiField(id: string, display: string, copyOverride?: string) {
+      const el = document.getElementById(id) as HTMLElement | null;
+      if (!el) return;
+      el.textContent = display;
+      el.classList.remove('skeleton');
+      const forClip = (copyOverride !== undefined ? copyOverride : display).trim();
+      if (forClip && forClip !== '—') el.dataset.copyText = forClip;
+      else delete el.dataset.copyText;
+    }
 
-    let siFlyoutWired = false;
-    function wireSistemaSysinfoFlyout() {
-      if (siFlyoutWired) return;
-      siFlyoutWired = true;
-      const anchor = document.getElementById('si-info-anchor');
-      const fly = document.getElementById('si-flyout');
-      if (!anchor || !fly) return;
-      let hideT: ReturnType<typeof setTimeout> | undefined;
-      const show = () => {
-        if (hideT) clearTimeout(hideT);
-        fly.classList.add('is-visible');
-        fly.setAttribute('aria-hidden', 'false');
-      };
-      const hide = () => {
-        hideT = window.setTimeout(() => {
-          fly.classList.remove('is-visible');
-          fly.setAttribute('aria-hidden', 'true');
-        }, 200);
-      };
-      anchor.addEventListener('mouseenter', show);
-      anchor.addEventListener('mouseleave', hide);
-      fly.addEventListener('mouseenter', show);
-      fly.addEventListener('mouseleave', hide);
-      fly.querySelectorAll<HTMLButtonElement>('[data-sifly]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const k = btn.dataset.sifly;
-          if (!k) return;
-          const t = document.getElementById(`si-fly-${k}`)?.textContent?.trim();
-          if (t) navigator.clipboard.writeText(t).catch(() => {});
+    function wireSistemaCopyButtons() {
+      const panels = document.getElementById('sys-panels');
+      if (!panels || (panels as HTMLElement & { _bichiSiCopy?: boolean })._bichiSiCopy) return;
+      (panels as HTMLElement & { _bichiSiCopy?: boolean })._bichiSiCopy = true;
+      panels.addEventListener('click', (ev) => {
+        const btn = (ev.target as HTMLElement).closest('[data-si-copy-target]') as HTMLButtonElement | null;
+        if (!btn || !panels.contains(btn)) return;
+        const tid = btn.dataset.siCopyTarget;
+        if (!tid) return;
+        const el = document.getElementById(tid);
+        const raw = (el as HTMLElement | null)?.dataset.copyText ?? el?.textContent?.trim() ?? '';
+        void copyTextToClipboard(raw).then((ok) => {
+          if (ok) {
+            btn.classList.add('is-copied');
+            window.setTimeout(() => btn.classList.remove('is-copied'), 1200);
+          }
         });
       });
-      document.getElementById('si-fly-copyall')?.addEventListener('click', () => {
-        const lines = SI_FLY_KEYS.map((k) => {
-          const v = document.getElementById(`si-fly-${k}`)?.textContent?.trim() || '—';
-          return `${SI_FLY_LABELS[k]}: ${v}`;
+
+      const SI_SUMMARY_LABELS: [string, string][] = [
+        ['Nombre del equipo', 'si-device'],
+        ['Hostname', 'si-host'],
+        ['Sistema operativo', 'si-platform'],
+        ['Red (IPv4)', 'si-ipv4'],
+        ['Última lectura', 'si-updated'],
+      ];
+      const summaryBtn = document.getElementById('si-copy-summary');
+      summaryBtn?.addEventListener('click', () => {
+        const lines = SI_SUMMARY_LABELS.map(([label, id]) => {
+          const el = document.getElementById(id);
+          const v = ((el as HTMLElement | null)?.dataset.copyText ?? el?.textContent ?? '').trim() || '—';
+          return `${label}: ${v}`;
         });
-        navigator.clipboard.writeText(lines.join('\n')).catch(() => {});
+        void copyTextToClipboard(lines.join('\n')).then((ok) => {
+          if (ok && summaryBtn) {
+            summaryBtn.classList.add('is-copied');
+            window.setTimeout(() => summaryBtn.classList.remove('is-copied'), 1200);
+          }
+        });
       });
     }
 
@@ -247,14 +385,45 @@ const icons = {
     updateTime();
     setInterval(updateTime, 1000);
 
-    function setHeroMetric(card: HTMLElement | null, pct: number, type: 'cpu' | 'mem' | 'disk' | 'gpu') {
-      if (!card) return;
-      const c = statusColor(pct, type);
-      card.style.setProperty('--hero-accent', c);
+    function normalizeGpuLabel(s: string): string {
+      return s.replace(/\bApple\s+Apple\b/gi, 'Apple').trim();
+    }
+
+    function pickGpuModel(d: any): string {
+      const direct = typeof d.gpuModel === 'string' && d.gpuModel.trim() ? d.gpuModel.trim() : '';
+      if (direct) return normalizeGpuLabel(direct);
+      const ctrls = Array.isArray(d.gpuControllers) ? d.gpuControllers : [];
+      for (const c of ctrls) {
+        const s = [c.vendor, c.model]
+          .filter((x: unknown) => typeof x === 'string' && String(x).trim())
+          .join(' ')
+          .trim();
+        if (s) return normalizeGpuLabel(s);
+      }
+      return '';
+    }
+
+    function setSysResults(text: string) {
+      const el = document.getElementById('sys-results');
+      if (el) el.textContent = text;
+    }
+
+    function setSysFeedback(status: string, meta = '') {
+      $('sys-feedback-text').textContent = status;
+      $('sys-feedback-meta').textContent = meta;
+    }
+
+    function fmtClock(ts: number) {
+      try {
+        return new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch {
+        return '—';
+      }
     }
 
     async function load() {
       try {
+        setSysFeedback('Actualizando…', '/api/metrics');
         const d = await fetchMetrics();
         updateHeader(d);
         const hostOk = metricsRepresentHost(d);
@@ -265,42 +434,34 @@ const icons = {
           e.classList.remove('skeleton');
         };
 
-        function setCopyable(id: string, v: string) {
-          const e = $(id) as HTMLElement;
-          e.textContent = v;
-          e.classList.remove('skeleton');
-          if (v && v !== '—') {
-            e.classList.add('js-copy-val');
-            e.dataset.copyText = v;
-            e.title = `Clic para copiar · ${v}`;
-          } else {
-            e.classList.remove('js-copy-val');
-            delete e.dataset.copyText;
-            e.removeAttribute('title');
-          }
-        }
-
         const pct = (v: unknown) => (hostOk && v != null && Number.isFinite(Number(v)) ? `${Math.round(Number(v))}%` : '—');
         set('st-cpu', pct(d.cpu));
         set('st-mem', pct(d.mem));
         set('st-disk', pct(d.disk));
         const gpuU = hostOk && d.gpu != null ? Number(d.gpu) : NaN;
-        const gpuModelStr = typeof d.gpuModel === 'string' && d.gpuModel.trim() ? d.gpuModel.trim() : '';
+        const gpuModelStr = pickGpuModel(d);
         if (Number.isFinite(gpuU)) set('st-gpu', pct(d.gpu));
-        else set('st-gpu', gpuModelStr ? 'N/D' : '—');
+        else if (gpuModelStr) {
+          const short = gpuModelStr.length > 26 ? `${gpuModelStr.slice(0, 24)}…` : gpuModelStr;
+          set('st-gpu', short);
+        } else set('st-gpu', '—');
         set('st-uptime', hostOk && hasValidSystemUptime(d.uptime) ? fmtUptime(d.uptime) : '—');
 
-        const hc = hostOk && d.cpu != null ? Number(d.cpu) : 0;
-        const hm = hostOk && d.mem != null ? Number(d.mem) : 0;
-        const hd = hostOk && d.disk != null ? Number(d.disk) : 0;
-        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="cpu"]'), hc, 'cpu');
-        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="mem"]'), hm, 'mem');
-        setHeroMetric(document.querySelector('.sistema-stat-card[data-metric="disk"]'), hd, 'disk');
-        const gpuCard = document.querySelector('.sistema-stat-card[data-metric="gpu"]') as HTMLElement | null;
-        if (gpuCard) {
-          if (Number.isFinite(gpuU)) setHeroMetric(gpuCard, gpuU, 'gpu');
-          else gpuCard.style.removeProperty('--hero-accent');
-        }
+        const cpuN = hostOk && d.cpu != null ? Number(d.cpu) : NaN;
+        const memN = hostOk && d.mem != null ? Number(d.mem) : NaN;
+        const diskN = hostOk && d.disk != null ? Number(d.disk) : NaN;
+        const hl =
+          hostOk && Number.isFinite(cpuN) && Number.isFinite(memN) && Number.isFinite(diskN)
+            ? healthLevel(cpuN, memN, diskN)
+            : 'ok';
+        const hlLabel: Record<string, string> = { ok: 'Estable', warn: 'Atención', crit: 'Crítico' };
+        setSysResults('Mismo origen que el panel principal: API en el host.');
+        setSysFeedback(
+          hostOk
+            ? `Salud: ${hlLabel[hl] ?? hl} · ${Number.isFinite(cpuN) ? `${Math.round(cpuN)}%` : '—'} CPU`
+            : 'Sin métricas del PC (API en contenedor)',
+          `${fmtClock(d.timestamp)} · auto 12s`,
+        );
 
         const hostOs = typeof d.hostOs === 'string' && d.hostOs.trim() ? d.hostOs.trim() : '—';
         const devName = typeof d.deviceName === 'string' && d.deviceName.trim() ? d.deviceName.trim() : '';
@@ -318,42 +479,24 @@ const icons = {
               ? `Pública: ${pub}`
               : locals || '—';
         const updatedStr = new Date(d.timestamp).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium' });
-        set('si-device', devName || d.hostname || '—');
-        set('si-host', d.hostname || '—');
-        set('si-platform', hostOs);
-        set('si-ipv4', ipv4Str);
-        set('si-updated', updatedStr);
+        setSiField('si-device', devName || d.hostname || '—');
+        setSiField('si-host', d.hostname || '—');
+        setSiField('si-platform', hostOs);
+        setSiField('si-ipv4', ipv4Str, ipv4Fly);
+        setSiField('si-updated', updatedStr);
 
-        const siFlyMap: Record<string, string> = {
-          device: devName || d.hostname || '—',
-          host: d.hostname || '—',
-          os: hostOs,
-          ipv4: ipv4Fly,
-          updated: updatedStr,
-        };
-        for (const k of Object.keys(siFlyMap)) {
-          const el = document.getElementById(`si-fly-${k}`);
-          if (el) el.textContent = siFlyMap[k];
-        }
-
-        setCopyable('si-cpu-model', d.cpuModel || '—');
-        setCopyable('si-cpu-cores', String(d.cpuCores ?? '—'));
+        setSiField('si-cpu-model', d.cpuModel || '—');
+        setSiField('si-cpu-cores', String(d.cpuCores ?? '—'));
         set('si-cpu-pct', pct(d.cpu));
         ($('si-cpu-pct') as HTMLElement).style.color =
           hostOk && d.cpu != null ? statusColor(Number(d.cpu), 'cpu') : 'var(--muted)';
-        setCopyable(
+        setSiField(
           'si-load',
           hostOk && Array.isArray(d.load) && d.load.length ? d.load.map((l: number) => l.toFixed(2)).join(' / ') : '—',
         );
 
-        setCopyable(
-          'si-mem-total',
-          d.memTotal != null ? `${d.memTotal} GiB` : '—',
-        );
-        setCopyable(
-          'si-mem-used',
-          d.memUsed != null ? `${d.memUsed} GiB` : '—',
-        );
+        setSiField('si-mem-total', d.memTotal != null ? `${d.memTotal} GiB` : '—');
+        setSiField('si-mem-used', d.memUsed != null ? `${d.memUsed} GiB` : '—');
         set('si-mem-pct', pct(d.mem));
         ($('si-mem-pct') as HTMLElement).style.color =
           hostOk && d.mem != null ? statusColor(Number(d.mem), 'mem') : 'var(--muted)';
@@ -392,8 +535,12 @@ const icons = {
         }
 
         const diskTotal = typeof d.diskTotal === 'number' && d.diskTotal > 0 ? d.diskTotal : null;
-        setCopyable('si-disk-used', d.diskUsed != null ? `${d.diskUsed} GiB` : '—');
-        setCopyable('si-disk-total', diskTotal != null ? `${diskTotal} GiB` : '—');
+        setSiField('si-disk-total', diskTotal != null ? `${diskTotal} GiB` : '—');
+        setSiField(
+          'si-disk-free',
+          d.diskFree != null && Number.isFinite(Number(d.diskFree)) ? `${d.diskFree} GiB` : '—',
+        );
+        setSiField('si-disk-used', d.diskUsed != null ? `${d.diskUsed} GiB` : '—');
         set('si-disk-pct', pct(d.disk));
         ($('si-disk-pct') as HTMLElement).style.color =
           hostOk && d.disk != null ? statusColor(Number(d.disk), 'disk') : 'var(--muted)';
@@ -403,9 +550,24 @@ const icons = {
           hostOk && d.disk != null ? statusColor(Number(d.disk), 'disk') : 'var(--bar-bg)';
         $('si-disk-foot').textContent = hostOk && d.disk != null ? `${Math.round(diskPct)}%` : '—';
 
-        setCopyable('si-gpu-model', hostOk && gpuModelStr ? gpuModelStr : '—');
+        const diskNoteEl = document.getElementById('si-disk-note');
+        if (diskNoteEl) {
+          const dnote = typeof (d as { diskNote?: string }).diskNote === 'string' ? String((d as { diskNote?: string }).diskNote).trim() : '';
+          const dmount =
+            typeof (d as { diskMount?: string }).diskMount === 'string' ? String((d as { diskMount?: string }).diskMount).trim() : '';
+          if (dnote || dmount) {
+            diskNoteEl.textContent = [dmount && `Montaje: ${dmount}`, dnote].filter(Boolean).join('\n');
+            (diskNoteEl as HTMLElement).style.whiteSpace = 'pre-line';
+            diskNoteEl.removeAttribute('hidden');
+          } else {
+            diskNoteEl.textContent = '';
+            diskNoteEl.setAttribute('hidden', '');
+          }
+        }
+
+        setSiField('si-gpu-model', gpuModelStr ? gpuModelStr : '—');
         const vramMb = typeof d.gpuVramMb === 'number' && d.gpuVramMb > 0 ? d.gpuVramMb : null;
-        setCopyable('si-gpu-vram', vramMb != null ? `${vramMb} MB` : '—');
+        setSiField('si-gpu-vram', vramMb != null ? `${vramMb} MB` : '—');
         set('si-gpu-pct', pct(d.gpu));
         ($('si-gpu-pct') as HTMLElement).style.color =
           hostOk && Number.isFinite(gpuU) ? statusColor(gpuU, 'gpu') : 'var(--muted)';
@@ -426,15 +588,15 @@ const icons = {
           }
         }
 
-        setCopyable('si-uptime', hasValidSystemUptime(d.uptime) ? fmtUptime(d.uptime) : '—');
+        setSiField('si-uptime', hasValidSystemUptime(d.uptime) ? fmtUptime(d.uptime) : '—');
       } catch (e) {
         console.error(e);
+        setSysResults('No se pudieron cargar los datos del host.');
+        setSysFeedback('Error al cargar', '¿API en marcha? Pulsa ⟳');
       }
     }
 
-    wireSistemaSysinfoFlyout();
-    const panels = document.getElementById('sys-panels');
-    if (panels) initCopyableValues(panels);
+    wireSistemaCopyButtons();
 
     $('sys-refresh').addEventListener('click', load);
     load();
