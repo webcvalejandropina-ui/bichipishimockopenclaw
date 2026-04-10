@@ -1,16 +1,22 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { RefreshCw, X } from 'lucide';
+import { RefreshCw, X, Bell } from 'lucide';
 
+const iPageTitle = iconToSvg(Bell, { width: 22, height: 22 });
 const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 const iDismiss = iconToSvg(X, { width: 16, height: 16 });
 ---
 <Layout activePage="alertas">
-  <div class="wrapper">
+  <div class="wrapper dk-page">
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
     <div class="page-header">
-      <h2 class="page-title">Alertas</h2>
-      <p class="page-desc">Historial de alertas y advertencias del sistema. Puedes descartarlas de forma persistente (este navegador); la campana del menú usa el mismo criterio.</p>
+      <div class="dk-page-title-row">
+        <div>
+          <h2 class="page-title">Alertas</h2>
+          <p class="page-desc">Historial de alertas y advertencias del sistema. Puedes descartarlas de forma persistente (este navegador); la campana del menú usa el mismo criterio.</p>
+        </div>
+      </div>
     </div>
 
     <div class="page-toolbar">

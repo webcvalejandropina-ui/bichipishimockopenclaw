@@ -8,7 +8,7 @@ require('dotenv').config({
 });
 const os = require('os');
 const { promisify } = require('util');
-const { spawnSync, execSync, execFile, execFileSync } = require('child_process');
+const { spawn, spawnSync, execSync, execFile, execFileSync } = require('child_process');
 const execFileAsync = promisify(execFile);
 const si = require('systeminformation');
 const cronParser = require('cron-parser');
@@ -16,10 +16,10 @@ const { recordPerfDailySample, queryPerfDailyJson } = require('./perf-db');
 
 const PORT = Number.parseInt(process.env.BICHI_API_PORT || process.env.PORT || '3001', 10) || 3001;
 /** Nombre de la app (UI, correos, textos). Opcional: BICHI_APP_NAME o PUBLIC_BICHI_APP_NAME en .env */
-const APP_DISPLAY_NAME = String(process.env.BICHI_APP_NAME || '').trim() || 'Bichipishi';
-/** URL amigable en consola; override con BICHI_PUBLIC_HOST. En local suele hacer falta /etc/hosts (config/bichipishi.hosts). */
-const PUBLIC_HOST_HINT =
-  String(process.env.BICHI_PUBLIC_HOST || 'bichipishi.home').trim() || 'bichipishi.home';
+const APP_DISPLAY_NAME =
+  String(process.env.BICHI_APP_NAME || process.env.PUBLIC_BICHI_APP_NAME || '').trim() || 'Bichipishi';
+/** Si defines BICHI_PUBLIC_HOST, se muestra como URL adicional en el log de arranque. */
+const PUBLIC_HOST_HINT = String(process.env.BICHI_PUBLIC_HOST || '').trim();
 /** Procesos devueltos en `topCpu` (ordenados por % CPU); el total real va en `processCountTotal`. */
 const TOP_CPU_PROCESSES = 48;
 /** Origen permitido CORS (ej. https://tudominio.pages.dev). Por defecto * (solo recomendado en LAN/dev). */
@@ -232,7 +232,34 @@ function readHostHostnameFile(filePath) {
   }
 }
 
+function normalizeBrandAvatarUrl(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  if (s.length > 2000) return '';
+  if (s.startsWith('/') && !s.startsWith('//')) {
+    if (s.includes('..') || /[\0\r\n]/.test(s)) return '';
+    return s;
+  }
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    return s;
+  } catch {
+    return '';
+  }
+}
+
+function normalizeBrandAppName(raw) {
+  return String(raw ?? '')
+    .trim()
+    .slice(0, 80);
+}
+
 const DEFAULT_SETTINGS = {
+  brand: {
+    appName: '',
+    avatarUrl: '',
+  },
   thresholds: {
     diskWarn: 80,
     diskCrit: 95,
@@ -254,6 +281,8 @@ const DEFAULT_SETTINGS = {
     notifyMinSeverity: 'warning',
     emailCooldownMinutes: 30,
   },
+  /** Ficheros extra en la página Logs: { id, label, path, lineRegex? } */
+  logStreams: [],
 };
 
 let nodemailer = null;
@@ -275,11 +304,56 @@ function loadUserSettingsRaw() {
   }
 }
 
+const MAX_LOG_STREAMS = 32;
+const LOG_STREAM_ID_RE = /^[a-z0-9][a-z0-9_-]{0,47}$/i;
+
+function normalizeLogFilePath(p) {
+  const s = String(p ?? '').trim();
+  if (!s || s.length > 4096) return '';
+  if (/[\0\r\n]/.test(s)) return '';
+  if (s.includes('..')) return '';
+  if (!path.isAbsolute(s)) return '';
+  return s;
+}
+
+function validateLogStreamsInput(input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object') continue;
+    const id = String(raw.id ?? '').trim();
+    if (!LOG_STREAM_ID_RE.test(id) || seen.has(id)) continue;
+    const label = String(raw.label ?? '').trim().slice(0, 120);
+    if (!label) continue;
+    const fp = normalizeLogFilePath(raw.path);
+    if (!fp) continue;
+    const lineRegex = String(raw.lineRegex ?? '').trim().slice(0, 2000);
+    if (lineRegex) {
+      try {
+        new RegExp(lineRegex);
+      } catch {
+        continue;
+      }
+    }
+    seen.add(id);
+    out.push({ id, label, path: fp, lineRegex });
+    if (out.length >= MAX_LOG_STREAMS) break;
+  }
+  return out;
+}
+
 function mergeWithDefaults(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
+  const rb = r.brand && typeof r.brand === 'object' ? r.brand : {};
   return {
+    brand: {
+      appName: normalizeBrandAppName(rb.appName),
+      avatarUrl: normalizeBrandAvatarUrl(rb.avatarUrl),
+    },
     thresholds: { ...DEFAULT_SETTINGS.thresholds, ...(r.thresholds || {}) },
     alerts: { ...DEFAULT_SETTINGS.alerts, ...(r.alerts || {}) },
+    logStreams: validateLogStreamsInput(r.logStreams),
   };
 }
 
@@ -294,6 +368,12 @@ function coerceThresholds(t) {
 
 function applyPartialSettings(currentRaw, body) {
   const merged = mergeWithDefaults(currentRaw);
+  if (body.brand && typeof body.brand === 'object') {
+    merged.brand = {
+      appName: normalizeBrandAppName(body.brand.appName),
+      avatarUrl: normalizeBrandAvatarUrl(body.brand.avatarUrl),
+    };
+  }
   if (body.thresholds && typeof body.thresholds === 'object') {
     merged.thresholds = coerceThresholds({ ...merged.thresholds, ...body.thresholds });
   }
@@ -318,18 +398,147 @@ function applyPartialSettings(currentRaw, body) {
     : DEFAULT_SETTINGS.alerts.notifyMinSeverity;
   merged.alerts.emailEnabled = !!merged.alerts.emailEnabled;
   merged.alerts.smtpSecure = !!merged.alerts.smtpSecure;
+  if (Array.isArray(body.logStreams)) {
+    merged.logStreams = validateLogStreamsInput(body.logStreams);
+  }
   return merged;
 }
 
 function sanitizeSettingsForResponse(merged) {
   const a = { ...merged.alerts };
   a.smtpPass = merged.alerts.smtpPass ? '********' : '';
-  return { thresholds: merged.thresholds, alerts: a };
+  return {
+    brand: merged.brand || { ...DEFAULT_SETTINGS.brand },
+    thresholds: merged.thresholds,
+    alerts: a,
+    logStreams: Array.isArray(merged.logStreams) ? merged.logStreams : [],
+  };
 }
 
 function saveUserSettings(merged) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(merged, null, 2), 'utf8');
+}
+
+/** Marcas en `.env` para el bloque sincronizado desde Configuración (no editar entre marcas). */
+const ENV_BLOCK_START = '# <<<BICHI_UI_CONFIG_START>>>';
+const ENV_BLOCK_END = '# <<<BICHI_UI_CONFIG_END>>>';
+
+function envFileLine(key, val) {
+  if (typeof val === 'boolean') return `${key}=${val ? '1' : '0'}`;
+  if (typeof val === 'number' && Number.isFinite(val)) return `${key}=${val}`;
+  return `${key}=${JSON.stringify(val == null ? '' : String(val))}`;
+}
+
+function buildBichiUiEnvLines(merged) {
+  const b = merged.brand || {};
+  const th = merged.thresholds || DEFAULT_SETTINGS.thresholds;
+  const a = merged.alerts || DEFAULT_SETTINGS.alerts;
+  const ls = Array.isArray(merged.logStreams) ? merged.logStreams : [];
+  return [
+    envFileLine('PUBLIC_BICHI_APP_NAME', b.appName || ''),
+    envFileLine('PUBLIC_BICHI_AVATAR_URL', b.avatarUrl || ''),
+    envFileLine('BICHI_THRESHOLD_DISK_WARN', th.diskWarn),
+    envFileLine('BICHI_THRESHOLD_DISK_CRIT', th.diskCrit),
+    envFileLine('BICHI_THRESHOLD_MEM_WARN', th.memWarn),
+    envFileLine('BICHI_THRESHOLD_MEM_CRIT', th.memCrit),
+    envFileLine('BICHI_THRESHOLD_CPU_WARN', th.cpuWarn),
+    envFileLine('BICHI_THRESHOLD_CPU_CRIT', th.cpuCrit),
+    envFileLine('BICHI_ALERT_EMAIL_ENABLED', !!a.emailEnabled),
+    envFileLine('BICHI_SMTP_HOST', a.smtpHost || ''),
+    envFileLine('BICHI_SMTP_PORT', Number(a.smtpPort) || DEFAULT_SETTINGS.alerts.smtpPort),
+    envFileLine('BICHI_SMTP_SECURE', !!a.smtpSecure),
+    envFileLine('BICHI_SMTP_USER', a.smtpUser || ''),
+    envFileLine('BICHI_SMTP_PASS', a.smtpPass || ''),
+    envFileLine('BICHI_MAIL_FROM', a.mailFrom || ''),
+    envFileLine('BICHI_MAIL_TO', a.mailTo || ''),
+    envFileLine('BICHI_MAIL_SUBJECT_PREFIX', a.subjectPrefix || ''),
+    envFileLine('BICHI_ALERT_NOTIFY_MIN_SEVERITY', a.notifyMinSeverity || 'warning'),
+    envFileLine(
+      'BICHI_ALERT_EMAIL_COOLDOWN_MIN',
+      Number(a.emailCooldownMinutes) || DEFAULT_SETTINGS.alerts.emailCooldownMinutes,
+    ),
+    envFileLine('BICHI_LOG_STREAMS_JSON', JSON.stringify(ls)),
+  ];
+}
+
+/**
+ * Escribe/actualiza el bloque de variables en `.env` en la raíz del repo (mismos datos que `settings.json`).
+ * Así el front (PUBLIC_*) y otras herramientas pueden leer valores tras reiniciar.
+ */
+function writeBichiUiEnvBlock(merged) {
+  const envPath = path.join(REPO_ROOT, '.env');
+  const blockBody = [
+    ENV_BLOCK_START,
+    '# Generado al guardar en Configuración (API). No edites entre las marcas.',
+    ...buildBichiUiEnvLines(merged),
+    ENV_BLOCK_END,
+  ].join('\n');
+  let existing = '';
+  try {
+    existing = fs.readFileSync(envPath, 'utf8');
+  } catch {
+    existing = '';
+  }
+  const s = existing.indexOf(ENV_BLOCK_START);
+  const e = existing.indexOf(ENV_BLOCK_END);
+  let out;
+  if (s !== -1 && e !== -1 && e > s) {
+    const head = existing.slice(0, s).replace(/\s*$/, '');
+    const tail = existing.slice(e + ENV_BLOCK_END.length).replace(/^\s*/, '');
+    out = (head ? head + '\n\n' : '') + blockBody + '\n' + (tail ? tail : '');
+  } else {
+    const trimmed = existing.trimEnd();
+    out = (trimmed ? trimmed + '\n\n' : '') + blockBody + '\n';
+  }
+  fs.writeFileSync(envPath, out, 'utf8');
+}
+
+/**
+ * Tras guardar ajustes: opcional `BICHI_RESTART_CMD` (shell), o relanzar este proceso si
+ * `BICHI_RESTART_ON_SETTINGS_SAVE` no es `0` y no vamos bajo concurrently (`BICHI_IN_CONCURRENTLY`).
+ */
+function attachRestartAfterSettingsSave(res) {
+  const cmd = String(process.env.BICHI_RESTART_CMD || '').trim();
+  const inConcurrently = process.env.BICHI_IN_CONCURRENTLY === '1';
+  const restartDisabled = process.env.BICHI_RESTART_ON_SETTINGS_SAVE === '0';
+  res.once('finish', () => {
+    if (cmd) {
+      try {
+        const c = spawn(cmd, { shell: true, detached: true, stdio: 'ignore' });
+        c.unref();
+      } catch (e) {
+        console.error('[bichi] BICHI_RESTART_CMD:', e && e.message ? e.message : e);
+      }
+      return;
+    }
+    if (restartDisabled || inConcurrently) return;
+    try {
+      const child = spawn(process.execPath, process.argv.slice(1), {
+        detached: true,
+        stdio: 'ignore',
+        cwd: process.cwd(),
+        env: process.env,
+      });
+      child.unref();
+      setTimeout(() => process.exit(0), 200);
+    } catch (e) {
+      console.error('[bichi] reinicio tras guardar:', e && e.message ? e.message : e);
+    }
+  });
+}
+
+function restartMetaForSettingsResponse() {
+  const cmd = String(process.env.BICHI_RESTART_CMD || '').trim();
+  const inConcurrently = process.env.BICHI_IN_CONCURRENTLY === '1';
+  const restartDisabled = process.env.BICHI_RESTART_ON_SETTINGS_SAVE === '0';
+  const scheduled = !restartDisabled && (!!cmd || !inConcurrently);
+  let restartNote = null;
+  if (!restartDisabled && inConcurrently && !cmd) {
+    restartNote =
+      'En modo dev (API+astro) reinicia manualmente el terminal con `bun run dev` para que Astro cargue las variables PUBLIC_* del .env.';
+  }
+  return { restartScheduled: scheduled, restartNote };
 }
 
 function readBody(req, maxBytes) {
@@ -472,11 +681,13 @@ async function runServiceHostAction(name, action) {
 function serviceLocalCliMeta(platform) {
   if (platform === 'darwin') {
     return {
+      shortHint:
+        'macOS: la API no gestiona launchd. Cada tarjeta es una coincidencia heurística por nombre de proceso, no un servicio de Homebrew ni el label de un daemon.',
       cliStopTemplate: 'brew services stop {{name}}',
       cliStartTemplate: 'brew services start {{name}}',
       cliRestartTemplate: 'brew services restart {{name}}',
       cliNote:
-        'Ejemplos orientativos con Homebrew. Si el servicio no es de brew, usa `sudo launchctl list` y la documentación de launchd; el nombre de la tarjeta puede no coincidir con el ID del daemon.',
+        'Los comandos «brew services …» son solo ayuda: comprueba el nombre con brew services list. Si el programa no es de Homebrew, localiza el job con launchctl y la documentación de launchd; el título de la tarjeta suele ser el nombre del proceso, no el identificador del daemon.',
       openTerminal: 'open -a Terminal',
       openTerminalHelp:
         'Se copia en el portápapeles. Pégalo en Spotlight (⌘+Espacio), en “Ejecutar” de otra ventana o en un acceso directo.',
@@ -484,6 +695,7 @@ function serviceLocalCliMeta(platform) {
   }
   if (platform === 'freebsd' || platform === 'openbsd' || platform === 'netbsd') {
     return {
+      shortHint: 'BSD: comandos rc.d orientativos; el nombre exacto depende del script en rc.d.',
       cliStopTemplate: 'sudo service {{name}} onestop',
       cliStartTemplate: 'sudo service {{name}} onestart',
       cliRestartTemplate: 'sudo service {{name}} onerestart',
@@ -493,6 +705,7 @@ function serviceLocalCliMeta(platform) {
     };
   }
   return {
+    shortHint: 'Comando genérico tipo SysV/BSD; comprueba el init de tu sistema.',
     cliStopTemplate: 'sudo service {{name}} stop',
     cliStartTemplate: 'sudo service {{name}} start',
     cliRestartTemplate: 'sudo service {{name}} restart',
@@ -535,7 +748,7 @@ function hostActionsPayload(platform, metricsRepresentHost) {
     openTerminalHelp = 'Copia `wt` para abrir Windows Terminal, o usa Win+X → Terminal (Windows 11).';
   } else {
     const loc = serviceLocalCliMeta(platform);
-    serviceHint = loc.cliNote;
+    serviceHint = loc.shortHint || loc.cliNote;
     cliStopTemplate = loc.cliStopTemplate;
     cliStartTemplate = loc.cliStartTemplate;
     cliRestartTemplate = loc.cliRestartTemplate;
@@ -629,7 +842,6 @@ async function sendTestMail(settings) {
  */
 const DARWIN_BSD_SERVICE_PATTERNS = [
   'sshd',
-  'ssh',
   'nginx',
   'httpd',
   'apache2',
@@ -680,7 +892,6 @@ const DARWIN_BSD_SERVICE_PATTERNS = [
   'winbind',
   'nfsd',
   'rpcbind',
-  'avahi-daemon',
   'mDNSResponder',
   'bluetoothd',
   'syslog',
@@ -691,14 +902,6 @@ const DARWIN_BSD_SERVICE_PATTERNS = [
   'sendmail',
   'exim',
   'fail2ban',
-  'firewalld',
-  'ufw',
-  'NetworkManager',
-  'systemd',
-  'launchd',
-  'dbus-daemon',
-  'polkitd',
-  'snapd',
   'tailscaled',
   'wireguard',
   'openvpn',
@@ -735,7 +938,10 @@ function serviceRowDescription(s, platform) {
   if (/\.(service|socket|timer|mount)$/i.test(n)) {
     return 'Unidad systemd';
   }
-  if (platform === 'darwin' || platform === 'freebsd' || platform === 'openbsd' || platform === 'netbsd') {
+  if (platform === 'darwin') {
+    return 'Coincidencia por nombre en procesos (no es el label launchd ni el nombre en brew services)';
+  }
+  if (platform === 'freebsd' || platform === 'openbsd' || platform === 'netbsd') {
     return 'Daemon / proceso del sistema (detección por ps)';
   }
   if (platform === 'win32') {
@@ -870,6 +1076,32 @@ async function tryWindowsGpuControllersFromWmi() {
   }
 }
 
+function resolveOpenClawBin() {
+  const explicit = String(process.env.OPENCLAW_BIN || process.env.OPENCLAW_BINARY || '').trim();
+  const candidates = [
+    explicit,
+    'openclaw',
+    path.join(os.homedir(), '.npm-global', 'bin', 'openclaw'),
+    path.join(os.homedir(), '.npm-global', 'lib', 'node_modules', 'openclaw', 'openclaw.mjs'),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const r = spawnSync(candidate, ['--version'], {
+        encoding: 'utf8',
+        timeout: 4000,
+        windowsHide: true,
+        shell: false,
+      });
+      if (r.status === 0) return candidate;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return explicit || 'openclaw';
+}
+
 function checkOpenClawAvailable() {
   if (process.env.OPENCLAW_FORCE === '1') return true;
   if (process.env.OPENCLAW_FORCE === '0') return false;
@@ -881,7 +1113,7 @@ function checkOpenClawAvailable() {
       /* ignore */
     }
   }
-  const bin = String(process.env.OPENCLAW_BIN || process.env.OPENCLAW_BINARY || 'openclaw').trim() || 'openclaw';
+  const bin = resolveOpenClawBin();
   try {
     const r = spawnSync(bin, ['--version'], {
       encoding: 'utf8',
@@ -2118,12 +2350,65 @@ function collectOpenclawLogs() {
   return { entries: linesToOpenclawEntries(lines), hint: null, source: p };
 }
 
+function collectCustomLog(idRaw) {
+  const id = String(idRaw || '').trim();
+  const merged = mergeWithDefaults(loadUserSettingsRaw());
+  const items = merged.logStreams || [];
+  const item = items.find((x) => x && x.id === id);
+  if (!item) {
+    return {
+      entries: [],
+      hint: 'No hay ningún log con esta clave en Configuración → Logs.',
+      source: null,
+      label: null,
+    };
+  }
+  const p = item.path;
+  let st;
+  try {
+    st = fs.existsSync(p) ? fs.statSync(p) : null;
+  } catch {
+    st = null;
+  }
+  if (!st) {
+    return {
+      entries: [],
+      hint: 'El fichero no existe en el servidor (revisa la ruta absoluta).',
+      source: p,
+      label: item.label,
+    };
+  }
+  if (!st.isFile()) {
+    return {
+      entries: [],
+      hint: 'La ruta existe pero no es un fichero regular.',
+      source: p,
+      label: item.label,
+    };
+  }
+  const maxLines = Number.parseInt(process.env.LOG_MAX_LINES || '120', 10) || 120;
+  let lines = readTailLines(p, maxLines);
+  const reStr = String(item.lineRegex || '').trim();
+  if (reStr) {
+    try {
+      const re = new RegExp(reStr);
+      lines = lines.filter((ln) => re.test(ln));
+    } catch {
+      return {
+        entries: [],
+        hint: 'El regex guardado en configuración no es válido.',
+        source: p,
+        label: item.label,
+      };
+    }
+  }
+  return { entries: linesToSystemEntries(lines), hint: null, source: p, label: item.label };
+}
+
 /* ── OpenClaw: snapshot completo (CLI) + cron del host ── */
 
 function getOpenClawBin() {
-  const b = process.env.OPENCLAW_BIN || process.env.OPENCLAW_BINARY || 'openclaw';
-  const s = String(b || 'openclaw').trim();
-  return s || 'openclaw';
+  return resolveOpenClawBin();
 }
 
 function tryParseJsonOutput(text) {
@@ -2219,11 +2504,13 @@ const OPENCLAW_CLI_PROBES = [
   { key: 'doctor', args: ['doctor', '--non-interactive'], ms: 35000 },
 ];
 
-/** Relleno de interfaz: personalidad, agentes de ejemplo, etc. (OPENCLAW_DEMO_FILL=0 para omitir). */
-function getOpenClawDemoFill() {
-  if (process.env.OPENCLAW_DEMO_FILL === '0') return null;
+/**
+ * Relleno ilustrativo legado (Pine, agentes ficticios). Solo si OPENCLAW_DEMO_FILL=1.
+ * Por defecto la UI usa datos vivos del CLI y del disco (`buildOpenClawLiveFill`).
+ */
+function getOpenClawLegacyDemoFill() {
   return {
-    note: 'Bloque ilustrativo para la UI (personalidad, voz, agentes de ejemplo). Sustituye o complementa lo que devuelva el CLI.',
+    note: 'Bloque ilustrativo legado (OPENCLAW_DEMO_FILL=1). Desactiva esta variable para ver solo CLI + disco.',
     personality: {
       displayName: 'Pine · asistente del monitor',
       role: 'Puente amable entre el host, los logs y los agentes OpenClaw.',
@@ -2268,33 +2555,650 @@ function getOpenClawDemoFill() {
       markdown: 'Encabezados cortos, listas con viñetas, bloques de código con idioma.',
       citations: 'Enlaza documentación oficial cuando el usuario pida “por qué”.',
     },
+    legacyDemo: true,
+  };
+}
+
+function ocAsArray(x) {
+  if (x == null) return [];
+  if (Array.isArray(x)) return x;
+  return [];
+}
+
+function ocIsMockObject(o) {
+  return !!(o && typeof o === 'object' && o.mock === true);
+}
+
+/** Normaliza filas de agentes desde `agents list --json` y enriquece con `agents bindings --json` si encaja. */
+function extractOpenClawAgentRows(agentsParsed, bindingsParsed) {
+  if (!agentsParsed || typeof agentsParsed !== 'object' || ocIsMockObject(agentsParsed)) return [];
+  let raw = agentsParsed;
+  if (agentsParsed.agents != null) raw = agentsParsed.agents;
+  else if (agentsParsed.items != null) raw = agentsParsed.items;
+  else if (agentsParsed.data != null && typeof agentsParsed.data === 'object') {
+    raw = agentsParsed.data.agents ?? agentsParsed.data.items ?? agentsParsed.data;
+  }
+  const list = ocAsArray(raw).filter((x) => x && typeof x === 'object' && !ocIsMockObject(x));
+  const bindMap = new Map();
+  if (bindingsParsed && typeof bindingsParsed === 'object' && !ocIsMockObject(bindingsParsed)) {
+    let br = bindingsParsed.bindings ?? bindingsParsed.items ?? bindingsParsed.agents ?? bindingsParsed;
+    if (typeof br === 'object' && !Array.isArray(br) && br.list) br = br.list;
+    const bl = ocAsArray(br).filter((x) => x && typeof x === 'object' && !ocIsMockObject(x));
+    for (const b of bl) {
+      const bid = b.agentId ?? b.agent ?? b.id ?? b.name ?? b.slug;
+      if (bid != null) bindMap.set(String(bid), b);
+    }
+  }
+  return list.map((a) => {
+    const id = a.id ?? a.agentId ?? a.name ?? a.slug ?? '—';
+    const label = a.label ?? a.displayName ?? a.title ?? a.name ?? id;
+    const bind = bindMap.get(String(id));
+    let binding = '—';
+    if (typeof a.binding === 'string') binding = a.binding;
+    else if (a.channel != null) binding = String(a.channel);
+    else if (bind) {
+      binding =
+        bind.channel != null
+          ? String(bind.channel)
+          : bind.binding != null
+            ? String(bind.binding)
+            : bind.target != null
+              ? String(bind.target)
+              : '—';
+    }
+    const persona = a.persona ?? a.description ?? a.role ?? a.summary ?? '—';
+    return { id: String(id), label: String(label), binding: String(binding), persona: String(persona) };
+  });
+}
+
+/** Skills desde `skills list --json` más carpetas con SKILL.md del layout en disco. */
+function extractOpenClawSkillRows(skillsParsed, installSkills) {
+  const rows = [];
+  const seen = new Set();
+  if (skillsParsed && typeof skillsParsed === 'object' && !ocIsMockObject(skillsParsed)) {
+    let raw = skillsParsed.skills ?? skillsParsed.items ?? skillsParsed.data ?? skillsParsed;
+    if (typeof raw === 'object' && !Array.isArray(raw) && raw.list) raw = raw.list;
+    const list = ocAsArray(raw).filter((x) => x !== null && (typeof x === 'string' || (typeof x === 'object' && !ocIsMockObject(x))));
+    for (const s of list) {
+      if (typeof s === 'string') {
+        const name = s.trim() || '—';
+        if (seen.has(name)) continue;
+        seen.add(name);
+        rows.push({ name, path: '—', source: 'cli' });
+      } else {
+        const name = String(s.name ?? s.id ?? s.skill ?? s.slug ?? '—');
+        const pth = s.path != null ? String(s.path) : s.dir != null ? String(s.dir) : '—';
+        if (seen.has(name)) continue;
+        seen.add(name);
+        rows.push({ name, path: pth, source: 'cli' });
+      }
+    }
+  }
+  if (installSkills && Array.isArray(installSkills.items)) {
+    for (const it of installSkills.items) {
+      const n = it.skillDir || '—';
+      if (seen.has(n)) continue;
+      seen.add(n);
+      rows.push({
+        name: String(n),
+        path: String(it.skillMdPath || '—'),
+        source: 'disk',
+        hasSkillMd: !!it.exists,
+      });
+    }
+  }
+  return rows;
+}
+
+function openclawFirstParagraph(text) {
+  if (!text || typeof text !== 'string') return '';
+  const t = text.trim();
+  if (!t) return '';
+  const para = t.split(/\n\n|\r\n\r\n/)[0] || t.split(/\n/)[0];
+  return para.slice(0, 480);
+}
+
+/** Personalidad resumida desde AGENTS.md / SOUL.md / IDENTITY.md leídos del workspace. */
+function personalityFromWorkspaceFiles(wf) {
+  if (!wf || typeof wf !== 'object') return null;
+  const pick = (key) => {
+    const ent = wf[key];
+    return ent && ent.exists && typeof ent.content === 'string' ? ent.content.trim() : '';
+  };
+  const soulT = pick('SOUL');
+  const agT = pick('AGENTS');
+  const idT = pick('IDENTITY');
+  if (!soulT && !agT && !idT) return null;
+  let displayName = '—';
+  const hm = idT.match(/^#\s+(.+)$/m);
+  if (hm) displayName = hm[1].trim().slice(0, 120);
+  const role = openclawFirstParagraph(agT) || openclawFirstParagraph(soulT) || openclawFirstParagraph(idT) || '—';
+  const preview = soulT || agT || idT;
+  return {
+    displayName,
+    role,
+    tone: '—',
+    locale: '—',
+    traits: [],
+    voice: '—',
+    quirks: [],
+    systemPromptPreview: preview ? preview.slice(0, 2400) : '',
+    boundaries: [],
+    fromWorkspace: true,
+  };
+}
+
+function workspaceFillFromInstall(il) {
+  if (!il || typeof il !== 'object' || !il.roots) return null;
+  const { roots } = il;
+  const skillsDirs = [];
+  if (roots.workspace) skillsDirs.push(path.join(roots.workspace, 'skills'));
+  if (roots.skills) skillsDirs.push(roots.skills);
+  const uniqDirs = [...new Set(skillsDirs)];
+  const memFiles = [];
+  if (il.memory && Array.isArray(il.memory.entries)) {
+    for (const e of il.memory.entries.slice(0, 16)) {
+      if (e && e.name) memFiles.push(e.path ? String(e.path) : `memory/${e.name}`);
+    }
+  }
+  const wfMem = il.workspaceFiles && il.workspaceFiles.MEMORY;
+  if (wfMem && wfMem.exists && wfMem.path && !memFiles.includes(String(wfMem.path))) {
+    memFiles.unshift(String(wfMem.path));
+  }
+  return {
+    path: roots.workspace ? String(roots.workspace) : '—',
+    skillsDirs: uniqDirs,
+    memoryFiles: memFiles.length ? memFiles : [],
+  };
+}
+
+/** Filas de agentes plausibles cuando el CLI no devuelve filas parseables (marcadas con mock: true). */
+function getOpenClawPlausibleMockAgents() {
+  return [
+    {
+      id: 'default',
+      label: 'Principal',
+      binding: 'gateway · predeterminado',
+      persona: 'Asistente del workspace; canales según la config del gateway.',
+      mock: true,
+    },
+    {
+      id: 'ops',
+      label: 'Operaciones',
+      binding: 'cron · host',
+      persona: 'Tareas programadas, servicios del sistema y métricas del host.',
+      mock: true,
+    },
+    {
+      id: 'skills',
+      label: 'Skills / docs',
+      binding: 'filesystem · catálogo',
+      persona: 'Lectura de SKILL.md y documentación empaquetada con OpenClaw.',
+      mock: true,
+    },
+  ];
+}
+
+/** Skills de ejemplo con rutas creíbles (env / layout / defaults del proyecto). */
+function getOpenClawPlausibleMockSkills(installLayout) {
+  const roots = installLayout && installLayout.roots;
+  const ws = roots && roots.workspace ? String(roots.workspace) : openclawEnvPath('OPENCLAW_WORKSPACE', OPENCLAW_PATH_DEFAULTS.workspace);
+  const sk = roots && roots.skills ? String(roots.skills) : openclawEnvPath('OPENCLAW_SKILLS', OPENCLAW_PATH_DEFAULTS.skills);
+  return [
+    { name: 'orchestrator', path: path.join(sk, 'orchestrator', 'SKILL.md'), source: 'mock', hasSkillMd: null },
+    { name: 'workspace-tools', path: path.join(ws, 'skills', 'workspace-tools', 'SKILL.md'), source: 'mock', hasSkillMd: null },
+    { name: 'openclaw-docs', path: path.join(sk, 'openclaw-docs', 'SKILL.md'), source: 'mock', hasSkillMd: null },
+  ];
+}
+
+function getOpenClawPlausibleMockPersonality() {
+  return {
+    displayName: 'Asistente del entorno',
+    role: `Copiloto del host (${APP_DISPLAY_NAME}): métricas, rutas, cron y agentes OpenClaw cuando el CLI esté disponible.`,
+    tone: 'Técnico y directo; no inventa salidas del CLI.',
+    locale: 'es-ES',
+    traits: ['Cauteloso con comandos destructivos', 'Cita rutas absolutas'],
+    voice: 'Neutro',
+    quirks: ['Resume tablas cuando hay varias métricas'],
+    systemPromptPreview:
+      '(Simulación plausible) Si existen AGENTS.md o SOUL.md en el workspace, este bloque se sustituye por el texto leído del disco.',
+    boundaries: ['No afirmar bindings reales sin salida de agents list --json'],
+    fromWorkspace: false,
+    mock: true,
+  };
+}
+
+/** Rutas típicas cuando no hay layout legible (sigue OPENCLAW_* / defaults). */
+function getOpenClawPlausibleMockWorkspace(installLayout) {
+  const roots = installLayout && installLayout.roots;
+  const w =
+    roots && roots.workspace
+      ? String(roots.workspace)
+      : openclawEnvPath('OPENCLAW_WORKSPACE', OPENCLAW_PATH_DEFAULTS.workspace);
+  const s =
+    roots && roots.skills
+      ? String(roots.skills)
+      : openclawEnvPath('OPENCLAW_SKILLS', OPENCLAW_PATH_DEFAULTS.skills);
+  return {
+    path: w,
+    skillsDirs: [...new Set([path.join(w, 'skills'), s])],
+    memoryFiles: [],
+    mock: true,
   };
 }
 
 /**
- * Sondas ficticias cuando no hay binario OpenClaw: misma forma que runOpenClawArgs + mock: true.
+ * Datos para la tarjeta «Perfil, agentes y estilo»: CLI (--json) + lectura FS (installLayout).
+ * Si falta algún bloque, se rellena con mocks plausibles (mock: true / source: mock) para que la UI no quede vacía.
+ */
+function buildOpenClawLiveFill(probes, installLayout, { available, mockMode }) {
+  let agentsPreview = extractOpenClawAgentRows(
+    probes.agents_list && probes.agents_list.parsed,
+    probes.agents_bindings && probes.agents_bindings.parsed,
+  );
+  let skillsPreview = extractOpenClawSkillRows(
+    probes.skills_list && probes.skills_list.parsed,
+    installLayout && installLayout.skills,
+  );
+  let personality = personalityFromWorkspaceFiles(installLayout && installLayout.workspaceFiles);
+  let workspace = workspaceFillFromInstall(installLayout);
+
+  const usedAgentMock = !agentsPreview.length;
+  const usedSkillMock = !skillsPreview.length;
+  const usedPersonaMock = !personality;
+  const usedWsMock = !workspace;
+
+  if (usedAgentMock) agentsPreview = getOpenClawPlausibleMockAgents();
+  if (usedSkillMock) skillsPreview = getOpenClawPlausibleMockSkills(installLayout);
+  if (usedPersonaMock) personality = getOpenClawPlausibleMockPersonality();
+  if (usedWsMock) workspace = getOpenClawPlausibleMockWorkspace(installLayout);
+
+  const alProbe = probes.agents_list;
+  const slProbe = probes.skills_list;
+  if (alProbe && alProbe.mock && agentsPreview.length) {
+    agentsPreview = agentsPreview.map((r) => ({ ...r, mock: true }));
+  }
+  if (slProbe && slProbe.mock && skillsPreview.length) {
+    skillsPreview = skillsPreview.map((r) => (r.source === 'disk' ? r : { ...r, source: 'mock' }));
+  }
+
+  let note = null;
+  if (mockMode || !available) {
+    note =
+      'Sin CLI OpenClaw en el PATH de la API: cada sección de sondas incluye JSON de vista previa de lo que suelen exponer los comandos (agentes, skills y permisos, bindings, canales, plugins, MCP, hooks, gateway, modelos, memoria, cron/tareas, nodos, dispositivos, pairing, aprobaciones, sandbox, validación de config y auditoría). La tarjeta «Instalación en disco» sigue leyendo rutas reales si existen.';
+  }
+
+  const synthParts = [];
+  if (usedAgentMock) synthParts.push('agentes');
+  if (usedSkillMock) synthParts.push('skills');
+  if (usedPersonaMock) synthParts.push('personalidad');
+  if (usedWsMock) synthParts.push('workspace');
+  let syntheticNote =
+    synthParts.length > 0
+      ? `Faltan datos reales para: ${synthParts.join(', ')}. Las tablas muestran valores simulados plausibles (no son salida del binario ni del disco).`
+      : null;
+  if (mockMode) {
+    const catalog =
+      'Despliega las sondas inferiores: verás `_openclawPreview` y ejemplos de capabilities, permissionsRequired, exposedSurfaces y políticas de aprobación.';
+    syntheticNote = syntheticNote ? `${syntheticNote} ${catalog}` : catalog;
+  }
+
+  return {
+    note,
+    syntheticNote,
+    personality,
+    agentsPreview,
+    skillsPreview,
+    workspace,
+    style: null,
+    live: true,
+    syntheticMock: synthParts.length > 0,
+  };
+}
+
+function resolveOpenClawFillForSnapshot(probes, installLayout, ctx) {
+  if (process.env.OPENCLAW_DEMO_FILL === '1') {
+    const legacy = getOpenClawLegacyDemoFill();
+    if (legacy) return legacy;
+  }
+  return buildOpenClawLiveFill(probes, installLayout, ctx);
+}
+
+/**
+ * JSON ilustrativo por sonda cuando no hay CLI: muestra la superficie que suelen exponer los subcomandos
+ * (agentes, skills, permisos, aprobaciones, MCP, gateway, seguridad, etc.).
+ */
+function getOpenClawDisconnectedProbeParsed(key) {
+  const home = os.homedir();
+  const ws = openclawEnvPath('OPENCLAW_WORKSPACE', OPENCLAW_PATH_DEFAULTS.workspace);
+  const sk = openclawEnvPath('OPENCLAW_SKILLS', OPENCLAW_PATH_DEFAULTS.skills);
+  const docs = openclawEnvPath('OPENCLAW_DOCS', OPENCLAW_PATH_DEFAULTS.docs);
+  const media = openclawEnvPath('OPENCLAW_MEDIA_INBOUND', OPENCLAW_PATH_DEFAULTS.mediaInbound);
+  const cfg = path.join(home, '.openclaw', 'openclaw.json');
+  const m = () => ({
+    _openclawPreview: true,
+    _disconnected: true,
+    _explain:
+      'Simulación sin CLI en el PATH de la API: campos típicos de `openclaw … --json`. Instala el binario o define OPENCLAW_BIN para salida real.',
+  });
+
+  switch (key) {
+    case 'version':
+      return { ...m(), version: 'preview', channel: 'disconnected', binary: 'openclaw (no resuelto en la API)' };
+    case 'status':
+      return {
+        ...m(),
+        cliReachable: false,
+        workspaceRoot: ws,
+        configFile: cfg,
+        skillsRoot: sk,
+        gatewayRunning: null,
+        activeChannels: 0,
+        agentsLoaded: 0,
+      };
+    case 'health':
+      return {
+        ...m(),
+        ok: false,
+        checks: [
+          { id: 'binary', ok: false, detail: 'Ejecutable no encontrado en el entorno de metrics-api' },
+          { id: 'gateway', ok: null, detail: 'No comprobable sin CLI' },
+          { id: 'workspace', ok: true, detail: 'Rutas OPENCLAW_* / por defecto definidas para lectura FS' },
+        ],
+      };
+    case 'directory':
+      return {
+        ...m(),
+        roots: [
+          { role: 'workspace', path: ws },
+          { role: 'skills_pack', path: sk },
+          { role: 'docs', path: docs },
+          { role: 'media_inbound', path: media },
+          { role: 'config', path: cfg },
+        ],
+      };
+    case 'skills_list':
+      return {
+        ...m(),
+        skills: [
+          {
+            name: 'orchestrator',
+            path: path.join(sk, 'orchestrator', 'SKILL.md'),
+            permissions: ['read_workspace', 'invoke_subagents'],
+            risk: 'medium',
+          },
+          {
+            name: 'filesystem-tools',
+            path: path.join(ws, 'skills', 'filesystem-tools', 'SKILL.md'),
+            permissions: ['read_file', 'list_dir', 'write_file_scoped'],
+            risk: 'high',
+          },
+          {
+            name: 'openclaw-docs',
+            path: path.join(sk, 'openclaw-docs', 'SKILL.md'),
+            permissions: ['read_packaged_docs'],
+            risk: 'low',
+          },
+        ],
+      };
+    case 'skills_check':
+      return {
+        ...m(),
+        results: [
+          { skill: 'orchestrator', valid: true, issues: [] },
+          { skill: 'filesystem-tools', valid: false, issues: ['SKILL.md falta frontmatter name'] },
+        ],
+      };
+    case 'agents_list':
+      return {
+        ...m(),
+        agents: [
+          {
+            id: 'default',
+            label: 'Principal',
+            channel: 'gateway',
+            persona: 'Generalista workspace + canales',
+            capabilities: ['read_memory', 'use_skills', 'request_approval'],
+          },
+          {
+            id: 'ops',
+            label: 'Operaciones',
+            channel: 'slack',
+            persona: 'Infra, cron, servicios',
+            capabilities: ['read_logs', 'propose_exec', 'docker_readonly'],
+          },
+          {
+            id: 'coding',
+            label: 'Código',
+            channel: 'telegram',
+            persona: 'PRs, tests, revisiones',
+            capabilities: ['read_repo', 'diff', 'run_tests_sandbox'],
+          },
+        ],
+      };
+    case 'agents_bindings':
+      return {
+        ...m(),
+        bindings: [
+          { agentId: 'default', target: 'gateway:default', channelType: 'multi' },
+          { agentId: 'ops', target: 'slack:#infra', channelType: 'slack' },
+          { agentId: 'coding', target: 'telegram:alerts_bot', channelType: 'telegram' },
+        ],
+      };
+    case 'plugins_list':
+      return {
+        ...m(),
+        plugins: [
+          { id: 'channels.telegram', enabled: true, version: '0.x', exposes: ['inbound', 'outbound'] },
+          { id: 'channels.slack', enabled: true, version: '0.x', exposes: ['slash', 'events'] },
+          { id: 'hooks.cron-bridge', enabled: false, version: '0.x', exposes: ['schedule'] },
+        ],
+      };
+    case 'channels_list':
+      return {
+        ...m(),
+        channels: [
+          { id: 'tg-main', type: 'telegram', agentId: 'coding', secretsFrom: 'env:TELEGRAM_BOT_TOKEN' },
+          { id: 'slack-infra', type: 'slack', agentId: 'ops', secretsFrom: 'openclaw.json → slack.token' },
+        ],
+      };
+    case 'channels_status':
+      return {
+        ...m(),
+        channels: [
+          { id: 'tg-main', connected: false, lastError: 'Sin CLI: no hay handshake real' },
+          { id: 'slack-infra', connected: false, lastError: 'Sin CLI: no hay handshake real' },
+        ],
+      };
+    case 'cron_status':
+      return { ...m(), enabled: true, scope: 'user', note: 'Estado interno OpenClaw (no confundir con cron del host en otra tarjeta)' };
+    case 'cron_list':
+      return {
+        ...m(),
+        jobs: [
+          { id: 'oc-heartbeat', schedule: '*/5 * * * *', command: 'openclaw tasks run heartbeat' },
+          { id: 'oc-digest', schedule: '0 8 * * *', command: 'openclaw tasks run daily-digest' },
+        ],
+      };
+    case 'tasks_list':
+      return {
+        ...m(),
+        tasks: [
+          { id: 'heartbeat', agentId: 'default', triggers: ['cron', 'manual'] },
+          { id: 'ingest-media', agentId: 'default', triggers: ['webhook'], permissions: ['read', media] },
+        ],
+      };
+    case 'tasks_flow':
+      return {
+        ...m(),
+        flows: [{ id: 'on-message', steps: ['classify', 'skill_router', 'respond', 'log'] }],
+      };
+    case 'gateway_status':
+      return { ...m(), listening: null, bind: '127.0.0.1:18765', tls: false, auth: 'token|mtls' };
+    case 'gateway_health':
+      return { ...m(), reachable: false, latencyMs: null, lastProbe: null };
+    case 'gateway_probe':
+      return { ...m(), routes: ['/v1/chat', '/v1/agents', '/health'], cors: 'restricted', rateLimit: 'enabled' };
+    case 'models_list':
+      return {
+        ...m(),
+        models: [
+          { id: 'gpt-4.1', provider: 'openai', default: true },
+          { id: 'claude-sonnet', provider: 'anthropic', default: false },
+        ],
+      };
+    case 'memory_status':
+      return {
+        ...m(),
+        backend: 'workspace+index',
+        workspaceRoot: ws,
+        entriesApprox: 0,
+        paths: [path.join(ws, 'MEMORY.md'), path.join(ws, 'memory')],
+      };
+    case 'mcp_list':
+      return {
+        ...m(),
+        servers: [
+          {
+            name: 'workspace-fs',
+            tools: ['read_file', 'list_dir', 'search'],
+            rootsAllowlist: [ws],
+            permissions: ['read scoped to workspace'],
+          },
+          { name: 'git', tools: ['status', 'diff', 'log'], permissions: ['read .git'] },
+          { name: 'exec-sandbox', tools: ['run_command'], permissions: ['deny-by-default', 'approval_on_write'] },
+        ],
+      };
+    case 'hooks_list':
+      return {
+        ...m(),
+        hooks: [
+          { event: 'message.inbound', handler: 'hooks/on-message.ts', canMutate: ['memory', 'tasks'] },
+          { event: 'task.complete', handler: 'hooks/audit.ts', canMutate: ['logs'] },
+        ],
+      };
+    case 'nodes':
+      return {
+        ...m(),
+        nodes: [
+          { id: 'node-local', role: 'primary', host: '127.0.0.1', labels: ['gateway', 'skills'] },
+          { id: 'node-edge', role: 'worker', host: '10.0.0.12', labels: ['channels'] },
+        ],
+      };
+    case 'devices_list':
+      return {
+        ...m(),
+        devices: [
+          { id: 'dev-mobile-1', type: 'mobile', paired: false, lastSeen: null },
+          { id: 'dev-cli', type: 'terminal', paired: true, agentId: 'default' },
+        ],
+      };
+    case 'pairing_list':
+      return {
+        ...m(),
+        sessions: [
+          { code: 'OC-XXXX', expiresInSec: 600, scope: 'add_device', requiresApproval: true },
+        ],
+      };
+    case 'approvals_get':
+      return {
+        ...m(),
+        policy: 'Human-in-the-loop para exec, escritura fuera del workspace y salida de sandbox',
+        pending: [
+          {
+            id: 'appr-exec-1',
+            scope: 'exec(host)',
+            command: 'systemctl restart openclaw-gateway',
+            agentId: 'ops',
+            risk: 'high',
+            permissionsRequired: ['host.exec', 'systemd'],
+          },
+          {
+            id: 'appr-fs-1',
+            scope: 'filesystem(write)',
+            path: path.join(ws, 'MEMORY.md'),
+            agentId: 'default',
+            risk: 'medium',
+            permissionsRequired: ['workspace.write'],
+          },
+          {
+            id: 'appr-net-1',
+            scope: 'network(outbound)',
+            target: 'https://api.example.com',
+            agentId: 'coding',
+            risk: 'low',
+            permissionsRequired: ['egress.allowlist'],
+          },
+        ],
+      };
+    case 'sandbox_list':
+      return {
+        ...m(),
+        sandboxes: [
+          {
+            id: 'sb-default',
+            isolation: 'process|container',
+            allowedRead: [ws, sk],
+            allowedWrite: [path.join(ws, 'tmp')],
+            network: 'egress-deny-by-default',
+          },
+        ],
+      };
+    case 'config_validate':
+      return {
+        ...m(),
+        valid: true,
+        warnings: [
+          'Ejemplo: token de canal caduca en N días — rotar en openclaw.json o env',
+          'Ejemplo: gateway bind 0.0.0.0 expone la API en todas las interfaces',
+        ],
+        pathsRead: [cfg],
+      };
+    case 'security_audit':
+      return {
+        ...m(),
+        summary: { critical: 0, high: 1, medium: 3, low: 5, info: 6 },
+        exposedSurfaces: [
+          { area: 'CLI', detail: 'Todos los subcomandos leen la config efectiva del usuario que ejecuta openclaw' },
+          { area: 'workspace', path: ws, readable: ['*.md', 'memory/**', 'skills/**'] },
+          { area: 'secrets', detail: 'Canales: tokens en env y openclaw.json; no registrar en logs' },
+          { area: 'gateway_http', detail: 'Rutas /v1/* si el gateway está activo; autenticación obligatoria' },
+          { area: 'MCP', detail: 'Herramientas de terceros heredan permisos del proceso del agente' },
+        ],
+        recommendations: [
+          'Restringir quién puede llamar a /api/openclaw en la API de métricas',
+          'OPENCLAW_BIN solo en hosts de confianza',
+          'Revisar aprobaciones y sandbox antes de habilitar exec',
+        ],
+      };
+    default:
+      return { ...m(), commandKey: key, hint: 'Plantilla genérica: con el CLI instalado verás el JSON real de esta sonda.' };
+  }
+}
+
+/**
+ * Sondas simuladas cuando no hay binario: salida JSON rica (superficie expuesta) + mock: true en el envoltorio.
  */
 function buildOpenClawMockProbes() {
-  const demoRow = (key) => ({
-    mock: true,
-    probe: key,
-    message: 'Demostración: instala el CLI OpenClaw o define OPENCLAW_BIN para datos reales.',
-  });
   const out = {};
   for (const p of OPENCLAW_CLI_PROBES) {
     const cmdLine = `openclaw --no-color ${p.args.join(' ')}`;
     let parsed;
     let stdout;
-    if (p.key === 'version') {
-      parsed = { version: '0.0.0-mock', channel: 'demo', note: 'Sin CLI en PATH' };
-    } else if (p.key === 'config_file') {
+    if (p.key === 'config_file') {
       parsed = null;
       stdout = path.join(os.homedir(), '.openclaw', 'openclaw.json');
     } else if (p.key === 'doctor') {
       parsed = null;
-      stdout = 'OpenClaw doctor (mock)\nChecks: OK\nSin binario real: vista de ejemplo únicamente.';
+      stdout = [
+        'OpenClaw doctor (vista previa sin CLI)',
+        '— binary: no encontrado en PATH de metrics-api',
+        '— workspace: revisar OPENCLAW_WORKSPACE',
+        '— gateway: no verificable sin binario',
+        'Instala openclaw o define OPENCLAW_BIN para comprobaciones reales.',
+      ].join('\n');
     } else {
-      parsed = demoRow(p.key);
+      parsed = getOpenClawDisconnectedProbeParsed(p.key);
     }
     const stdoutFinal = stdout != null ? stdout : JSON.stringify(parsed, null, 2);
     out[p.key] = {
@@ -2599,7 +3503,6 @@ async function collectOpenClawInstallLayout() {
 }
 
 async function collectOpenClawFullSnapshot() {
-  const fill = getOpenClawDemoFill();
   let installLayout = null;
   if (process.env.OPENCLAW_FS_DISABLE === '1') {
     installLayout = { disabled: true, message: 'OPENCLAW_FS_DISABLE=1' };
@@ -2611,38 +3514,41 @@ async function collectOpenClawFullSnapshot() {
     }
   }
 
+  const av = checkOpenClawAvailable();
+
   if (process.env.OPENCLAW_SNAPSHOT_DISABLE === '1') {
     const d = new Date();
     const cronSystem = await collectCronPayload(d.getFullYear(), d.getMonth() + 1);
     return {
       at: Date.now(),
-      available: checkOpenClawAvailable(),
+      available: av,
       binary: getOpenClawBin(),
       platform: process.platform,
       cronSystem,
       probes: {},
       disabled: true,
       message: 'OPENCLAW_SNAPSHOT_DISABLE=1',
-      openclawFill: fill,
+      openclawFill: resolveOpenClawFillForSnapshot({}, installLayout, { available: av, mockMode: !av }),
       installLayout,
-      suppressDemoFill: !!(installLayout && installLayout.hasRealWorkspaceContent),
+      suppressDemoFill: false,
     };
   }
 
-  if (!checkOpenClawAvailable()) {
+  if (!av) {
     const d = new Date();
     const cronSystem = await collectCronPayload(d.getFullYear(), d.getMonth() + 1);
+    const mockProbes = buildOpenClawMockProbes();
     return {
       at: Date.now(),
       available: false,
       mockMode: true,
       binary: getOpenClawBin(),
       platform: process.platform,
-      probes: buildOpenClawMockProbes(),
-      openclawFill: fill,
+      probes: mockProbes,
+      openclawFill: resolveOpenClawFillForSnapshot(mockProbes, installLayout, { available: false, mockMode: true }),
       cronSystem,
       installLayout,
-      suppressDemoFill: !!(installLayout && installLayout.hasRealWorkspaceContent),
+      suppressDemoFill: false,
     };
   }
 
@@ -2661,14 +3567,14 @@ async function collectOpenClawFullSnapshot() {
   const probes = Object.fromEntries(probeResults);
   return {
     at: Date.now(),
-    available: checkOpenClawAvailable(),
+    available: av,
     binary: getOpenClawBin(),
     platform: process.platform,
     cronSystem,
     probes,
-    openclawFill: fill,
+    openclawFill: resolveOpenClawFillForSnapshot(probes, installLayout, { available: true, mockMode: false }),
     installLayout,
-    suppressDemoFill: !!(installLayout && installLayout.hasRealWorkspaceContent),
+    suppressDemoFill: false,
   };
 }
 
@@ -3480,7 +4386,21 @@ function serveApi(req, res) {
         }
         const next = applyPartialSettings(loadUserSettingsRaw(), body);
         saveUserSettings(next);
-        json(res, 200, { ok: true, settings: sanitizeSettingsForResponse(next) });
+        let envSynced = false;
+        try {
+          writeBichiUiEnvBlock(next);
+          envSynced = true;
+        } catch (e) {
+          console.error('[bichi] sincronizar .env:', e && e.message ? e.message : e);
+        }
+        const meta = restartMetaForSettingsResponse();
+        attachRestartAfterSettingsSave(res);
+        json(res, 200, {
+          ok: true,
+          settings: sanitizeSettingsForResponse(next),
+          envSynced,
+          ...meta,
+        });
       })
       .catch((e) => json(res, 400, { error: String(e && e.message ? e.message : e) }));
     return;
@@ -3542,6 +4462,11 @@ function serveApi(req, res) {
 
   if (pathname === '/api/logs') {
     const stream = u.searchParams.get('stream') || 'system';
+    if (stream === 'custom') {
+      const cid = u.searchParams.get('id') || '';
+      json(res, 200, collectCustomLog(cid));
+      return;
+    }
     const payload = stream === 'openclaw' ? collectOpenclawLogs() : collectSystemLogs();
     json(res, 200, payload);
     return;
@@ -3793,10 +4718,10 @@ server.on('error', (err) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   const distOk = fs.existsSync(path.join(DIST_DIR, 'index.html'));
-  console.log(
-    `Bichipishi  http://${PUBLIC_HOST_HINT}/  (URL recomendada: sin IP ni puerto; hosts + Caddy → config/caddy-bichipishi-prod.caddyfile)`,
-  );
-  console.log(`           http://127.0.0.1:${PORT}/  (acceso directo al proceso)`);
+  console.log(`API ${APP_DISPLAY_NAME}  http://127.0.0.1:${PORT}/`);
+  if (PUBLIC_HOST_HINT) {
+    console.log(`  (también http://${PUBLIC_HOST_HINT}/ si está en hosts — BICHI_PUBLIC_HOST en .env)`);
+  }
   console.log(`  Web estática: ${DIST_DIR}${distOk ? '' : ' (ejecuta bun run build:astro antes)'}`);
   console.log(`  Datos: ${DATA_DIR}`);
   console.log(

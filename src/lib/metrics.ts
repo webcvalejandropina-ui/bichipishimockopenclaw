@@ -69,7 +69,20 @@ function defaultEmailSubjectPrefix(): string {
   return `[${n}]`;
 }
 
+/** Log adicional en `/logs`: ruta absoluta en el servidor; `lineRegex` opcional filtra líneas. */
+export type LogStreamConfig = {
+  id: string;
+  label: string;
+  path: string;
+  lineRegex: string;
+};
+
 export type AppSettings = {
+  /** Marca en la UI (cabecera, avatar). Vacío = usar `PUBLIC_BICHI_*` del build o valores por defecto. */
+  brand?: {
+    appName?: string;
+    avatarUrl?: string;
+  };
   thresholds: {
     diskWarn: number;
     diskCrit: number;
@@ -91,10 +104,12 @@ export type AppSettings = {
     notifyMinSeverity: string;
     emailCooldownMinutes: number;
   };
+  logStreams: LogStreamConfig[];
 };
 
 /** Coincide con los valores por defecto de la API si no hay `settings.json`. */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
+  brand: { appName: '', avatarUrl: '' },
   thresholds: {
     diskWarn: 80,
     diskCrit: 95,
@@ -116,6 +131,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     notifyMinSeverity: 'warning',
     emailCooldownMinutes: 30,
   },
+  logStreams: [],
 };
 
 export type FetchSettingsResult = { settings: AppSettings; fromApi: boolean };
@@ -241,18 +257,33 @@ export async function apiPostHost(path: string, body: Record<string, unknown>): 
  * GET /api/settings. Si no hay API, se devuelven defaults; `fromApi` indica éxito contra el servidor.
  */
 export async function fetchSettings(): Promise<FetchSettingsResult> {
+  const { applySettingsBrandOverlay } = await import('./brand-runtime');
   const r = await apiFetch('/api/settings');
   if (r.ok) {
     const settings = (await r.json()) as AppSettings;
+    applySettingsBrandOverlay(settings);
     return { settings, fromApi: true };
   }
   if (r.status === 404) {
-    return { settings: cloneDefaultSettings(), fromApi: false };
+    const settings = cloneDefaultSettings();
+    applySettingsBrandOverlay(settings);
+    return { settings, fromApi: false };
   }
   throw new Error('HTTP ' + r.status);
 }
 
-export async function saveSettings(body: Partial<AppSettings>): Promise<{ ok: boolean; settings?: AppSettings }> {
+export type SaveSettingsResponse = {
+  ok: boolean;
+  settings?: AppSettings;
+  /** Bloque en `.env` raíz escrito por la API */
+  envSynced?: boolean;
+  /** La API programó reinicio (proceso único) o `BICHI_RESTART_CMD` */
+  restartScheduled?: boolean;
+  /** p. ej. modo dev con concurrently: hay que reiniciar `bun run dev` a mano */
+  restartNote?: string | null;
+};
+
+export async function saveSettings(body: Partial<AppSettings>): Promise<SaveSettingsResponse> {
   const r = await apiFetch('/api/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -338,17 +369,21 @@ export function updateHeader(data: any) {
     }
   }
 
+  const mood = openclaw && hostOk ? level : 'ok';
   const pineWrap = $('pine-avatar-wrap') as HTMLElement | null;
-  if (pineWrap) pineWrap.dataset.openclaw = openclaw ? '1' : '0';
+  if (pineWrap) {
+    pineWrap.dataset.openclaw = openclaw ? '1' : '0';
+    pineWrap.dataset.mood = mood;
+  }
 
   const pine = $('pine-avatar') as HTMLElement | null;
   if (pine) {
-    pine.dataset.mood = openclaw && hostOk ? level : 'ok';
+    pine.dataset.mood = mood;
     pine.dataset.openclaw = openclaw ? '1' : '0';
   }
   const mouth = $('pine-mouth') as HTMLElement | null;
   if (mouth) {
-    mouth.dataset.mood = openclaw && hostOk ? level : 'ok';
+    mouth.dataset.mood = mood;
     mouth.dataset.openclaw = openclaw ? '1' : '0';
   }
 

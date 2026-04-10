@@ -44,11 +44,13 @@ const brandJson = JSON.stringify(brand);
       })();
     </script>
   </head>
-  <body>
+  <body data-bichi-page={activePage}>
     <Header activePage={activePage} appName={brand.appName} />
     <script>
       import { applyBichiBrandToDocument } from '../lib/brand-runtime';
+      import { fetchSettings } from '../lib/metrics';
       applyBichiBrandToDocument();
+      void fetchSettings().catch(() => {});
     </script>
     <slot />
   </body>

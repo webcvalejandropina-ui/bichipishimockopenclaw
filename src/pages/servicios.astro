@@ -9,9 +9,9 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
 ---
 <Layout activePage="servicios">
   <div class="wrapper dk-page">
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
     <div class="page-header">
       <div class="dk-page-title-row">
-        <span class="dk-page-title-icon" set:html={iPageTitle} aria-hidden="true" />
         <div>
           <h2 class="page-title">Servicios</h2>
           <p class="page-desc">
@@ -48,7 +48,9 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
       <div class="page-stat"><span class="page-stat-value skeleton" id="ss-stopped">—</span><span class="page-stat-label">Detenidos</span></div>
     </div>
 
-    <div class="card-grid" id="svc-grid" aria-busy="true">
+    <div class="svc-fallback-note" id="svc-fallback-note" hidden></div>
+
+    <div class="card-grid card-grid--svc" id="svc-grid" aria-busy="true">
       <span class="sr-only">Obteniendo servicios del sistema</span>
       {[1, 2, 3, 4].map(() => (
         <div class="info-card info-card--skel" aria-hidden="true">
@@ -92,14 +94,21 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
 
   <script>
     import { fetchMetrics, updateHeader, metricsRepresentHost, apiPostHost } from '../lib/metrics';
-    import { serviceActivityDescription, escHtml } from '../lib/process-hints';
+    import { escHtml, serviceCatalogHint, isBoilerplateServiceDesc } from '../lib/process-hints';
     import { iconToSvg } from '../lib/lucide-svg-string';
-    import { Settings, Play, Square, RotateCw } from 'lucide';
+    import { Play, Square, RotateCw, Copy, Terminal, ChevronDown, Activity, CircleDot, Circle, Info } from 'lucide';
 
-    const iSvc = iconToSvg(Settings, { width: 18, height: 18 });
+    const iSvcActiveOn = iconToSvg(CircleDot, { width: 10, height: 10, 'stroke-width': 2 });
+    const iSvcActiveOff = iconToSvg(Circle, { width: 10, height: 10, 'stroke-width': 1.65 });
+    const iSvcRun = iconToSvg(Activity, { width: 12, height: 12, 'stroke-width': 2 });
+    const iSvcStopped = iconToSvg(Square, { width: 10, height: 10, 'stroke-width': 2 });
     const iPlay = iconToSvg(Play, { width: 18, height: 18 });
     const iStop = iconToSvg(Square, { width: 18, height: 18 });
     const iRestart = iconToSvg(RotateCw, { width: 18, height: 18 });
+    const iCopyCli = iconToSvg(Copy, { width: 16, height: 16 });
+    const iOpenTerm = iconToSvg(Terminal, { width: 16, height: 16 });
+    const iChevDown = iconToSvg(ChevronDown, { width: 14, height: 14, 'stroke-width': 2 });
+    const iSvcDesc = iconToSvg(Info, { width: 12, height: 12, 'stroke-width': 2 });
     const $ = (id: string) => document.getElementById(id)!;
     let allSvcs: any[] = [];
     let filter = 'all';
@@ -258,6 +267,7 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
               : 'Con la API en contenedor sin datos del equipo no listamos servicios del host. Usa bun run deploy.';
           $('svc-grid').innerHTML = `<div class="page-empty" style="white-space:pre-line">${escHtml(note)}</div>`;
           dataLoaded = false;
+          updateSvcFallbackNote();
           return;
         }
         allSvcs = d.services || [];
@@ -275,6 +285,8 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
         $('svc-grid').removeAttribute('aria-busy');
         $('svc-grid').innerHTML =
           '<div class="page-empty">No se pudieron cargar los servicios (¿API en marcha?)</div>';
+        dataLoaded = false;
+        updateSvcFallbackNote();
       }
     }
 
@@ -283,7 +295,25 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
       return m === 'systemd' || m === 'windows';
     }
 
+    function updateSvcFallbackNote() {
+      const fn = $('svc-fallback-note');
+      if (!dataLoaded) {
+        fn.hidden = true;
+        fn.innerHTML = '';
+        return;
+      }
+      const cliNote = String(lastSvcHost?.service?.cliNote || '').trim();
+      if (!serviceActionsAvailable() && cliNote) {
+        fn.hidden = false;
+        fn.innerHTML = `<p class="svc-fallback-note__text">${escHtml(cliNote)}</p>`;
+      } else {
+        fn.hidden = true;
+        fn.innerHTML = '';
+      }
+    }
+
     function render() {
+      updateSvcFallbackNote();
       if (!dataLoaded) return;
       $('svc-grid').removeAttribute('aria-busy');
       const search = ($('svc-search') as HTMLInputElement).value.toLowerCase();
@@ -301,13 +331,18 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
 
       $('svc-grid').innerHTML = filtered.map((s: any, i: number) => {
         const title = (s.name || '').replace(/\.service$/i, '').replace(/\.timer$/i, '');
-        const htop = serviceActivityDescription(s.name || '', s.desc);
+        const descRaw = String(s.desc || '').trim();
+        const catalogHint = serviceCatalogHint(s.name || '');
+        const subText = descRaw && !isBoilerplateServiceDesc(descRaw) ? descRaw : '';
+        let mergedDesc = '';
+        if (catalogHint) mergedDesc = catalogHint;
+        else if (subText) mergedDesc = subText;
+        else if (descRaw && !isBoilerplateServiceDesc(descRaw)) mergedDesc = descRaw;
         const rawName = String(s.name || '');
         const enc = encodeURIComponent(rawName);
         const dis = svcActionInFlight ? 'disabled' : '';
         const cmdPreview = buildSvcCliCommands(rawName, !!s.running);
         const otHelp = lastSvcHost?.service?.openTerminalHelp || '';
-        const cliNote = lastSvcHost?.service?.cliNote || '';
         const runFlag = s.running ? '1' : '0';
         const actions = ctlOk
           ? `<div class="info-card-actions dk-card-actions" role="group" aria-label="Acciones del servicio">
@@ -317,29 +352,45 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
                 : `<button type="button" class="card-action-btn card-action-btn--start" title="Iniciar servicio" aria-label="Iniciar servicio" data-svc-action="start" data-svc-name="${enc}" ${dis}>${iPlay}</button>`}
             </div>`
           : cmdPreview
-            ? `<div class="info-card-actions dk-card-actions svc-cli-fallback" role="group" aria-label="Comandos en terminal">
-                <pre class="svc-cli-snippet">${escHtml(cmdPreview)}</pre>
-                <div class="svc-cli-btns">
-                  <button type="button" class="page-filter-btn" data-svc-copy-cli data-svc-name="${enc}" data-svc-running="${runFlag}" ${dis}>Copiar comando</button>
-                  <button type="button" class="page-filter-btn" data-svc-open-terminal ${dis} title="${attrEsc(otHelp)}">Abrir Terminal</button>
-                </div>
-                ${cliNote ? `<p class="info-card-svc-hint">${escHtml(cliNote)}</p>` : ''}
-              </div>`
+            ? ''
             : `<div class="info-card-actions dk-card-actions"><span class="info-card-svc-hint">${escHtml(hint || 'Sin comandos')}</span></div>`;
+        const cliToggleBtn = cmdPreview
+          ? `<button type="button" class="svc-cli-toggle" data-svc-cli-toggle aria-expanded="false" aria-label="Mostrar comando de referencia" title="Comando de referencia" ${dis}>
+              <span class="svc-cli-toggle__chev" aria-hidden="true">${iChevDown}</span>
+            </button>`
+          : '';
+        const cliPanelHtml = cmdPreview
+          ? `<div class="svc-cli-panel" hidden data-svc-cli-panel>
+              <pre class="svc-cli-snippet">${escHtml(cmdPreview)}</pre>
+              <div class="svc-cli-fallback__toolbar">
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-svc-copy-cli data-svc-name="${enc}" data-svc-running="${runFlag}" aria-label="Copiar comando" title="Copiar comando" ${dis}>${iCopyCli}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-svc-open-terminal ${dis} aria-label="Abrir consola" title="${attrEsc(otHelp)}">${iOpenTerm}</button>
+              </div>
+            </div>`
+          : '';
+        const descBlock = mergedDesc
+          ? `<div class="info-card-svc-desc"><span class="info-card-svc-desc__icon" aria-hidden="true">${iSvcDesc}</span><span class="info-card-svc-desc__txt">${escHtml(mergedDesc)}</span></div>`
+          : `<div class="info-card-svc-desc info-card-svc-desc--empty" role="note" aria-label="Sin descripción adicional"><span class="info-card-svc-desc__icon" aria-hidden="true">${iSvcDesc}</span></div>`;
+        const runLabel = s.running ? 'Ejecutando' : 'Detenido';
+        const actLabel = s.active ? 'Activo' : 'Inactivo';
+        const runIcon = s.running ? iSvcRun : iSvcStopped;
+        const activeIcon = s.active ? iSvcActiveOn : iSvcActiveOff;
         return `
-        <div class="info-card" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
-          <div class="info-card-header">
-            <div class="info-card-icon ${s.running ? 'green' : 'red'}">${iSvc}</div>
-            <div>
-              <div class="info-card-title">${escHtml(title)}</div>
-              <div class="info-card-sub">${escHtml(s.desc || 'Unidad systemd')}</div>
+        <div class="info-card info-card--svc" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
+          <div class="info-card-header info-card-header--svc">
+            <div class="info-card-svc-top">
+              <div class="info-card-svc-text">
+                <div class="info-card-title">${escHtml(title)}</div>
+                ${descBlock}
+              </div>
+              <div class="info-card-svc-meta" role="group" aria-label="${actLabel}, ${runLabel}">
+                <span class="svc-status-active ${s.active ? 'svc-status-active--on' : 'svc-status-active--off'}" title="${actLabel}" aria-label="${actLabel}" role="status">${activeIcon}</span>
+                <span class="svc-status-run ${s.running ? 'svc-status-run--on' : 'svc-status-run--off'}" title="${runLabel}" aria-label="${runLabel}" role="status">${runIcon}</span>
+                ${cliToggleBtn}
+              </div>
             </div>
           </div>
-          <div class="info-card-htop">${escHtml(htop)}</div>
-          <div class="info-card-footer">
-            <span class="pill ${s.active ? 'pill-ok' : 'pill-crit'}">${s.active ? 'Activo' : 'Inactivo'}</span>
-            <span class="pill ${s.running ? 'pill-ok' : 'pill-crit'}">${s.running ? 'Ejecutando' : 'Detenido'}</span>
-          </div>
+          ${cliPanelHtml}
           ${actions}
         </div>`;
       }).join('');
@@ -392,6 +443,22 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
     }
 
     $('svc-grid').addEventListener('click', (ev) => {
+      const cliTgl = (ev.target as HTMLElement).closest('[data-svc-cli-toggle]') as HTMLButtonElement | null;
+      if (cliTgl && !svcActionInFlight) {
+        ev.preventDefault();
+        const card = cliTgl.closest('.info-card--svc');
+        const panel = card?.querySelector('[data-svc-cli-panel]') as HTMLElement | null;
+        if (!panel) return;
+        const willOpen = panel.hidden;
+        panel.hidden = !willOpen;
+        cliTgl.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        cliTgl.classList.toggle('is-open', willOpen);
+        cliTgl.setAttribute(
+          'aria-label',
+          willOpen ? 'Ocultar comando de referencia' : 'Mostrar comando de referencia',
+        );
+        return;
+      }
       const termBtn = (ev.target as HTMLElement).closest('[data-svc-open-terminal]') as HTMLButtonElement | null;
       if (termBtn && !svcActionInFlight) {
         ev.preventDefault();
@@ -428,10 +495,11 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
         const txt = buildSvcCliCommands(name, running);
         if (!txt) return;
         void navigator.clipboard.writeText(txt).then(() => {
-          const prev = copyBtn.textContent;
-          copyBtn.textContent = 'Copiado';
+          copyBtn.classList.add('is-copied');
+          copyBtn.setAttribute('aria-label', 'Copiado');
           window.setTimeout(() => {
-            copyBtn.textContent = prev || 'Copiar comando';
+            copyBtn.classList.remove('is-copied');
+            copyBtn.setAttribute('aria-label', 'Copiar comando');
           }, 1600);
         });
         return;
@@ -459,6 +527,5 @@ const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
     });
 
     load();
-    setInterval(load, 12000);
   </script>
 </Layout>

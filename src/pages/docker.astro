@@ -1,26 +1,44 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { Package, RefreshCw, Play, Square, RotateCw, Trash2, Copy } from 'lucide';
+import { Container, RefreshCw, Play, Square, RotateCw, Trash2, Copy, Terminal } from 'lucide';
 
 const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
+const iTerminal = iconToSvg(Terminal, { width: 16, height: 16 });
+const iPageTitle = iconToSvg(Container, { width: 22, height: 22 });
 ---
 <Layout activePage="docker">
-  <div class="wrapper dk-page">
+  <div class="wrapper dk-page page-docker">
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
     <div class="page-header">
-      <h2 class="page-title">Docker</h2>
-      <p class="page-desc">Contenedores, imágenes y volúmenes del daemon Docker del host donde corre la API.</p>
+      <div class="dk-page-title-row">
+        <div>
+          <h2 class="page-title">Docker</h2>
+          <p class="page-desc">
+            Contenedores, imágenes y volúmenes del daemon Docker del host donde corre la API. Las acciones y el listado dependen de permisos y del socket Docker expuesto a la API.
+          </p>
+        </div>
+      </div>
     </div>
 
     <div class="logs-tabs" role="tablist" aria-label="Vista Docker">
-      <button type="button" class="logs-tab active" data-dk="ctnr" role="tab" aria-selected="true">Contenedores</button>
-      <button type="button" class="logs-tab" data-dk="img" role="tab" aria-selected="false">Imágenes</button>
-      <button type="button" class="logs-tab" data-dk="vol" role="tab" aria-selected="false">Volúmenes</button>
+      <button type="button" class="logs-tab active" data-dk="ctnr" role="tab" aria-selected="true">
+        <span>Contenedores</span>
+        <span class="dk-tab-count" id="dk-tab-count-ctnr" aria-label="Total de contenedores">—</span>
+      </button>
+      <button type="button" class="logs-tab" data-dk="img" role="tab" aria-selected="false">
+        <span>Imágenes</span>
+        <span class="dk-tab-count" id="dk-tab-count-img" aria-label="Total de imágenes">—</span>
+      </button>
+      <button type="button" class="logs-tab" data-dk="vol" role="tab" aria-selected="false">
+        <span>Volúmenes</span>
+        <span class="dk-tab-count" id="dk-tab-count-vol" aria-label="Total de volúmenes">—</span>
+      </button>
     </div>
 
     <div class="page-toolbar dk-toolbar">
       <div class="dk-search-wrap">
-        <input type="text" class="page-search" id="dk-search" placeholder="Buscar…" />
+        <input type="text" class="page-search" id="dk-search" placeholder="Buscar…" title="Soporta varios términos: p. ej. api up, port:8080, cpu>50 o mem>50" />
         <button type="button" class="dk-search-clear" id="dk-search-clear" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>Limpiar</button>
       </div>
       <div class="dk-ctnr-filters" id="dk-ctnr-filters">
@@ -54,9 +72,17 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       >
         <span set:html={iRefresh} aria-hidden="true" />
       </button>
+      <span class="dk-autorefresh-dot" id="dk-autorefresh-dot" aria-hidden="true" hidden></span>
     </div>
 
     <div class="dk-meta-stack">
+      <div class="dk-presets" id="dk-presets" role="toolbar" aria-label="Filtros rápidos de Docker">
+        <button type="button" class="dk-preset" data-dk-preset-slot="0">Ver incidencias</button>
+        <button type="button" class="dk-preset" data-dk-preset-slot="1">Ver detenidos</button>
+        <button type="button" class="dk-preset" data-dk-preset-slot="2">Puerto 8080</button>
+        <button type="button" class="dk-preset" data-dk-preset-slot="3">CPU alta</button>
+        <button type="button" class="dk-preset" data-dk-preset-slot="4">RAM alta</button>
+      </div>
       <div class="dk-shortcuts" role="toolbar" aria-label="Atajos de teclado de Docker">
         <button
           type="button"
@@ -77,6 +103,30 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         <button
           type="button"
           class="dk-shortcut"
+          data-dk-shortcut="tabs"
+          title="Cambiar entre Contenedores, Imágenes y Volúmenes (teclas 1, 2 y 3)"
+        >
+          <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><span class="dk-shortcut__text">cambiar pestaña</span>
+        </button>
+        <button
+          type="button"
+          class="dk-shortcut"
+          data-dk-shortcut="autorefresh"
+          title="Pausar o reactivar el auto-refresh (tecla A)"
+        >
+          <kbd>A</kbd><span class="dk-shortcut__text">auto-refresh</span>
+        </button>
+        <button
+          type="button"
+          class="dk-shortcut"
+          data-dk-shortcut="reset"
+          title="Restablecer la vista y filtros (tecla 0)"
+        >
+          <kbd>0</kbd><span class="dk-shortcut__text">reset vista</span>
+        </button>
+        <button
+          type="button"
+          class="dk-shortcut"
           data-dk-shortcut="clear"
           title="Limpiar búsqueda o quitar foco (Escape)"
         >
@@ -85,8 +135,15 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       </div>
       <section class="dk-context" aria-label="Resumen de la vista actual">
         <p class="dk-results" id="dk-results">Cargando vista…</p>
+        <div class="dk-active-view" id="dk-active-view" aria-live="polite" hidden></div>
         <div class="dk-summary" id="dk-summary" aria-live="polite" hidden></div>
       </section>
+      <div class="dk-quick-actions" role="toolbar" aria-label="Comandos rápidos de Docker">
+        <button type="button" class="page-filter-btn" id="dk-copy-list" title="Copiar comando CLI de la vista actual">Copiar listado CLI</button>
+        <button type="button" class="page-filter-btn" id="dk-copy-diagnose" title="Copiar comando de diagnóstico de Docker">Copiar diagnóstico</button>
+        <button type="button" class="page-filter-btn" id="dk-copy-recover" title="Copiar comando para rearmar API Bun y proxy 8080">Copiar rearme local</button>
+        <button type="button" class="page-filter-btn" id="dk-copy-view-link" title="Copiar enlace con la vista actual de Docker">Copiar enlace vista</button>
+      </div>
     </div>
 
     <div class="page-stat-strip" id="dk-stats-ctnr">
@@ -114,7 +171,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     </div>
 
     <div class="logs-panel active" id="dk-panel-ctnr" role="tabpanel">
-      <div class="card-grid" id="ctnr-grid" aria-busy="true">
+      <div class="card-grid card-grid--svc" id="ctnr-grid" aria-busy="true">
         <span class="sr-only">Cargando contenedores</span>
         {[1, 2, 3, 4].map(() => (
           <div class="info-card info-card--skel" aria-hidden="true">
@@ -136,7 +193,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     </div>
 
     <div class="logs-panel" id="dk-panel-img" role="tabpanel">
-      <div class="card-grid" id="img-grid" aria-busy="true">
+      <div class="card-grid card-grid--svc" id="img-grid" aria-busy="true">
         <span class="sr-only">Cargando imágenes</span>
         {[1, 2, 3].map(() => (
           <div class="info-card info-card--skel" aria-hidden="true">
@@ -154,7 +211,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     </div>
 
     <div class="logs-panel" id="dk-panel-vol" role="tabpanel">
-      <div class="card-grid" id="vol-grid" aria-busy="true">
+      <div class="card-grid card-grid--svc" id="vol-grid" aria-busy="true">
         <span class="sr-only">Cargando volúmenes</span>
         {[1, 2, 3].map(() => (
           <div class="info-card info-card--skel" aria-hidden="true">
@@ -204,14 +261,14 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      min-height: 38px;
-      padding: 0 12px;
+      min-height: 32px;
+      padding: 0 10px;
       border: 1px solid var(--border);
       border-radius: 999px;
       background: var(--bg-card);
       color: var(--text-soft);
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 11px;
+      font-weight: 600;
       font-family: var(--font-display);
     }
     .dk-filter-count {
@@ -230,6 +287,26 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       font-variant-numeric: tabular-nums;
       line-height: 1;
     }
+    .dk-tab-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 20px;
+      padding: 0 7px;
+      margin-left: 8px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--text) 9%, transparent);
+      color: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      opacity: 0.92;
+    }
+    .logs-tab.active .dk-tab-count {
+      background: color-mix(in srgb, currentColor 14%, transparent);
+    }
     .dk-sort-label {
       color: var(--muted);
       white-space: nowrap;
@@ -239,7 +316,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       background: transparent;
       color: var(--text);
       font: inherit;
-      font-weight: 800;
+      font-weight: 600;
       min-width: 96px;
       outline: none;
       cursor: pointer;
@@ -282,24 +359,56 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       gap: 12px;
       margin: 4px 0 14px;
     }
+    .dk-presets,
     .dk-shortcuts {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
     }
+    .dk-preset {
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--accent) 8%, var(--bg-card));
+      color: var(--text-soft);
+      font: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-display);
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.12s ease;
+    }
+    .dk-preset:hover {
+      background: color-mix(in srgb, var(--accent) 16%, var(--bg-card));
+      border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+      color: var(--text);
+    }
+    .dk-preset:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .dk-preset:active {
+      transform: scale(0.98);
+    }
     .dk-shortcut {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
+      gap: 6px;
+      padding: 5px 10px;
       margin: 0;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--bg-card);
       color: var(--text-soft);
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 11px;
+      font-weight: 600;
       font-family: var(--font-display);
       letter-spacing: 0.02em;
       box-shadow: var(--shadow-card);
@@ -346,6 +455,16 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       font-variant-numeric: tabular-nums;
       box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--text) 10%, transparent);
     }
+    .dk-quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .dk-quick-actions .page-filter-btn {
+      min-height: 32px;
+    }
     .dk-context {
       padding: 14px 16px;
       border-radius: 14px;
@@ -355,6 +474,61 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       display: flex;
       flex-direction: column;
       gap: 12px;
+    }
+    .dk-active-view {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .dk-active-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      min-height: 28px;
+      padding: 0 6px 0 10px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+      background: color-mix(in srgb, var(--accent) 10%, var(--bg-card));
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-display);
+      letter-spacing: 0.01em;
+    }
+    .dk-active-pill__label {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .dk-active-pill__value {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dk-active-pill__close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border: 0;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--text) 10%, transparent);
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.12s ease;
+    }
+    .dk-active-pill__close:hover {
+      background: color-mix(in srgb, var(--text) 16%, transparent);
+    }
+    .dk-active-pill__close:active {
+      transform: scale(0.96);
     }
     .dk-page .logs-panel:not(.active) {
       display: none;
@@ -443,6 +617,139 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     .info-card[data-busy='true'] {
       opacity: 0.72;
     }
+    /* Metadatos: línea principal + chips de aviso (sin mezclar todo en un párrafo) */
+    .dk-svc-meta {
+      align-items: flex-start;
+    }
+    .dk-svc-meta .dk-svc-meta__stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      flex: 1;
+    }
+    .dk-svc-meta__line {
+      margin: 0;
+      font: inherit;
+      line-height: 1.42;
+      color: inherit;
+    }
+    .dk-svc-meta__badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+    .dk-svc-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 9px;
+      font-weight: 600;
+      font-family: var(--font-display);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1.2;
+      border: 1px solid transparent;
+    }
+    .dk-svc-badge--info {
+      color: color-mix(in srgb, var(--accent2) 70%, var(--muted));
+      background: color-mix(in srgb, var(--accent2) 8%, transparent);
+      border-color: color-mix(in srgb, var(--accent2) 22%, var(--border));
+    }
+    .dk-svc-badge--warn {
+      color: color-mix(in srgb, var(--warn) 85%, var(--text));
+      background: color-mix(in srgb, var(--warn) 9%, transparent);
+      border-color: color-mix(in srgb, var(--warn) 28%, var(--border));
+    }
+    .dk-svc-badge--crit {
+      color: color-mix(in srgb, var(--crit) 88%, var(--text));
+      background: color-mix(in srgb, var(--crit) 8%, transparent);
+      border-color: color-mix(in srgb, var(--crit) 26%, var(--border));
+    }
+
+    .dk-metric-bars {
+      margin-top: 4px;
+      padding: 8px 0 0;
+      border-top: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+      background: transparent;
+    }
+    .dk-metric-bars__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+      gap: 8px 12px;
+      align-items: start;
+    }
+    .dk-metric-cell {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .dk-metric-cell__head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .dk-metric-cell__k {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .dk-metric-cell__val {
+      font-size: 11px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: color-mix(in srgb, var(--text-soft) 88%, var(--muted));
+    }
+    .dk-metric-bar__track {
+      width: 100%;
+      height: 3px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--text) 7%, transparent);
+      overflow: hidden;
+    }
+    .dk-metric-bar__fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--accent);
+      transition: width 0.4s ease;
+    }
+    .dk-metric-bar__fill--mid {
+      background: color-mix(in srgb, var(--warn) 70%, var(--accent));
+    }
+    .dk-metric-bar__fill--warn {
+      background: var(--crit);
+    }
+    .dk-autorefresh-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+      animation: dk-pulse 2s ease-in-out infinite;
+    }
+    .dk-autorefresh-dot[data-loading='true'] {
+      animation: dk-spin 0.7s linear infinite;
+      border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+      border-top-color: var(--accent);
+      background: transparent;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+    @keyframes dk-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    @keyframes dk-spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 
   <script>
@@ -454,19 +761,53 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       updateHeader,
     } from '../lib/metrics';
     import { iconToSvg } from '../lib/lucide-svg-string';
-    import { Package, Layers, Database, Play, Square, RotateCw, Trash2, Copy } from 'lucide';
+    import {
+      Play,
+      Square,
+      RotateCw,
+      Trash2,
+      Copy,
+      Terminal,
+      Info,
+      ChevronDown,
+      Activity,
+      CircleDot,
+      Circle,
+    } from 'lucide';
     import { escHtml } from '../lib/process-hints';
 
-    const iPkg = iconToSvg(Package, { width: 18, height: 18 });
-    const iLayers = iconToSvg(Layers, { width: 18, height: 18 });
-    const iVol = iconToSvg(Database, { width: 18, height: 18 });
-    const iPlay = iconToSvg(Play, { width: 18, height: 18 });
-    const iStop = iconToSvg(Square, { width: 18, height: 18 });
-    const iRestart = iconToSvg(RotateCw, { width: 18, height: 18 });
-    const iTrash = iconToSvg(Trash2, { width: 18, height: 18 });
-    const iCopy = iconToSvg(Copy, { width: 14, height: 14 });
+    const iSvcRun = iconToSvg(Activity, { width: 12, height: 12, 'stroke-width': 2 });
+    const iSvcStopped = iconToSvg(Square, { width: 10, height: 10, 'stroke-width': 2 });
+    const iSvcActiveOn = iconToSvg(CircleDot, { width: 10, height: 10, 'stroke-width': 2 });
+    const iSvcActiveOff = iconToSvg(Circle, { width: 10, height: 10, 'stroke-width': 1.65 });
+    const iChevDown = iconToSvg(ChevronDown, { width: 14, height: 14, 'stroke-width': 2 });
+    const iPlay = iconToSvg(Play, { width: 15, height: 15 });
+    const iStop = iconToSvg(Square, { width: 15, height: 15 });
+    const iRestart = iconToSvg(RotateCw, { width: 15, height: 15 });
+    const iTrash = iconToSvg(Trash2, { width: 15, height: 15 });
+    const iTerminal = iconToSvg(Terminal, { width: 15, height: 15 });
+    const iInfo = iconToSvg(Info, { width: 12, height: 12, 'stroke-width': 2 });
+    const iCopyCli = iconToSvg(Copy, { width: 15, height: 15 });
 
     const $ = (id: string) => document.getElementById(id)!;
+
+    function handleDkCliToggle(ev: MouseEvent): boolean {
+      const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('[data-dk-cli-toggle]');
+      if (!btn || actionInFlight) return false;
+      ev.preventDefault();
+      const card = btn.closest('.info-card--svc');
+      const panel = card?.querySelector<HTMLElement>('[data-dk-cli-panel]');
+      if (!panel) return false;
+      const willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      btn.classList.toggle('is-open', willOpen);
+      btn.setAttribute(
+        'aria-label',
+        willOpen ? 'Ocultar comandos de referencia' : 'Mostrar comandos de referencia',
+      );
+      return true;
+    }
 
     let dockerModalResolve: ((v: 'confirm' | 'cancel') => void) | null = null;
     let dockerModalPrevFocus: HTMLElement | null = null;
@@ -598,6 +939,35 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     let sortBy: 'status' | 'cpu' | 'mem' | 'name' | 'ports' | 'created' | 'size' = 'status';
     const storageKey = 'bichipishi:docker:view';
     const staleRefreshMs = 30000;
+    const defaultTab: 'ctnr' | 'img' | 'vol' = 'ctnr';
+    const defaultFilter = 'all';
+
+    function currentSearchValue() {
+      return (($('dk-search') as HTMLInputElement)?.value || '').trim();
+    }
+
+    function viewStateToQueryString() {
+      const params = new URLSearchParams();
+      const search = currentSearchValue();
+      const defaultSort = defaultSortForTab(tab);
+      if (tab !== defaultTab) params.set('t', tab);
+      if (tab === 'ctnr' && filter !== defaultFilter) params.set('f', filter);
+      if (sortBy !== defaultSort) params.set('s', sortBy);
+      if (search) params.set('q', search);
+      if (!autoRefreshEnabled) params.set('auto', 'off');
+      return params.toString();
+    }
+
+    function syncViewUrl() {
+      if (typeof window === 'undefined') return;
+      try {
+        const qs = viewStateToQueryString();
+        const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`;
+        window.history.replaceState(null, '', next);
+      } catch {
+        // ignore URL sync failures
+      }
+    }
 
     function defaultSortForTab(nextTab: 'ctnr' | 'img' | 'vol') {
       return nextTab === 'ctnr' ? 'status' : nextTab === 'img' ? 'created' : 'name';
@@ -618,31 +988,53 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       } catch {
         // ignore storage failures
       }
+      syncViewUrl();
+    }
+
+    function applyViewState(state: Record<string, unknown>) {
+      if (state.tab === 'ctnr' || state.tab === 'img' || state.tab === 'vol') {
+        tab = state.tab;
+      }
+      if (['all', 'up', 'down', 'ports', 'issues', 'hot'].includes(String(state.filter || ''))) {
+        filter = String(state.filter);
+      }
+      if (typeof state.autoRefreshEnabled === 'boolean') {
+        autoRefreshEnabled = state.autoRefreshEnabled;
+      }
+      if (['status', 'cpu', 'mem', 'name', 'ports', 'created', 'size'].includes(String(state.sortBy || ''))) {
+        sortBy = String(state.sortBy) as typeof sortBy;
+      }
+      if (typeof state.search === 'string') {
+        ($('dk-search') as HTMLInputElement).value = state.search;
+      }
     }
 
     function restoreViewState() {
       try {
+        const params = new URLSearchParams(window.location.search);
+        const hasQueryState = ['t', 'f', 's', 'q', 'auto'].some((key) => params.has(key));
+        if (hasQueryState) {
+          applyViewState({
+            tab: params.get('t') || undefined,
+            filter: params.get('f') || undefined,
+            sortBy: params.get('s') || undefined,
+            search: params.get('q') || '',
+            autoRefreshEnabled: params.get('auto') === 'off' ? false : undefined,
+          });
+          syncViewUrl();
+          return;
+        }
+      } catch {
+        // ignore malformed URL state
+      }
+      try {
         const raw = localStorage.getItem(storageKey);
         if (!raw) return;
-        const state = JSON.parse(raw);
-        if (state.tab === 'ctnr' || state.tab === 'img' || state.tab === 'vol') {
-          tab = state.tab;
-        }
-        if (['all', 'up', 'down', 'ports', 'issues', 'hot'].includes(state.filter)) {
-          filter = state.filter;
-        }
-        if (typeof state.autoRefreshEnabled === 'boolean') {
-          autoRefreshEnabled = state.autoRefreshEnabled;
-        }
-        if (['status', 'cpu', 'mem', 'name', 'ports', 'created', 'size'].includes(state.sortBy)) {
-          sortBy = state.sortBy;
-        }
-        if (typeof state.search === 'string') {
-          ($('dk-search') as HTMLInputElement).value = state.search;
-        }
+        applyViewState(JSON.parse(raw));
       } catch {
         // ignore malformed storage
       }
+      syncViewUrl();
     }
 
     function fmtBytes(n: number) {
@@ -693,6 +1085,26 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       return `hace ${hr} h`;
     }
 
+    /** Parsea "Up 2 hours" o "Up 2 hours (unhealthy)" y devuelve "2h 30m" o "2d". */
+    function fmtContainerDuration(status: string): string {
+      if (!status) return '';
+      const lower = status.toLowerCase();
+      if (!lower.startsWith('up ')) return '';
+      // Extrae la parte antes de paréntesis
+      const main = lower.split('(')[0].trim(); // "up 2 hours"
+      const match = main.match(/up\s+(?:(\d+)\s*d(?:ays?)?)?\s*(?:(\d+)\s*h(?:(?:ou)?rs?)?)?\s*(?:(\d+)\s*m(?:in(?:ute)?s?)?)?/i);
+      if (!match) return '';
+      const [, days, hours, mins] = match;
+      const d = days ? parseInt(days) : 0;
+      const h = hours ? parseInt(hours) : 0;
+      const m = mins ? parseInt(mins) : 0;
+      if (d > 0) return `${d}d`;
+      if (h > 0 && m > 0) return `${h}h ${m}m`;
+      if (h > 0) return `${h}h`;
+      if (m > 0) return `${m}m`;
+      return '';
+    }
+
     function updateFreshnessState() {
       const box = $('dk-feedback');
       if (!lastLoadedAt) {
@@ -716,6 +1128,8 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       syncSortUi();
       syncAutoRefreshUi();
       syncResetViewUi();
+      syncPresetUi();
+      updateActiveViewChips();
     }
 
     function setFeedback(status: string, meta = '') {
@@ -752,6 +1166,57 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         .join('');
     }
 
+    function updateActiveViewChips() {
+      const box = $('dk-active-view');
+      const chips: Array<{ key: string; label: string; value: string }> = [];
+      const search = (($('dk-search') as HTMLInputElement)?.value || '').trim();
+      chips.push({
+        key: 'tab',
+        label: 'Vista',
+        value: tab === 'ctnr' ? 'Contenedores' : tab === 'img' ? 'Imágenes' : 'Volúmenes',
+      });
+      if (tab === 'ctnr' && filter !== 'all') {
+        const filterLabels: Record<string, string> = {
+          up: 'En marcha',
+          down: 'Detenidos',
+          ports: 'Con puertos',
+          issues: 'Con incidencias',
+          hot: 'Calientes',
+        };
+        chips.push({ key: 'filter', label: 'Filtro', value: filterLabels[filter] || filter });
+      }
+      if (search) chips.push({ key: 'search', label: 'Búsqueda', value: search });
+      if (sortBy !== defaultSortForTab(tab)) {
+        const sortLabels: Record<string, string> = {
+          status: 'Estado',
+          cpu: 'CPU ↓',
+          mem: 'RAM ↓',
+          name: 'Nombre A-Z',
+          ports: 'Puertos',
+          created: 'Fecha ↓',
+          size: 'Tamaño ↓',
+        };
+        chips.push({ key: 'sort', label: 'Orden', value: sortLabels[sortBy] || sortBy });
+      }
+      if (!autoRefreshEnabled) chips.push({ key: 'auto', label: 'Auto', value: hiddenAutoPause ? 'Pausado por pestaña oculta' : 'OFF' });
+
+      if (chips.length <= 1) {
+        box.hidden = true;
+        box.innerHTML = '';
+        return;
+      }
+
+      box.hidden = false;
+      box.innerHTML = chips
+        .map((chip) => {
+          if (chip.key === 'tab') {
+            return `<span class="dk-active-pill"><span class="dk-active-pill__label">${escHtml(chip.label)}</span><span class="dk-active-pill__value">${escHtml(chip.value)}</span></span>`;
+          }
+          return `<span class="dk-active-pill"><span class="dk-active-pill__label">${escHtml(chip.label)}</span><span class="dk-active-pill__value">${escHtml(chip.value)}</span><button type="button" class="dk-active-pill__close" data-dk-dismiss-view="${escHtml(chip.key)}" aria-label="Quitar ${escHtml(chip.label.toLowerCase())}" title="Quitar ${escHtml(chip.label.toLowerCase())}">×</button></span>`;
+        })
+        .join('');
+    }
+
     function syncAutoRefreshUi() {
       const btn = $('dk-autorefresh') as HTMLButtonElement;
       btn.textContent = `Auto: ${autoRefreshEnabled ? 'ON' : 'OFF'}`;
@@ -760,6 +1225,117 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       btn.title = autoRefreshEnabled
         ? 'La vista se actualiza sola cada 15 segundos'
         : 'La vista no se actualizará sola hasta reactivarlo';
+      const dot = $('dk-autorefresh-dot');
+      dot.hidden = false;
+      dot.dataset.loading = 'false';
+    }
+
+    function getRecoverCommand() {
+      return [
+        'cd /home/openclaw_vps/.openclaw/workspace/bichipishimockopenclaw',
+        "pkill -f 'bun metrics-api/server.js' || true",
+        "pkill -f 'python3 proxy-server.py' || true",
+        'nohup bun metrics-api/server.js > .run/bun-start.out 2>&1 & echo $! > .run/bun-start.pid',
+        'nohup python3 proxy-server.py > .run/proxy-server.out 2>&1 & echo $! > .run/proxy-server.pid',
+        'sleep 2',
+        'curl -fsS http://127.0.0.1:3001/api/metrics >/dev/null && curl -fsS http://127.0.0.1:8080/api/metrics >/dev/null && echo OK || echo FAIL',
+      ].join(' && ');
+    }
+
+    function getQuickCommands() {
+      if (tab === 'img') {
+        return {
+          listLabel: 'Copiar listado de imágenes',
+          listCommand: 'docker image ls --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"',
+          diagLabel: 'Copiar uso en disco de Docker',
+          diagCommand: 'docker system df -v',
+          recoverLabel: 'Copiar rearme local de Bun + proxy',
+          recoverCommand: getRecoverCommand(),
+        };
+      }
+      if (tab === 'vol') {
+        return {
+          listLabel: 'Copiar listado de volúmenes',
+          listCommand: 'docker volume ls --format "table {{.Name}}\t{{.Driver}}\t{{.Scope}}"',
+          diagLabel: 'Copiar inspección de uso de Docker',
+          diagCommand: 'docker system df -v',
+          recoverLabel: 'Copiar rearme local de Bun + proxy',
+          recoverCommand: getRecoverCommand(),
+        };
+      }
+      return {
+        listLabel: 'Copiar listado de contenedores',
+        listCommand: 'docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"',
+        diagLabel: 'Copiar snapshot de consumo',
+        diagCommand: 'docker stats --no-stream',
+        recoverLabel: 'Copiar rearme local de Bun + proxy',
+        recoverCommand: getRecoverCommand(),
+      };
+    }
+
+    function syncQuickActionsUi() {
+      const cmds = getQuickCommands();
+      const listBtn = $('dk-copy-list') as HTMLButtonElement;
+      const diagBtn = $('dk-copy-diagnose') as HTMLButtonElement;
+      const recoverBtn = $('dk-copy-recover') as HTMLButtonElement;
+      listBtn.textContent = tab === 'ctnr' ? 'Copiar listado CLI' : tab === 'img' ? 'Copiar imágenes CLI' : 'Copiar volúmenes CLI';
+      diagBtn.textContent = tab === 'ctnr' ? 'Copiar diagnóstico' : 'Copiar uso disco';
+      recoverBtn.textContent = 'Copiar rearme local';
+      listBtn.title = cmds.listLabel;
+      diagBtn.title = cmds.diagLabel;
+      recoverBtn.title = cmds.recoverLabel;
+      listBtn.setAttribute('aria-label', cmds.listLabel);
+      diagBtn.setAttribute('aria-label', cmds.diagLabel);
+      recoverBtn.setAttribute('aria-label', cmds.recoverLabel);
+    }
+
+    function getPresetConfigs() {
+      if (tab === 'img') {
+        return [
+          { label: 'Sin etiqueta', value: 'dangling' },
+          { label: 'En uso', value: 'inuse' },
+          { label: 'Sin usar', value: 'unused' },
+          { label: 'Tag latest', value: 'latest' },
+          { label: 'Repo bichi', value: 'bichi' },
+        ];
+      }
+      if (tab === 'vol') {
+        return [
+          { label: 'En uso', value: 'inuse' },
+          { label: 'Libres', value: 'unused' },
+          { label: 'Driver local', value: 'driver:local' },
+          { label: 'Mount data', value: 'mount:/data' },
+          { label: 'Mount var/lib', value: 'mount:/var/lib' },
+        ];
+      }
+      return [
+        { label: 'Ver incidencias', value: 'issue:true' },
+        { label: 'Ver detenidos', value: 'status:down' },
+        { label: 'Puerto 8080', value: 'port:8080' },
+        { label: 'CPU alta', value: 'cpu>50' },
+        { label: 'RAM alta', value: 'mem>50' },
+      ];
+    }
+
+    function syncPresetUi() {
+      const box = $('dk-presets');
+      const configs = getPresetConfigs();
+      box.setAttribute('aria-label', tab === 'ctnr' ? 'Filtros rápidos de Docker' : tab === 'img' ? 'Búsquedas rápidas de imágenes Docker' : 'Búsquedas rápidas de volúmenes Docker');
+      document.querySelectorAll<HTMLButtonElement>('#dk-presets [data-dk-preset-slot]').forEach((btn, idx) => {
+        const cfg = configs[idx];
+        if (!cfg) {
+          btn.hidden = true;
+          btn.disabled = true;
+          btn.textContent = '';
+          delete btn.dataset.dkPreset;
+          return;
+        }
+        btn.hidden = false;
+        btn.disabled = false;
+        btn.textContent = cfg.label;
+        btn.dataset.dkPreset = cfg.value;
+        btn.title = `Aplicar filtro rápido: ${cfg.value}`;
+      });
     }
 
     function syncSearchUi() {
@@ -786,15 +1362,38 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       return filter !== 'all' || sortBy !== defaultSortForTab(tab) || Boolean(search) || !autoRefreshEnabled;
     }
 
+    function getCustomViewStateCount() {
+      const search = (($('dk-search') as HTMLInputElement)?.value || '').trim();
+      let total = 0;
+      if (filter !== 'all') total += 1;
+      if (sortBy !== defaultSortForTab(tab)) total += 1;
+      if (search) total += 1;
+      if (!autoRefreshEnabled) total += 1;
+      return total;
+    }
+
+    function getResetViewLabel() {
+      const count = getCustomViewStateCount();
+      return count > 1 ? `Limpiar vista (${count})` : 'Limpiar vista';
+    }
+
     function syncResetViewUi() {
-      $('dk-reset-view').hidden = !hasCustomViewState();
+      const btn = $('dk-reset-view') as HTMLButtonElement;
+      const hasCustom = hasCustomViewState();
+      btn.hidden = !hasCustom;
+      btn.textContent = getResetViewLabel();
+      btn.title = hasCustom
+        ? 'Quitar búsqueda, filtros, orden personalizado y volver al auto-refresh si estaba pausado'
+        : 'No hay cambios de vista activos';
+      btn.setAttribute('aria-label', hasCustom ? `${getResetViewLabel()} y volver al estado por defecto` : 'Sin cambios de vista activos');
     }
 
     function renderEmptyState(message: string) {
       const showReset = hasCustomViewState();
+      const resetLabel = getResetViewLabel();
       return `<div class="page-empty" style="grid-column:1/-1;display:grid;gap:10px;justify-items:start">
         <span>${escHtml(message)}</span>
-        ${showReset ? '<button type="button" class="page-filter-btn" data-dk-empty-reset="true">Limpiar vista y volver</button>' : ''}
+        ${showReset ? `<button type="button" class="page-filter-btn" data-dk-empty-reset="true">${escHtml(resetLabel)} y volver</button>` : ''}
       </div>`;
     }
 
@@ -809,6 +1408,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       syncSortUi();
       syncAutoRefreshUi();
       syncResetViewUi();
+      updateActiveViewChips();
       saveViewState();
       setFeedback('Vista Docker restablecida', lastLoadedAt ? `Última actualización ${fmtClock(lastLoadedAt)}` : 'Listo para volver a filtrar');
       updateFreshnessState();
@@ -1039,6 +1639,12 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       e.classList.remove('skeleton');
     }
 
+    function setTabCount(id: string, v: number) {
+      const e = $(id);
+      e.textContent = String(v);
+      e.classList.remove('skeleton');
+    }
+
     function showTab(next: 'ctnr' | 'img' | 'vol') {
       tab = next;
       document.querySelectorAll<HTMLButtonElement>('.dk-page .logs-tab').forEach((b) => {
@@ -1061,11 +1667,18 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 
       const ph =
         next === 'ctnr'
-          ? 'Buscar contenedor…'
+          ? 'Buscar contenedor, puerto, status:up, cpu>50…'
           : next === 'img'
-            ? 'Buscar imagen o ID…'
-            : 'Buscar volumen…';
-      ($('dk-search') as HTMLInputElement).placeholder = ph;
+            ? 'Buscar imagen, tag o ID…'
+            : 'Buscar volumen, driver o mountpoint…';
+      const searchInput = $('dk-search') as HTMLInputElement;
+      searchInput.placeholder = ph;
+      searchInput.title =
+        next === 'ctnr'
+          ? 'Admite varios términos y filtros rápidos: api up · status:down · port:8080 · cpu>50 · mem>50 · issue:true'
+          : next === 'img'
+            ? 'Admite varios términos: repo tag ID (p. ej. python latest)'
+            : 'Admite varios términos: nombre driver mountpoint';
       if (next === 'img' && ['status', 'cpu', 'mem', 'ports'].includes(sortBy)) {
         sortBy = 'created';
       }
@@ -1077,6 +1690,9 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       }
       syncSortUi();
       syncResetViewUi();
+      syncQuickActionsUi();
+      syncPresetUi();
+      updateActiveViewChips();
       saveViewState();
 
       render();
@@ -1088,9 +1704,28 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       });
     }
 
-    function hasContainerIssues(item: any) {
+    function getContainerIssueSignals(item: any, opts?: { omitLoadHints?: boolean }) {
       const status = String(item?.status || '').toLowerCase();
-      return !status.includes('up') || status.includes('unhealthy') || status.includes('restarting') || status.includes('dead') || status.includes('failed') || status.includes('exit');
+      const cpu = Number(item?.cpu) || 0;
+      const mem = Number(item?.mem) || 0;
+      const signals: Array<{ label: string; tone: 'crit' | 'warn' | 'info' }> = [];
+
+      if (!status.includes('up') && !/(exit|dead|stopped|created)/.test(status)) {
+        signals.push({ label: 'Detenido', tone: 'crit' });
+      }
+      if (status.includes('unhealthy')) signals.push({ label: 'Unhealthy', tone: 'crit' });
+      if (status.includes('restarting')) signals.push({ label: 'Reiniciando', tone: 'warn' });
+      if (status.includes('dead') || status.includes('failed') || status.includes('exit')) signals.push({ label: 'Fallo reciente', tone: 'crit' });
+      if (!opts?.omitLoadHints) {
+        if (cpu >= 70) signals.push({ label: 'CPU alta', tone: 'warn' });
+        if (mem >= 80) signals.push({ label: 'RAM alta', tone: 'warn' });
+      }
+
+      return signals.slice(0, 4);
+    }
+
+    function hasContainerIssues(item: any) {
+      return getContainerIssueSignals(item).some((signal) => signal.tone !== 'info');
     }
 
     function updateContainerFilterCounts(items: any[]) {
@@ -1124,6 +1759,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     async function load(fromAction = false) {
       try {
         if (!fromAction) {
+          $('dk-autorefresh-dot').dataset.loading = 'true';
           setFeedback('Actualizando estado Docker…', actionInFlight ? 'Hay una acción en curso' : 'Consultando API local');
         }
         const d = await fetchMetrics();
@@ -1136,6 +1772,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         setStat('ds-total', String(allCtrs.length));
         setStat('ds-up', String(ups.length));
         setStat('ds-down', String(allCtrs.length - ups.length));
+        setTabCount('dk-tab-count-ctnr', allCtrs.length);
         updateContainerFilterCounts(allCtrs);
 
         const totalBytes = Number(d.dockerImagesTotalBytes) || 0;
@@ -1145,15 +1782,18 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         setStat('is-inuse', String(imgsInUse));
         setStat('is-size', fmtBytes(totalBytes));
         setStat('is-dangling', String(dangling));
+        setTabCount('dk-tab-count-img', allImgs.length);
 
         const drivers = [...new Set(allVols.map((v: any) => v.driver || 'local'))];
         const volsInUse = allVols.filter((v: any) => v.inUse).length;
         setStat('vs-total', String(allVols.length));
         setStat('vs-inuse', String(volsInUse));
         setStat('vs-drivers', drivers.length ? drivers.slice(0, 3).join(', ') + (drivers.length > 3 ? '…' : '') : '—');
+        setTabCount('dk-tab-count-vol', allVols.length);
 
         lastLoadedAt = Date.now();
         dataLoaded = true;
+        $('dk-autorefresh-dot').dataset.loading = 'false';
         setFeedback(
           `Estado Docker al día · ${allCtrs.filter((c: any) => c.status?.toLowerCase().includes('up')).length}/${allCtrs.length} contenedores activos`,
           `Última actualización ${fmtClock(lastLoadedAt)}`,
@@ -1172,12 +1812,119 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       }
     }
 
+    function matchesAllTerms(haystack: string, query: string) {
+      if (!query) return true;
+      const terms = query
+        .split(/\s+/)
+        .map((term) => term.trim().toLowerCase())
+        .filter(Boolean);
+      if (!terms.length) return true;
+      return terms.every((term) => haystack.includes(term));
+    }
+
     function matchesContainerSearch(item: any, query: string) {
       if (!query) return true;
-      const hay = [item?.name, item?.status, item?.ports]
+      const hay = [
+        item?.name,
+        item?.status,
+        item?.ports,
+        item?.cpu != null ? `${item.cpu}% cpu` : '',
+        item?.mem != null ? `${item.mem}% ram` : '',
+      ]
         .map((value) => String(value || '').toLowerCase())
         .join(' ');
-      return hay.includes(query);
+      const terms = query
+        .split(/\s+/)
+        .map((term) => term.trim().toLowerCase())
+        .filter(Boolean);
+      if (!terms.length) return true;
+      const status = String(item?.status || '').toLowerCase();
+      const ports = String(item?.ports || '').toLowerCase();
+      const cpu = Number(item?.cpu || 0);
+      const mem = Number(item?.mem || 0);
+      const hasIssues = hasContainerIssues(item);
+      const isUp = status.includes('up');
+      const hasPublishedPorts = Boolean(ports && ports !== '—' && ports !== 'sin puertos expuestos');
+
+      return terms.every((term) => {
+        if (term === 'up' || term === 'running') return isUp;
+        if (term === 'down' || term === 'stopped' || term === 'detenido') return !isUp;
+        if (term === 'issue:true' || term === 'issues:true' || term === 'incidencia' || term === 'incidencias') return hasIssues;
+        if (term === 'hot:true' || term === 'caliente') return cpu >= 50 || mem >= 50;
+        if (term === 'ports:true' || term === 'con-puertos') return hasPublishedPorts;
+        if (term.startsWith('status:')) {
+          const wanted = term.slice(7);
+          if (wanted === 'up' || wanted === 'running') return isUp;
+          if (wanted === 'down' || wanted === 'stopped') return !isUp;
+          return status.includes(wanted);
+        }
+        if (term.startsWith('port:')) {
+          const wanted = term.slice(5);
+          return wanted ? ports.includes(wanted) : true;
+        }
+        const cpuMatch = term.match(/^cpu(>=|<=|>|<|=)(\d+(?:\.\d+)?)$/);
+        if (cpuMatch) {
+          const [, op, raw] = cpuMatch;
+          const limit = Number(raw);
+          return op === '>' ? cpu > limit : op === '<' ? cpu < limit : op === '>=' ? cpu >= limit : op === '<=' ? cpu <= limit : cpu === limit;
+        }
+        const memMatch = term.match(/^(?:mem|ram)(>=|<=|>|<|=)(\d+(?:\.\d+)?)$/);
+        if (memMatch) {
+          const [, op, raw] = memMatch;
+          const limit = Number(raw);
+          return op === '>' ? mem > limit : op === '<' ? mem < limit : op === '>=' ? mem >= limit : op === '<=' ? mem <= limit : mem === limit;
+        }
+        return hay.includes(term);
+      });
+    }
+
+    function matchesImageSearch(item: any, query: string) {
+      if (!query) return true;
+      const tags = Array.isArray(item?.tags) ? item.tags : [];
+      const hay = [item?.repo, item?.id, item?.sizeLabel, ...tags].map((value) => String(value || '').toLowerCase()).join(' ');
+      const terms = query
+        .split(/\s+/)
+        .map((term) => term.trim().toLowerCase())
+        .filter(Boolean);
+      if (!terms.length) return true;
+      const repo = String(item?.repo || '').toLowerCase();
+      const id = String(item?.id || '').toLowerCase();
+      const inUse = Boolean(item?.inUse);
+      const dangling = repo === '<sin etiqueta>';
+
+      return terms.every((term) => {
+        if (term === 'inuse' || term === 'in-use' || term === 'en-uso') return inUse;
+        if (term === 'unused' || term === 'sin-uso' || term === 'libre') return !inUse;
+        if (term === 'dangling' || term === 'untagged' || term === 'sin-etiqueta') return dangling;
+        if (term.startsWith('repo:')) return repo.includes(term.slice(5));
+        if (term.startsWith('id:')) return id.includes(term.slice(3));
+        if (term.startsWith('tag:')) {
+          const wanted = term.slice(4);
+          return wanted ? tags.some((tag: string) => String(tag || '').toLowerCase().includes(wanted)) : true;
+        }
+        return hay.includes(term);
+      });
+    }
+
+    function matchesVolumeSearch(item: any, query: string) {
+      if (!query) return true;
+      const hay = [item?.name, item?.driver, item?.mountpoint].map((value) => String(value || '').toLowerCase()).join(' ');
+      const terms = query
+        .split(/\s+/)
+        .map((term) => term.trim().toLowerCase())
+        .filter(Boolean);
+      if (!terms.length) return true;
+      const driver = String(item?.driver || '').toLowerCase();
+      const mountpoint = String(item?.mountpoint || '').toLowerCase();
+      const inUse = Boolean(item?.inUse);
+
+      return terms.every((term) => {
+        if (term === 'inuse' || term === 'in-use' || term === 'en-uso') return inUse;
+        if (term === 'unused' || term === 'sin-uso' || term === 'libre') return !inUse;
+        if (term.startsWith('driver:')) return driver.includes(term.slice(7));
+        if (term.startsWith('mount:')) return mountpoint.includes(term.slice(6));
+        return hay.includes(term);
+      });
     }
 
     function render() {
@@ -1236,12 +1983,20 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         }).length;
         const visibleIssues = filtered.filter((c: any) => hasContainerIssues(c)).length;
         const visibleHot = filtered.filter((c: any) => Number(c.cpu) >= 50 || Number(c.mem) >= 50).length;
+        const avgCpuVisible = filtered.length
+          ? Math.round((filtered.reduce((sum: number, c: any) => sum + (Number(c.cpu) || 0), 0) / filtered.length) * 10) / 10
+          : 0;
+        const avgMemVisible = filtered.length
+          ? Math.round((filtered.reduce((sum: number, c: any) => sum + (Number(c.mem) || 0), 0) / filtered.length) * 10) / 10
+          : 0;
         setSummary([
           { label: 'en marcha', value: visibleUp, tone: visibleUp ? 'ok' : 'info', filterKey: 'up' },
           { label: 'detenidos', value: visibleDown, tone: visibleDown ? 'crit' : 'info', filterKey: 'down' },
           { label: 'con incidencias', value: visibleIssues, tone: visibleIssues ? 'crit' : 'ok', filterKey: 'issues' },
           { label: 'con puertos', value: visiblePorts, tone: visiblePorts ? 'info' : 'warn', filterKey: 'ports' },
           { label: 'calientes (CPU/RAM ≥50%)', value: visibleHot, tone: visibleHot ? 'warn' : 'ok', filterKey: 'hot' },
+          { label: 'CPU media visible', value: `${avgCpuVisible}%`, tone: avgCpuVisible >= 50 ? 'warn' : 'info' },
+          { label: 'RAM media visible', value: `${avgMemVisible}%`, tone: avgMemVisible >= 50 ? 'warn' : 'info' },
         ]);
 
         if (!filtered.length) {
@@ -1259,39 +2014,83 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 
         grid.innerHTML = filtered.map((c: any, i: number) => {
           const up = c.status?.toLowerCase().includes('up');
-          const hasIssues = hasContainerIssues(c);
-          const cpu = c.cpu != null ? `${c.cpu}% CPU` : null;
-          const mem = c.mem != null ? `${c.mem}% RAM` : null;
+          const dis = actionInFlight ? 'disabled' : '';
           const name = escHtml(c.name);
-          return `<div class="info-card" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
-            <div class="info-card-header">
-              <div class="info-card-icon ${up ? 'green' : 'red'}">${iPkg}</div>
-              <div>
-                <div class="dk-field-row">
-                  <div class="info-card-title dk-field-row__text">${name}</div>
-                  <button class="dk-copy-btn" type="button" title="Copiar nombre" aria-label="Copiar nombre del contenedor" data-dk-copy="name" data-dk-value="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+          const st = String(c.status || '').trim();
+          const portsStr = String(c.ports || '').trim();
+          const showMetricBars = up && (c.cpu != null || c.mem != null);
+          const issueSignals = getContainerIssueSignals(c, { omitLoadHints: showMetricBars });
+
+          const mainParts: string[] = [];
+          if (st) mainParts.push(st);
+          if (up) {
+            const d = fmtContainerDuration(c.status);
+            if (d) mainParts.push(d);
+          }
+          if (portsStr) mainParts.push(portsStr);
+          if (!showMetricBars) {
+            if (c.cpu != null) mainParts.push(`${c.cpu}% CPU`);
+            if (c.mem != null) mainParts.push(`${c.mem}% RAM`);
+          }
+          const mainLine = mainParts.join(' · ');
+          const badgesHtml =
+            issueSignals.length > 0
+              ? `<div class="dk-svc-meta__badges">${issueSignals
+                  .map((s) => `<span class="dk-svc-badge dk-svc-badge--${s.tone}">${escHtml(s.label)}</span>`)
+                  .join('')}</div>`
+              : '';
+          const descBlock =
+            mainLine || badgesHtml
+              ? `<div class="info-card-svc-desc dk-svc-meta"><span class="info-card-svc-desc__icon" aria-hidden="true">${iInfo}</span><div class="dk-svc-meta__stack">${
+                  mainLine ? `<p class="dk-svc-meta__line">${escHtml(mainLine)}</p>` : ''
+                }${badgesHtml}</div></div>`
+              : `<div class="info-card-svc-desc info-card-svc-desc--empty" role="note" aria-label="Sin detalle"><span class="info-card-svc-desc__icon" aria-hidden="true">${iInfo}</span></div>`;
+          const runLabel = up ? 'En marcha' : 'Detenido';
+          const runIcon = up ? iSvcRun : iSvcStopped;
+          const cliToggleBtn = `<button type="button" class="svc-cli-toggle" data-dk-cli-toggle aria-expanded="false" aria-label="Mostrar comandos de referencia" title="Comando de referencia" ${dis}><span class="svc-cli-toggle__chev" aria-hidden="true">${iChevDown}</span></button>`;
+          const portsText = portsStr || 'Sin puertos expuestos';
+          const cliPre = `docker logs -f ${c.name || ''}\ndocker inspect ${c.name || ''}\n\n# Puertos\n${portsText}`;
+          const cliPanelHtml = `<div class="svc-cli-panel" hidden data-dk-cli-panel>
+              <pre class="svc-cli-snippet">${escHtml(cliPre)}</pre>
+              <div class="svc-cli-fallback__toolbar">
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="name" data-dk-value="${encodeURIComponent(c.name || '')}" aria-label="Copiar nombre" title="Copiar nombre" ${dis}>${iCopyCli}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="ports" data-dk-value="${encodeURIComponent(c.ports || '')}" aria-label="Copiar puertos" title="Copiar puertos" ${dis}>${iCopyCli}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="container-cli" data-dk-value="${encodeURIComponent(`docker logs -f ${c.name || ''}`)}" aria-label="Copiar docker logs" title="docker logs -f" ${dis}>${iTerminal}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="container-inspect" data-dk-value="${encodeURIComponent(`docker inspect ${c.name || ''}`)}" aria-label="Copiar docker inspect" title="docker inspect" ${dis}>${iCopyCli}</button>
+              </div>
+            </div>`;
+          const metricBars = showMetricBars
+              ? `<div class="dk-metric-bars" aria-label="Uso de recursos del contenedor">
+              <div class="dk-metric-bars__grid">
+              ${c.cpu != null ? `<div class="dk-metric-cell"><div class="dk-metric-cell__head"><span class="dk-metric-cell__k">CPU</span><span class="dk-metric-cell__val">${c.cpu}%</span></div><div class="dk-metric-bar__track"><div class="dk-metric-bar__fill${Number(c.cpu) >= 70 ? ' dk-metric-bar__fill--warn' : Number(c.cpu) >= 50 ? ' dk-metric-bar__fill--mid' : ''}" style="width:${Math.min(Number(c.cpu) || 0, 100)}%"></div></div></div>` : ''}
+              ${c.mem != null ? `<div class="dk-metric-cell"><div class="dk-metric-cell__head"><span class="dk-metric-cell__k">RAM</span><span class="dk-metric-cell__val">${c.mem}%</span></div><div class="dk-metric-bar__track"><div class="dk-metric-bar__fill${Number(c.mem) >= 80 ? ' dk-metric-bar__fill--warn' : Number(c.mem) >= 50 ? ' dk-metric-bar__fill--mid' : ''}" style="width:${Math.min(Number(c.mem) || 0, 100)}%"></div></div></div>` : ''}
+              </div></div>`
+              : '';
+          return `<div class="info-card info-card--svc" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 30}ms both">
+            <div class="info-card-header info-card-header--svc">
+              <div class="info-card-svc-top">
+                <div class="info-card-svc-text">
+                  <div class="info-card-title">${name}</div>
+                  ${descBlock}
                 </div>
-                <div class="info-card-sub">${escHtml(c.status || '—')}</div>
+                <div class="info-card-svc-meta" role="group" aria-label="${runLabel}">
+                  <span class="svc-status-run ${up ? 'svc-status-run--on' : 'svc-status-run--off'}" title="${runLabel}" aria-label="${runLabel}" role="status">${runIcon}</span>
+                  ${cliToggleBtn}
+                </div>
               </div>
             </div>
-            <div class="info-card-body info-card-body--break-long" style="font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)">
-              <div class="dk-field-row">
-                <span class="dk-field-row__text">${escHtml(c.ports || 'Sin puertos expuestos')}</span>
-                <button class="dk-copy-btn" type="button" title="Copiar puertos" aria-label="Copiar puertos del contenedor" data-dk-copy="ports" data-dk-value="${encodeURIComponent(c.ports || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
-              </div>
-            </div>
-            <div class="info-card-footer">
-              <span class="pill ${up ? 'pill-ok' : 'pill-crit'}">${up ? 'En marcha' : 'Detenido'}</span>
-              ${hasIssues ? '<span class="pill pill-crit">Incidencia</span>' : ''}
-              ${cpu ? `<span class="pill pill-info">${cpu}</span>` : ''}
-              ${mem ? `<span class="pill pill-info">${mem}</span>` : ''}
-            </div>
-            <div class="info-card-actions dk-card-actions" role="group" aria-label="Acciones del contenedor">
+            ${cliPanelHtml}
+            ${metricBars}
+            <div class="info-card-actions dk-card-actions dk-card-actions--split" role="group" aria-label="Acciones del contenedor">
+              <div class="dk-card-actions__primary">
               ${up
-                ? `<button class="card-action-btn card-action-btn--stop" type="button" title="Detener contenedor" aria-label="Detener contenedor" data-dk-action="stop" data-dk-name="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iStop}</button>
-                   <button class="card-action-btn card-action-btn--restart" type="button" title="Reiniciar contenedor" aria-label="Reiniciar contenedor" data-dk-action="restart" data-dk-name="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iRestart}</button>`
-                : `<button class="card-action-btn card-action-btn--start" type="button" title="Iniciar contenedor" aria-label="Iniciar contenedor" data-dk-action="start" data-dk-name="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iPlay}</button>`}
-              <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar contenedor" aria-label="Eliminar contenedor" data-dk-action="delete" data-dk-name="${encodeURIComponent(c.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iTrash}</button>
+                ? `<button class="card-action-btn card-action-btn--stop" type="button" title="Detener contenedor" aria-label="Detener contenedor" data-dk-action="stop" data-dk-name="${encodeURIComponent(c.name || '')}" ${dis}>${iStop}</button>
+                   <button class="card-action-btn card-action-btn--restart" type="button" title="Reiniciar contenedor" aria-label="Reiniciar contenedor" data-dk-action="restart" data-dk-name="${encodeURIComponent(c.name || '')}" ${dis}>${iRestart}</button>`
+                : `<button class="card-action-btn card-action-btn--start" type="button" title="Iniciar contenedor" aria-label="Iniciar contenedor" data-dk-action="start" data-dk-name="${encodeURIComponent(c.name || '')}" ${dis}>${iPlay}</button>`}
+              </div>
+              <div class="dk-card-actions__danger">
+                <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar contenedor" aria-label="Eliminar contenedor" data-dk-action="delete" data-dk-name="${encodeURIComponent(c.name || '')}" ${dis}>${iTrash}</button>
+              </div>
             </div>
           </div>`;
         }).join('');
@@ -1300,11 +2099,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       if (tab === 'img') {
         const grid = $('img-grid');
         grid.removeAttribute('aria-busy');
-        const filtered = sortImages(allImgs.filter((im: any) => {
-          if (!q) return true;
-          const hay = `${im.repo || ''} ${im.id || ''} ${(im.tags || []).join(' ')}`.toLowerCase();
-          return hay.includes(q);
-        }));
+        const filtered = sortImages(allImgs.filter((im: any) => matchesImageSearch(im, q)));
 
         const sortLabel = sortBy === 'size' ? 'tamaño ↓' : sortBy === 'name' ? 'nombre A-Z' : 'fecha ↓';
         const esc = escHtml;
@@ -1336,39 +2131,54 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
           const dangling = im.repo === '<sin etiqueta>';
           const inUse = Boolean(im.inUse);
           const nCont = Number(im.usedByContainers) || 0;
-          const usePill = inUse
+          const dis = actionInFlight ? 'disabled' : '';
+          const useLabel = inUse
             ? nCont > 0
-              ? `<span class="pill pill-ok">En uso · ${nCont} ${nCont === 1 ? 'contenedor' : 'contenedores'}</span>`
-              : '<span class="pill pill-ok">En uso</span>'
-            : '<span class="pill pill-warn">Sin usar</span>';
-          const iconTone = inUse ? 'green' : dangling ? 'yellow' : 'blue';
+              ? `En uso · ${nCont} ${nCont === 1 ? 'contenedor' : 'contenedores'}`
+              : 'En uso'
+            : 'Sin usar';
+          const bits = [`ID ${im.id || '—'}`, im.sizeLabel || '—', fmtTs(im.created), useLabel];
+          if (dangling) bits.push('Sin etiqueta');
+          const mergedDesc = bits.join(' · ');
+          const descBlock = mergedDesc
+            ? `<div class="info-card-svc-desc"><span class="info-card-svc-desc__icon" aria-hidden="true">${iInfo}</span><span class="info-card-svc-desc__txt">${escHtml(mergedDesc)}</span></div>`
+            : `<div class="info-card-svc-desc info-card-svc-desc--empty" role="note"><span class="info-card-svc-desc__icon" aria-hidden="true">${iInfo}</span></div>`;
+          const actLabel = inUse ? 'Referenciada por contenedores' : 'Sin referencias';
+          const activeIcon = inUse ? iSvcActiveOn : iSvcActiveOff;
+          const cliToggleBtn = `<button type="button" class="svc-cli-toggle" data-dk-cli-toggle aria-expanded="false" aria-label="Mostrar comandos de referencia" title="Comando de referencia" ${dis}><span class="svc-cli-toggle__chev" aria-hidden="true">${iChevDown}</span></button>`;
+          const tagExtra = Array.isArray(im.tags) && im.tags.length > 1 ? im.tags.slice(1).join('\n') : '';
+          const cliPre = `docker image inspect ${im.id || ''}${tagExtra ? `\n\n# Etiquetas adicionales\n${tagExtra}` : ''}`;
+          const cliPanelHtml = `<div class="svc-cli-panel" hidden data-dk-cli-panel>
+              <pre class="svc-cli-snippet">${escHtml(cliPre)}</pre>
+              <div class="svc-cli-fallback__toolbar">
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="image-repo" data-dk-value="${encodeURIComponent(im.repo || '')}" aria-label="Copiar repositorio" title="Copiar repositorio" ${dis}>${iCopyCli}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="image-id" data-dk-value="${encodeURIComponent(im.id || '')}" aria-label="Copiar ID" title="Copiar ID" ${dis}>${iCopyCli}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="image-cli" data-dk-value="${encodeURIComponent(`docker image inspect ${im.id || ''}`)}" aria-label="Copiar inspect" title="docker image inspect" ${dis}>${iTerminal}</button>
+              </div>
+            </div>`;
           const extra =
             Array.isArray(im.tags) && im.tags.length > 1
               ? `<div class="info-card-htop">${im.tags.slice(1).map((t: string) => escHtml(t)).join('<br/>')}</div>`
               : '';
-          return `<div class="info-card" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
-            <div class="info-card-header">
-              <div class="info-card-icon ${iconTone}">${iLayers}</div>
-              <div>
-                <div class="dk-field-row">
-                  <div class="info-card-title dk-field-row__text">${escHtml(im.repo || '—')}</div>
-                  <button class="dk-copy-btn" type="button" title="Copiar repositorio" aria-label="Copiar repositorio de imagen" data-dk-copy="image-repo" data-dk-value="${encodeURIComponent(im.repo || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+          return `<div class="info-card info-card--svc" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
+            <div class="info-card-header info-card-header--svc">
+              <div class="info-card-svc-top">
+                <div class="info-card-svc-text">
+                  <div class="info-card-title">${escHtml(im.repo || '—')}</div>
+                  ${descBlock}
                 </div>
-                <div class="dk-field-row info-card-sub" style="margin-top:6px">
-                  <span class="dk-field-row__text" style="font-family:ui-monospace,monospace;font-size:11px">ID ${escHtml(im.id || '—')}</span>
-                  <button class="dk-copy-btn" type="button" title="Copiar ID" aria-label="Copiar ID de imagen" data-dk-copy="image-id" data-dk-value="${encodeURIComponent(im.id || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+                <div class="info-card-svc-meta" role="group" aria-label="${escHtml(actLabel)}">
+                  <span class="svc-status-active ${inUse ? 'svc-status-active--on' : 'svc-status-active--off'}" title="${escHtml(actLabel)}" aria-label="${escHtml(actLabel)}" role="status">${activeIcon}</span>
+                  ${cliToggleBtn}
                 </div>
-                <div class="info-card-sub" style="margin-top:4px">${escHtml(im.sizeLabel || '—')}</div>
               </div>
             </div>
+            ${cliPanelHtml}
             ${extra}
-            <div class="info-card-footer">
-              ${usePill}
-              <span class="pill pill-info">${escHtml(fmtTs(im.created))}</span>
-              ${dangling ? '<span class="pill pill-warn">Sin etiqueta</span>' : ''}
-            </div>
-            <div class="info-card-actions dk-card-actions" role="group" aria-label="Acciones de la imagen">
-              <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar imagen" aria-label="Eliminar imagen de Docker" data-dk-del-img="1" data-dk-img-id="${encodeURIComponent(im.id || '')}" data-dk-img-label="${encodeURIComponent(im.repo || im.id || '')}" ${actionInFlight ? 'disabled' : ''}>${iTrash}</button>
+            <div class="info-card-actions dk-card-actions dk-card-actions--split dk-card-actions--solo-danger" role="group" aria-label="Acciones de la imagen">
+              <div class="dk-card-actions__danger">
+                <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar imagen" aria-label="Eliminar imagen de Docker" data-dk-del-img="1" data-dk-img-id="${encodeURIComponent(im.id || '')}" data-dk-img-label="${encodeURIComponent(im.repo || im.id || '')}" ${dis}>${iTrash}</button>
+              </div>
             </div>
           </div>`;
         }).join('');
@@ -1377,11 +2187,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       if (tab === 'vol') {
         const grid = $('vol-grid');
         grid.removeAttribute('aria-busy');
-        const filtered = sortVolumes(allVols.filter((v: any) => {
-          if (!q) return true;
-          const hay = `${v.name || ''} ${v.driver || ''} ${v.mountpoint || ''}`.toLowerCase();
-          return hay.includes(q);
-        }));
+        const filtered = sortVolumes(allVols.filter((v: any) => matchesVolumeSearch(v, q)));
 
         const sortLabel = sortBy === 'created' ? 'fecha ↓' : 'nombre A-Z';
         const esc = escHtml;
@@ -1413,42 +2219,52 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
           const mp = (v.mountpoint || '').trim() || '—';
           const vInUse = Boolean(v.inUse);
           const vn = Number(v.usedByContainers) || 0;
-          const volUsePill = vInUse
+          const dis = actionInFlight ? 'disabled' : '';
+          const useLabel = vInUse
             ? vn > 0
-              ? `<span class="pill pill-ok">En uso · ${vn} ${vn === 1 ? 'contenedor' : 'contenedores'}</span>`
-              : '<span class="pill pill-ok">En uso</span>'
-            : '<span class="pill pill-warn">Libre</span>';
-          const volIconTone = vInUse ? 'green' : 'gold';
-          return `<div class="info-card" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
-            <div class="info-card-header">
-              <div class="info-card-icon ${volIconTone}">${iVol}</div>
-              <div>
-                <div class="dk-field-row">
-                  <div class="info-card-title dk-field-row__text">${escHtml(v.name || '—')}</div>
-                  <button class="dk-copy-btn" type="button" title="Copiar nombre" aria-label="Copiar nombre de volumen" data-dk-copy="volume-name" data-dk-value="${encodeURIComponent(v.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+              ? `En uso · ${vn} ${vn === 1 ? 'contenedor' : 'contenedores'}`
+              : 'En uso'
+            : 'Libre';
+          const mergedDesc = [`${v.driver || 'local'}${v.scope ? ` · ${v.scope}` : ''}`, fmtTs(v.created), useLabel].join(' · ');
+          const descBlock = `<div class="info-card-svc-desc"><span class="info-card-svc-desc__icon" aria-hidden="true">${iInfo}</span><span class="info-card-svc-desc__txt">${escHtml(mergedDesc)}</span></div>`;
+          const actLabel = vInUse ? 'En uso' : 'Libre';
+          const activeIcon = vInUse ? iSvcActiveOn : iSvcActiveOff;
+          const cliToggleBtn = `<button type="button" class="svc-cli-toggle" data-dk-cli-toggle aria-expanded="false" aria-label="Mostrar comandos de referencia" title="Comando de referencia" ${dis}><span class="svc-cli-toggle__chev" aria-hidden="true">${iChevDown}</span></button>`;
+          const cliPre = `docker volume inspect ${v.name || ''}\ndocker volume ls --filter name=${v.name || ''}\n\n# Mountpoint\n${mp}`;
+          const cliPanelHtml = `<div class="svc-cli-panel" hidden data-dk-cli-panel>
+              <pre class="svc-cli-snippet">${escHtml(cliPre)}</pre>
+              <div class="svc-cli-fallback__toolbar">
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="volume-name" data-dk-value="${encodeURIComponent(v.name || '')}" aria-label="Copiar nombre" title="Copiar nombre" ${dis}>${iCopyCli}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="volume-mountpoint" data-dk-value="${encodeURIComponent(v.mountpoint || '')}" aria-label="Copiar mountpoint" title="Copiar mountpoint" ${dis}>${iCopyCli}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="volume-cli" data-dk-value="${encodeURIComponent(`docker volume inspect ${v.name || ''}`)}" aria-label="Copiar inspect" title="docker volume inspect" ${dis}>${iTerminal}</button>
+                <button type="button" class="card-action-btn svc-cli-icon-btn" data-dk-copy="volume-list" data-dk-value="${encodeURIComponent(`docker volume ls --filter name=${v.name || ''}`)}" aria-label="Copiar listado filtrado" title="docker volume ls" ${dis}>${iCopyCli}</button>
+              </div>
+            </div>`;
+          return `<div class="info-card info-card--svc" data-busy="${actionInFlight ? 'true' : 'false'}" style="animation:listSlideIn 0.3s ease ${i * 25}ms both">
+            <div class="info-card-header info-card-header--svc">
+              <div class="info-card-svc-top">
+                <div class="info-card-svc-text">
+                  <div class="info-card-title">${escHtml(v.name || '—')}</div>
+                  ${descBlock}
                 </div>
-                <div class="info-card-sub">${escHtml(v.driver || 'local')}${v.scope ? ` · ${escHtml(v.scope)}` : ''}</div>
+                <div class="info-card-svc-meta" role="group" aria-label="${escHtml(actLabel)}">
+                  <span class="svc-status-active ${vInUse ? 'svc-status-active--on' : 'svc-status-active--off'}" title="${escHtml(actLabel)}" aria-label="${escHtml(actLabel)}" role="status">${activeIcon}</span>
+                  ${cliToggleBtn}
+                </div>
               </div>
             </div>
-            <div class="info-card-body info-card-body--break-long" style="font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);line-height:1.45">
-              <div class="dk-field-row">
-                <span class="dk-field-row__text">${escHtml(mp)}</span>
-                <button class="dk-copy-btn" type="button" title="Copiar mountpoint" aria-label="Copiar mountpoint del volumen" data-dk-copy="volume-mountpoint" data-dk-value="${encodeURIComponent(v.mountpoint || '')}" ${actionInFlight ? 'disabled' : ''}>${iCopy}</button>
+            ${cliPanelHtml}
+            <div class="info-card-actions dk-card-actions dk-card-actions--split dk-card-actions--solo-danger" role="group" aria-label="Acciones del volumen">
+              <div class="dk-card-actions__danger">
+                <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar volumen" aria-label="Eliminar volumen de Docker" data-dk-del-vol="1" data-dk-vol-name="${encodeURIComponent(v.name || '')}" ${dis}>${iTrash}</button>
               </div>
-            </div>
-            <div class="info-card-footer">
-              ${volUsePill}
-              <span class="pill pill-info">${escHtml(fmtTs(v.created))}</span>
-            </div>
-            <div class="info-card-actions dk-card-actions" role="group" aria-label="Acciones del volumen">
-              <button class="card-action-btn card-action-btn--danger" type="button" title="Eliminar volumen" aria-label="Eliminar volumen de Docker" data-dk-del-vol="1" data-dk-vol-name="${encodeURIComponent(v.name || '')}" ${actionInFlight ? 'disabled' : ''}>${iTrash}</button>
             </div>
           </div>`;
         }).join('');
       }
     }
 
-    function runDockerShortcut(kind: 'search' | 'refresh' | 'clear') {
+    function runDockerShortcut(kind: 'search' | 'refresh' | 'clear' | 'tabs' | 'autorefresh' | 'reset') {
       const input = $('dk-search') as HTMLInputElement;
       if (kind === 'search') {
         input.focus();
@@ -1461,11 +2277,24 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         void load();
         return;
       }
+      if (kind === 'tabs') {
+        setFeedback('Atajo de pestañas disponible', 'Pulsa 1 = Contenedores · 2 = Imágenes · 3 = Volúmenes');
+        return;
+      }
+      if (kind === 'autorefresh') {
+        ($('dk-autorefresh') as HTMLButtonElement).click();
+        return;
+      }
+      if (kind === 'reset') {
+        resetView();
+        return;
+      }
       if (kind === 'clear') {
         if (input.value.trim()) {
           input.value = '';
           syncSearchUi();
           syncResetViewUi();
+          updateActiveViewChips();
           saveViewState();
           render();
           setFeedback('Búsqueda limpiada', 'Pulsa / para volver a enfocar el buscador');
@@ -1481,13 +2310,31 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
     document.querySelector('.dk-page .dk-shortcuts')?.addEventListener('click', (ev) => {
       const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('[data-dk-shortcut]');
       if (!btn) return;
-      const k = btn.dataset.dkShortcut as 'search' | 'refresh' | 'clear' | undefined;
-      if (k === 'search' || k === 'refresh' || k === 'clear') runDockerShortcut(k);
+      const k = btn.dataset.dkShortcut as 'search' | 'refresh' | 'clear' | 'tabs' | 'autorefresh' | 'reset' | undefined;
+      if (k === 'search' || k === 'refresh' || k === 'clear' || k === 'tabs' || k === 'autorefresh' || k === 'reset') runDockerShortcut(k);
+    });
+
+    document.querySelector('.dk-page .dk-presets')?.addEventListener('click', (ev) => {
+      const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('[data-dk-preset]');
+      if (!btn) return;
+      if (tab !== 'ctnr') showTab('ctnr');
+      const value = String(btn.dataset.dkPreset || '').trim();
+      if (!value) return;
+      const input = $('dk-search') as HTMLInputElement;
+      input.value = value;
+      syncSearchUi();
+      syncResetViewUi();
+      saveViewState();
+      render();
+      input.focus();
+      input.select();
+      setFeedback(`Filtro rápido aplicado: ${value}`, 'Pulsa Esc para limpiar o edita la búsqueda');
     });
 
     $('dk-search').addEventListener('input', () => {
       syncSearchUi();
       syncResetViewUi();
+      updateActiveViewChips();
       saveViewState();
       render();
     });
@@ -1501,6 +2348,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       input.value = '';
       syncSearchUi();
       syncResetViewUi();
+      updateActiveViewChips();
       saveViewState();
       input.focus();
       setFeedback('Búsqueda limpiada', 'Puedes seguir filtrando o pulsar / para volver rápido');
@@ -1525,6 +2373,38 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         return;
       }
 
+      if ((ev.key === 'a' || ev.key === 'A') && !isTypingTarget && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        runDockerShortcut('autorefresh');
+        return;
+      }
+
+      if (!isTypingTarget && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        if (ev.key === '1') {
+          ev.preventDefault();
+          showTab('ctnr');
+          setFeedback('Vista Docker: Contenedores', 'Atajo 1 · 2 = Imágenes · 3 = Volúmenes');
+          return;
+        }
+        if (ev.key === '2') {
+          ev.preventDefault();
+          showTab('img');
+          setFeedback('Vista Docker: Imágenes', 'Atajo 2 · 1 = Contenedores · 3 = Volúmenes');
+          return;
+        }
+        if (ev.key === '3') {
+          ev.preventDefault();
+          showTab('vol');
+          setFeedback('Vista Docker: Volúmenes', 'Atajo 3 · 1 = Contenedores · 2 = Imágenes');
+          return;
+        }
+        if (ev.key === '0') {
+          ev.preventDefault();
+          runDockerShortcut('reset');
+          return;
+        }
+      }
+
       if (ev.key === 'Escape' && !isTypingTarget && input.value.trim()) {
         ev.preventDefault();
         runDockerShortcut('clear');
@@ -1535,6 +2415,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       hiddenAutoPause = false;
       syncAutoRefreshUi();
       syncResetViewUi();
+      updateActiveViewChips();
       saveViewState();
       if (autoRefreshEnabled) {
         setFeedback('Auto-refresh reactivado', lastLoadedAt ? `Última actualización ${fmtClock(lastLoadedAt)}` : 'La próxima actualización será automática');
@@ -1550,6 +2431,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       sortBy = (ev.target as HTMLSelectElement).value as typeof sortBy;
       syncSortUi();
       syncResetViewUi();
+      updateActiveViewChips();
       saveViewState();
       render();
     });
@@ -1558,11 +2440,30 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       void load();
     });
 
+    $('dk-copy-list').addEventListener('click', () => {
+      const cmds = getQuickCommands();
+      void copyText(cmds.listCommand, `${cmds.listLabel} copiado`, 'No había comando de listado para copiar');
+    });
+    $('dk-copy-diagnose').addEventListener('click', () => {
+      const cmds = getQuickCommands();
+      void copyText(cmds.diagCommand, `${cmds.diagLabel} copiado`, 'No había comando de diagnóstico para copiar');
+    });
+    $('dk-copy-recover').addEventListener('click', () => {
+      const cmds = getQuickCommands();
+      void copyText(cmds.recoverCommand, 'Comando de rearme local copiado', 'No se pudo generar el comando de rearme local');
+    });
+    $('dk-copy-view-link').addEventListener('click', () => {
+      const qs = viewStateToQueryString();
+      const url = `${window.location.origin}${window.location.pathname}${qs ? `?${qs}` : ''}`;
+      void copyText(url, 'Enlace de la vista Docker copiado', 'No se pudo generar un enlace útil para esta vista');
+    });
+
     document.querySelectorAll('#dk-ctnr-filters [data-filter]').forEach((btn) => {
       btn.addEventListener('click', () => {
         filter = (btn as HTMLElement).dataset.filter!;
         syncFilterButtons();
         syncResetViewUi();
+        updateActiveViewChips();
         saveViewState();
         render();
       });
@@ -1606,11 +2507,32 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         void copyText(value, 'Mountpoint del volumen copiado', 'Este volumen no expone mountpoint');
         return true;
       }
+      if (kind === 'container-cli') {
+        void copyText(value, 'Comando docker logs copiado', 'Este contenedor no tiene un nombre válido para generar el comando');
+        return true;
+      }
+      if (kind === 'container-inspect') {
+        void copyText(value, 'Comando docker inspect copiado', 'Este contenedor no tiene un nombre válido para generar el comando');
+        return true;
+      }
+      if (kind === 'image-cli') {
+        void copyText(value, 'Comando docker image inspect copiado', 'Esta imagen no tiene un ID válido para generar el comando');
+        return true;
+      }
+      if (kind === 'volume-cli') {
+        void copyText(value, 'Comando docker volume inspect copiado', 'Este volumen no tiene un nombre válido para generar el comando');
+        return true;
+      }
+      if (kind === 'volume-list') {
+        void copyText(value, 'Comando docker volume ls copiado', 'Este volumen no tiene un nombre válido para generar el comando');
+        return true;
+      }
       return false;
     }
 
     $('ctnr-grid').addEventListener('click', (ev) => {
       const target = ev.target as HTMLElement;
+      if (handleDkCliToggle(ev)) return;
       if (handleCopyClick(ev)) return;
 
       const btn = target.closest<HTMLButtonElement>('[data-dk-action]');
@@ -1623,6 +2545,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 
     $('img-grid').addEventListener('click', (ev) => {
       const target = ev.target as HTMLElement;
+      if (handleDkCliToggle(ev)) return;
       if (handleCopyClick(ev)) return;
       const imgDel = target.closest<HTMLButtonElement>('[data-dk-del-img]');
       if (imgDel) {
@@ -1634,6 +2557,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 
     $('vol-grid').addEventListener('click', (ev) => {
       const target = ev.target as HTMLElement;
+      if (handleDkCliToggle(ev)) return;
       if (handleCopyClick(ev)) return;
       const volDel = target.closest<HTMLButtonElement>('[data-dk-del-vol]');
       if (volDel) {
@@ -1650,8 +2574,37 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
       filter = nextFilter === filter ? 'all' : nextFilter;
       syncFilterButtons();
       syncResetViewUi();
+      updateActiveViewChips();
       saveViewState();
       render();
+    });
+
+    $('dk-active-view').addEventListener('click', (ev) => {
+      const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('[data-dk-dismiss-view]');
+      if (!btn) return;
+      const key = btn.dataset.dkDismissView;
+      if (key === 'filter') {
+        filter = 'all';
+        syncFilterButtons();
+      } else if (key === 'search') {
+        const input = $('dk-search') as HTMLInputElement;
+        input.value = '';
+        syncSearchUi();
+      } else if (key === 'sort') {
+        sortBy = defaultSortForTab(tab);
+        syncSortUi();
+      } else if (key === 'auto') {
+        autoRefreshEnabled = true;
+        hiddenAutoPause = false;
+        syncAutoRefreshUi();
+      }
+      syncResetViewUi();
+      updateActiveViewChips();
+      saveViewState();
+      render();
+      if (key === 'auto' && !actionInFlight && (!lastLoadedAt || Date.now() - lastLoadedAt >= staleRefreshMs)) {
+        void load();
+      }
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -1661,6 +2614,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
           autoRefreshEnabled = false;
           syncAutoRefreshUi();
           syncResetViewUi();
+          updateActiveViewChips();
           saveViewState();
           updateFreshnessState();
         }
@@ -1671,6 +2625,7 @@ const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
         autoRefreshEnabled = true;
         syncAutoRefreshUi();
         syncResetViewUi();
+        updateActiveViewChips();
         saveViewState();
         setFeedback('Auto-refresh reactivado al volver a la pestaña', lastLoadedAt ? `Última actualización ${fmtClock(lastLoadedAt)}` : 'Recargando vista Docker');
         if (!actionInFlight && (!lastLoadedAt || Date.now() - lastLoadedAt >= staleRefreshMs)) {

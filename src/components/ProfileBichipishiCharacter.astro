@@ -1,0 +1,130 @@
+---
+/**
+ * Misma mascota SVG animada que en BichipishiScene (corona + cuerpo), pensada para la tarjeta de perfil.
+ */
+interface Props {
+  appName: string;
+}
+
+const { appName } = Astro.props;
+---
+<div
+  class="pine-avatar pine-avatar--character"
+  id="pine-avatar"
+  data-mood="ok"
+  data-openclaw="0"
+  role="img"
+  aria-label={appName}
+>
+  <div class="pbc-pine">
+    <svg class="pbc-crown" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="pbc-lgB" x1="50%" y1="100%" x2="50%" y2="0%">
+          <stop offset="0%" stop-color="#1A5319"></stop>
+          <stop offset="100%" stop-color="#4CAF50"></stop>
+        </linearGradient>
+        <linearGradient id="pbc-lgC" x1="50%" y1="100%" x2="50%" y2="0%">
+          <stop offset="0%" stop-color="#2E7D32"></stop>
+          <stop offset="100%" stop-color="#8BC34A"></stop>
+        </linearGradient>
+      </defs>
+      <path d="M70 150 Q40 100 20 40 Q60 70 90 130 Z" fill="url(#pbc-lgB)" opacity="0.7"></path>
+      <path d="M210 150 Q240 100 260 40 Q220 70 190 130 Z" fill="url(#pbc-lgB)" opacity="0.7"></path>
+      <path d="M90 150 Q50 90 30 20 Q70 60 100 120 Z" fill="url(#pbc-lgB)" opacity="0.85"></path>
+      <path d="M115 150 Q80 80 65 15 Q95 55 118 125 Z" fill="url(#pbc-lgC)"></path>
+      <path d="M190 150 Q225 90 245 20 Q205 60 175 120 Z" fill="url(#pbc-lgB)" opacity="0.85"></path>
+      <path d="M165 150 Q200 80 215 15 Q185 55 162 125 Z" fill="url(#pbc-lgC)"></path>
+      <path d="M138 150 Q120 80 118 10 Q140 55 145 120 Z" fill="url(#pbc-lgC)"></path>
+      <path d="M142 150 Q160 80 162 10 Q140 55 135 120 Z" fill="url(#pbc-lgC)"></path>
+    </svg>
+    <svg class="pbc-body" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <radialGradient id="pbc-bodyFill" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#FFF275"></stop>
+          <stop offset="35%" stop-color="#FFD700"></stop>
+          <stop offset="70%" stop-color="#E68A00"></stop>
+          <stop offset="100%" stop-color="#BF6000"></stop>
+        </radialGradient>
+        <pattern id="pbc-scalePat" x="0" y="0" width="24" height="28" patternUnits="userSpaceOnUse">
+          <path
+            d="M12 0 L24 7 L24 21 L12 28 L0 21 L0 7 Z"
+            fill="none"
+            stroke="#BF6000"
+            stroke-width="0.8"
+            opacity="0.4"></path>
+          <path d="M6 8 Q8 6 12 6 Q10 8 6 8 Z" fill="#FFF275" opacity="0.5"></path>
+        </pattern>
+        <linearGradient id="pbc-lensFill" x1="10%" y1="10%" x2="90%" y2="90%">
+          <stop offset="0%" stop-color="#4DD0E1"></stop>
+          <stop offset="40%" stop-color="#0097A7"></stop>
+          <stop offset="100%" stop-color="#00363A"></stop>
+        </linearGradient>
+        <linearGradient id="pbc-frameFill" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#5D4037"></stop>
+          <stop offset="100%" stop-color="#3E2723"></stop>
+        </linearGradient>
+        <clipPath id="pbc-clipL">
+          <path d="M20 18 Q18 8 30 6 L85 6 Q97 8 95 18 L95 50 Q95 60 85 62 L30 62 Q20 60 20 50 Z"></path>
+        </clipPath>
+        <clipPath id="pbc-clipR">
+          <path d="M145 18 Q143 8 155 6 L210 6 Q222 8 220 18 L220 50 Q220 60 210 62 L155 62 Q145 60 145 50 Z"></path>
+        </clipPath>
+      </defs>
+      <ellipse cx="120" cy="140" rx="96" ry="116" fill="url(#pbc-bodyFill)"></ellipse>
+      <ellipse cx="120" cy="140" rx="96" ry="116" fill="url(#pbc-scalePat)"></ellipse>
+      <ellipse cx="80" cy="90" rx="40" ry="30" fill="rgba(255,255,200,0.18)"></ellipse>
+      <ellipse cx="120" cy="98" rx="88" ry="12" fill="rgba(0,0,0,0.08)"></ellipse>
+      <g class="pbc-glasses">
+        <path
+          d="M20 18 Q18 8 30 6 L85 6 Q97 8 95 18 L95 50 Q95 60 85 62 L30 62 Q20 60 20 50 Z"
+          fill="url(#pbc-frameFill)"
+          stroke="#2A1A12"
+          stroke-width="2"></path>
+        <path
+          d="M24 20 Q22 11 32 9 L83 9 Q93 11 91 20 L91 49 Q91 57 83 59 L32 59 Q24 57 24 49 Z"
+          fill="url(#pbc-lensFill)"></path>
+        <g clip-path="url(#pbc-clipL)" opacity="0.55">
+          <rect x="36" y="18" width="2" height="26" fill="#00363A"></rect>
+          <path d="M37 20 Q28 15 20 18 Q28 20 37 20" fill="#00363A"></path>
+          <path d="M37 22 Q46 17 54 20 Q46 22 37 22" fill="#00363A"></path>
+          <path d="M37 25 Q30 22 24 24 Q30 26 37 25" fill="#00363A"></path>
+          <path d="M37 28 Q44 25 50 27 Q44 29 37 28" fill="#00363A"></path>
+          <rect x="58" y="28" width="2" height="20" fill="#00363A"></rect>
+          <path d="M59 30 Q52 25 44 28 Q52 30 59 30" fill="#00363A"></path>
+          <path d="M59 33 Q66 28 74 30 Q66 33 59 33" fill="#00363A"></path>
+          <path d="M59 36 Q54 33 48 35 Q54 37 59 36" fill="#00363A"></path>
+          <rect x="74" y="36" width="2" height="14" fill="#00363A"></path>
+          <path d="M75 38 Q68 33 60 36 Q68 38 75 38" fill="#00363A"></path>
+          <path d="M75 41 Q82 36 90 39 Q82 41 75 41" fill="#00363A"></path>
+        </g>
+        <ellipse cx="38" cy="20" rx="9" ry="5" fill="rgba(255,255,255,0.35)" transform="rotate(-20 38 20)"></ellipse>
+        <ellipse cx="42" cy="26" rx="4" ry="2" fill="rgba(255,255,255,0.2)" transform="rotate(-20 42 26)"></ellipse>
+        <rect x="90" y="12" width="60" height="5" rx="2" fill="url(#pbc-frameFill)"></rect>
+        <path d="M95 17 Q120 22 145 17" fill="none" stroke="#3E2723" stroke-width="2.5"></path>
+        <path
+          d="M145 18 Q143 8 155 6 L210 6 Q222 8 220 18 L220 50 Q220 60 210 62 L155 62 Q145 60 145 50 Z"
+          fill="url(#pbc-frameFill)"
+          stroke="#2A1A12"
+          stroke-width="2"></path>
+        <path
+          d="M149 20 Q147 11 157 9 L208 9 Q218 11 216 20 L216 49 Q216 57 208 59 L157 59 Q149 57 149 49 Z"
+          fill="url(#pbc-lensFill)"></path>
+        <g clip-path="url(#pbc-clipR)" opacity="0.55">
+          <rect x="161" y="18" width="2" height="26" fill="#00363A"></rect>
+          <path d="M162 20 Q153 15 145 18 Q153 20 162 20" fill="#00363A"></path>
+          <path d="M162 22 Q171 17 179 20 Q171 22 162 22" fill="#00363A"></path>
+          <path d="M162 25 Q155 22 149 24 Q155 26 162 25" fill="#00363A"></path>
+          <path d="M162 28 Q169 25 175 27 Q169 29 162 28" fill="#00363A"></path>
+          <rect x="183" y="28" width="2" height="20" fill="#00363A"></rect>
+          <path d="M184 30 Q177 25 169 28 Q177 30 184 30" fill="#00363A"></path>
+          <path d="M184 33 Q191 28 199 30 Q191 33 184 33" fill="#00363A"></path>
+          <rect x="199" y="36" width="2" height="14" fill="#00363A"></rect>
+          <path d="M200 38 Q193 33 185 36 Q193 38 200 38" fill="#00363A"></path>
+          <path d="M200 41 Q207 36 215 39 Q207 41 200 41" fill="#00363A"></path>
+        </g>
+        <ellipse cx="163" cy="20" rx="9" ry="5" fill="rgba(255,255,255,0.35)" transform="rotate(-20 163 20)"></ellipse>
+        <ellipse cx="167" cy="26" rx="4" ry="2" fill="rgba(255,255,255,0.2)" transform="rotate(-20 167 26)"></ellipse>
+      </g>
+    </svg>
+  </div>
+</div>

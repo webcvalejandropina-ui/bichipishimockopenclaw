@@ -9,9 +9,9 @@ const iPageTitle = iconToSvg(CalendarClock, { width: 22, height: 22 });
 ---
 <Layout activePage="tareas-programadas">
   <div class="wrapper dk-page">
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
     <div class="page-header">
       <div class="dk-page-title-row">
-        <span class="dk-page-title-icon" set:html={iPageTitle} aria-hidden="true" />
         <div>
           <h2 class="page-title">Tareas programadas</h2>
           <p class="page-desc">
@@ -32,6 +32,12 @@ const iPageTitle = iconToSvg(CalendarClock, { width: 22, height: 22 });
         <span set:html={iRefresh} aria-hidden="true" />
       </button>
     </div>
+
+    <p class="tp-demo-banner" id="tp-demo-banner">
+      <strong>Tarea de prueba incluida:</strong> en <code>config/cron.extra</code> hay una entrada <strong>cada 3 minutos</strong> que escribe en
+      <code>/tmp/bichi-cron-demo.log</code> (comprueba con <code>tail -f /tmp/bichi-cron-demo.log</code> en el host donde corre cron). Aparece en el listado como
+      <strong>extra</strong>. Puedes <strong>añadir más</strong> con <strong>Nueva tarea</strong> o editar/borrar esta desde la tabla.
+    </p>
 
     <p class="sys-page-results" id="tp-host-hint" hidden></p>
 
@@ -510,6 +516,7 @@ const iPageTitle = iconToSvg(CalendarClock, { width: 22, height: 22 });
         updateHeader(d);
         lastPlatform = String(d.platform || '');
         const hint = $('tp-host-hint');
+        const demoBanner = $('tp-demo-banner');
         if (!metricsRepresentHost(d)) {
           const note =
             typeof d.hostMetricsNote === 'string' && d.hostMetricsNote.trim()
@@ -517,8 +524,10 @@ const iPageTitle = iconToSvg(CalendarClock, { width: 22, height: 22 });
               : 'La API no refleja el PC anfitrión (p. ej. Docker).';
           hint.textContent = `${note} El calendario muestra el cron/tareas del entorno donde corre la API.`;
           hint.hidden = false;
+          demoBanner.hidden = true;
         } else {
           hint.hidden = true;
+          demoBanner.hidden = false;
         }
 
         cronApi = mountCronCalendar({

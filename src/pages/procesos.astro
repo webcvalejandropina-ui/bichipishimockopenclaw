@@ -10,9 +10,9 @@ const iPageTitle = iconToSvg(ListTree, { width: 22, height: 22 });
 ---
 <Layout activePage="procesos">
   <div class="wrapper dk-page">
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
     <div class="page-header">
       <div class="dk-page-title-row">
-        <span class="dk-page-title-icon" set:html={iPageTitle} aria-hidden="true" />
         <div>
           <h2 class="page-title">Procesos</h2>
           <p class="page-desc">

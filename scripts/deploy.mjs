@@ -44,15 +44,14 @@ if (fs.existsSync(OLD)) {
 }
 
 /**
- * npm/arborist falla con el árbol `node_modules/.bun/` que crea Bun (`Cannot read properties of null (reading 'matches')`).
- * Antes de npm ci/install hay que borrar esas carpetas.
+ * El árbol `node_modules/.bun/` rompe otros instaladores (p. ej. pnpm) si se mezcla sin limpiar.
  */
 function removeNodeModulesIfBunLayout() {
   const nm = path.join(ROOT, 'node_modules');
   const bunMarker = path.join(nm, '.bun');
   if (!fs.existsSync(bunMarker)) return;
   console.log(
-    '→ Eliminando node_modules generado por Bun (incompatible con npm); se reinstalará con npm…',
+    '→ Eliminando node_modules generado por Bun (hay que reinstalar con pnpm sin mezclar layouts)…',
   );
   fs.rmSync(nm, { recursive: true, force: true });
   const apiNm = path.join(API, 'node_modules');
@@ -66,32 +65,28 @@ if (useBun) {
   runShell('bun run build:astro', ROOT);
 } else {
   removeNodeModulesIfBunLayout();
-  const lock = path.join(ROOT, 'package-lock.json');
-  if (fs.existsSync(lock)) {
-    console.log('→ npm ci (reproducible; raíz + workspaces)');
-    runShell('npm ci', ROOT);
+  const pnpmLock = path.join(ROOT, 'pnpm-lock.yaml');
+  if (fs.existsSync(pnpmLock)) {
+    console.log('→ pnpm install --frozen-lockfile (raíz + workspaces; ver docs/PAQUETES.md)');
+    runShell('pnpm install --frozen-lockfile', ROOT);
   } else {
-    console.log('→ npm install (genera package-lock.json; guárdalo en git para CI)');
-    runShell('npm install', ROOT);
+    console.log('→ pnpm install (genera pnpm-lock.yaml; conviene commitearlo)');
+    runShell('pnpm install', ROOT);
   }
-  console.log('→ npm run build:astro (Astro → dist/)');
-  runShell('npm run build:astro', ROOT);
+  console.log('→ pnpm run build:astro:node (Astro → dist/)');
+  runShell('pnpm run build:astro:node', ROOT);
 }
 
 const port = String(process.env.BICHI_API_PORT || process.env.PORT || '3001').trim();
-const publicHost = String(process.env.BICHI_PUBLIC_HOST || 'bichipishi.home').trim() || 'bichipishi.home';
+const publicHost = String(process.env.BICHI_PUBLIC_HOST || '').trim();
 const rt = useBun ? 'Bun' : 'Node';
-console.log(
-  `\n→ Abre en el navegador: http://${publicHost}/  (sin IP ni puerto; requiere hosts + Caddy :80)`,
-);
-console.log(
-  `→ Servidor (${rt}) escuchando http://127.0.0.1:${port}/  (Ctrl+C)  ·  Caddy: config/caddy-bichipishi-prod.caddyfile\n`,
-);
+console.log(`\n→ Servidor (${rt})  http://127.0.0.1:${port}/  (dist/ + API en el mismo puerto)`);
+if (publicHost) console.log(`   Opcional: http://${publicHost}/  (BICHI_PUBLIC_HOST + hosts)`);
+console.log('   Ctrl+C para salir\n');
 
-const serverJs = path.join(API, 'server.js');
-const r = spawnSync(process.execPath, [serverJs], {
+const r = spawnSync(process.execPath, ['server.js'], {
   stdio: 'inherit',
-  cwd: ROOT,
+  cwd: API,
   env: { ...process.env },
 });
 process.exit(r.status ?? 0);

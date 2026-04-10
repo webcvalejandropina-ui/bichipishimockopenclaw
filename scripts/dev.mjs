@@ -36,7 +36,7 @@ function findFreePort(start) {
 
 const concurrentlyMain = path.join(ROOT, 'node_modules', 'concurrently', 'dist', 'bin', 'concurrently.js');
 if (!fs.existsSync(concurrentlyMain)) {
-  console.error('Falta el paquete concurrently. En la raíz del repo ejecuta: bun install  o  npm install');
+  console.error('Falta el paquete concurrently. En la raíz del repo ejecuta: bun install  o  pnpm install');
   process.exit(1);
 }
 
@@ -56,21 +56,22 @@ try {
 }
 if (apiPortNum !== preferredApi) {
   console.warn(
-    `\x1b[33mPuerto ${preferredApi} en uso: la API usará ${apiPortNum} (proxy /api de Vite alineado).\x1b[0m\n`,
+    `\x1b[33mPuerto ${preferredApi} en uso: la API usará ${apiPortNum} (ajusta BICHI_API_PORT o libera el puerto).\x1b[0m\n`,
   );
 }
 const apiPort = String(apiPortNum);
 
 /* Prefijo VAR=val para sh -c: fuerza puerto frente a .env/cola de procesos. */
-const apiEnvPrefix = `BICHI_API_PORT=${apiPort} PUBLIC_BICHI_API_PORT=${apiPort}`;
+const apiEnvPrefix = `BICHI_API_PORT=${apiPort} PUBLIC_BICHI_API_PORT=${apiPort} BICHI_IN_CONCURRENTLY=1`;
+/* Desde metrics-api/ para que Bun/Node resuelvan node_modules del workspace (p. ej. systeminformation). */
 const apiCmd =
   process.platform === 'win32'
     ? useBun
-      ? `set BICHI_API_PORT=${apiPort}&set PUBLIC_BICHI_API_PORT=${apiPort}&bun .\\metrics-api\\server.js`
-      : `set BICHI_API_PORT=${apiPort}&set PUBLIC_BICHI_API_PORT=${apiPort}&node .\\metrics-api\\server.js`
+      ? `cd metrics-api && set BICHI_API_PORT=${apiPort}&set PUBLIC_BICHI_API_PORT=${apiPort}&set BICHI_IN_CONCURRENTLY=1&bun server.js`
+      : `cd metrics-api && set BICHI_API_PORT=${apiPort}&set PUBLIC_BICHI_API_PORT=${apiPort}&set BICHI_IN_CONCURRENTLY=1&node server.js`
     : useBun
-      ? `${apiEnvPrefix} bun ./metrics-api/server.js`
-      : `${apiEnvPrefix} node ./metrics-api/server.js`;
+      ? `cd ./metrics-api && ${apiEnvPrefix} bun ./server.js`
+      : `cd ./metrics-api && ${apiEnvPrefix} node ./server.js`;
 /** El binario `astro` invoca Node; con Bun evitamos Node <18.20.8 que Astro 5 rechaza. */
 const astroCmd =
   process.platform === 'win32'
@@ -81,14 +82,10 @@ const astroCmd =
       ? `${apiEnvPrefix} bun ./node_modules/astro/astro.js dev --host`
       : `${apiEnvPrefix} npx astro dev --host`;
 
-const publicHost = String(process.env.BICHI_PUBLIC_HOST || 'bichipishi.home').trim() || 'bichipishi.home';
+const astroPort = '4322';
 console.log(
-  `\n\x1b[1mBichipishi (dev)\x1b[0m  ->  \x1b[32mhttp://${publicHost}/\x1b[0m  (sin puerto; requiere Caddy en :80)\n` +
-    `  En otra terminal (desde la raíz del repo): \x1b[33msudo caddy run --config ./config/caddy-bichipishi-dev.caddyfile\x1b[0m\n` +
-    `  o: \x1b[33mbun run proxy:dev\x1b[0m (suele necesitar sudo por el puerto 80)\n` +
-    `  Interno: Astro 127.0.0.1:4322 | API 127.0.0.1:${apiPort} (/api lo proxea Vite)\n` +
-    `  Si ${publicHost} no resuelve: ver \x1b[33mconfig/bichipishi.hosts\x1b[0m\n` +
-    `  Solo sin Caddy: http://127.0.0.1:4322/ y en .env \x1b[33mBICHI_HMR_CLIENT_PORT=4322\x1b[0m\n`,
+  `\n\x1b[1mDev\x1b[0m  ·  \x1b[32mhttp://127.0.0.1:${astroPort}/\x1b[0m  (Astro; \`/api\` → API vía Vite)\n` +
+    `       ·  \x1b[32mhttp://127.0.0.1:${apiPort}/\x1b[0m  (API directa)\n`,
 );
 
 const child = spawn(
@@ -111,6 +108,7 @@ const child = spawn(
       ...process.env,
       BICHI_API_PORT: apiPort,
       PUBLIC_BICHI_API_PORT: apiPort,
+      BICHI_IN_CONCURRENTLY: '1',
     },
   },
 );

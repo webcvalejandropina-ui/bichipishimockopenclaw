@@ -1,24 +1,32 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { RefreshCw, Mail } from 'lucide';
+import { RefreshCw, Mail, Settings } from 'lucide';
 
+const iPageTitle = iconToSvg(Settings, { width: 22, height: 22 });
 const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 const iMail = iconToSvg(Mail, { width: 16, height: 16 });
 ---
 <Layout activePage="configuracion">
-  <div class="wrapper cfg-page">
+  <div class="wrapper cfg-page dk-page">
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
     <div class="page-header">
-      <h2 class="page-title">Configuración</h2>
-      <p class="page-desc">
-        Ajustes persistidos por la API en <code>data/settings.json</code> (umbrales y SMTP). No subas credenciales a repositorios públicos.
-      </p>
+      <div class="dk-page-title-row">
+        <div>
+          <h2 class="page-title">Configuración</h2>
+          <p class="page-desc">
+            Al guardar, la API escribe <code>data/settings.json</code> y sincroniza un bloque en <code>.env</code> (raíz del repo) con las mismas variables; luego reinicia el proceso de la API cuando no va bajo <code>concurrently</code> (en <code>bun run dev</code> conviene parar y volver a arrancar para que Astro cargue <code>PUBLIC_*</code>). No subas credenciales a repositorios públicos.
+          </p>
+        </div>
+      </div>
     </div>
 
     <form id="config-form">
       <div class="logs-tabs" role="tablist" aria-label="Secciones de configuración">
-        <button type="button" class="logs-tab active" data-cfg="thresholds" role="tab" aria-selected="true">Umbrales</button>
+        <button type="button" class="logs-tab active" data-cfg="brand" role="tab" aria-selected="true">Marca</button>
+        <button type="button" class="logs-tab" data-cfg="thresholds" role="tab" aria-selected="false">Umbrales</button>
         <button type="button" class="logs-tab" data-cfg="mail" role="tab" aria-selected="false">Correo</button>
+        <button type="button" class="logs-tab" data-cfg="logs" role="tab" aria-selected="false">Logs</button>
         <button type="button" class="logs-tab" data-cfg="security" role="tab" aria-selected="false">Seguridad</button>
       </div>
 
@@ -67,7 +75,49 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
         </div>
       </div>
 
-      <div class="logs-panel active" id="cfg-panel-thresholds" role="tabpanel">
+      <div class="logs-panel active" id="cfg-panel-brand" role="tabpanel">
+        <div class="sys-panel">
+          <p class="cfg-hint">
+            Nombre e imagen del perfil en el dashboard. Si dejas un campo vacío, se usa el valor del build
+            (<code>PUBLIC_BICHI_APP_NAME</code>, <code>PUBLIC_BICHI_AVATAR_URL</code> en <code>.env</code>) o los
+            predeterminados del proyecto. Prioridad: <code>public/bichi-brand.js</code> (Docker) &gt; estos campos
+            &gt; variables públicas del build.
+          </p>
+          <div class="cron-form">
+            <div class="cron-form-title">Nombre visible</div>
+            <label class="cfg-lbl">
+              <span>Etiqueta de la app (cabecera, título)</span>
+              <input
+                type="text"
+                class="cron-input"
+                name="brandAppName"
+                id="br-app-name"
+                maxlength="80"
+                autocomplete="organization"
+                placeholder="Dejar vacío para usar el del .env o Bichipishi"
+              />
+            </label>
+          </div>
+          <div class="cron-form cfg-mail-second">
+            <div class="cron-form-title">Avatar del perfil</div>
+            <label class="cfg-lbl">
+              <span>URL de la imagen (https, http en local, o ruta absoluta /…)</span>
+              <input
+                type="text"
+                class="cron-input"
+                name="brandAvatarUrl"
+                id="br-avatar-url"
+                inputmode="url"
+                maxlength="2000"
+                autocomplete="off"
+                placeholder="Dejar vacío para usar PUBLIC_BICHI_AVATAR_URL o la piña por defecto"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="logs-panel" id="cfg-panel-thresholds" role="tabpanel">
         <div class="sys-panel">
           <p class="cfg-hint">
             Porcentajes de uso del host: por debajo del aviso no se genera alerta. Los valores se aplican al recopilar métricas en la API.
@@ -184,6 +234,16 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
               </label>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="logs-panel" id="cfg-panel-logs" role="tabpanel">
+        <div class="sys-panel">
+          <p class="cfg-hint">
+            Define ficheros del host (rutas absolutas legibles por el proceso de la API). En la página <strong>Logs</strong> aparecerá una pestaña por cada entrada válida; si el fichero no existe, verás un aviso. Un regex opcional filtra las líneas antes de mostrarlas (motores JS).
+          </p>
+          <div id="cfg-log-streams" class="cfg-log-streams" aria-label="Ficheros de log adicionales"></div>
+          <button type="button" class="page-filter-btn" id="cfg-log-add">+ Añadir fichero</button>
         </div>
       </div>
 
@@ -402,21 +462,136 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
       flex-shrink: 0;
     }
 
+    .cfg-log-streams {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .cfg-log-row {
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-card);
+    }
+    .cfg-log-row-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .cfg-log-remove {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 9px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      color: var(--text-soft);
+      cursor: pointer;
+    }
+    .cfg-log-remove:hover {
+      color: var(--crit);
+      border-color: color-mix(in srgb, var(--crit) 35%, var(--border));
+    }
+
   </style>
 
   <script>
-    import { fetchSettings, saveSettings, testSettingsMail, type AppSettings } from '../lib/metrics';
+    import {
+      fetchSettings,
+      saveSettings,
+      testSettingsMail,
+      type AppSettings,
+      type LogStreamConfig,
+    } from '../lib/metrics';
+    import { applySettingsBrandOverlay } from '../lib/brand-runtime';
 
     const form = document.getElementById('config-form') as HTMLFormElement;
     const flashBox = document.getElementById('config-flash') as HTMLDivElement;
     const flashText = document.getElementById('config-flash-text') as HTMLParagraphElement;
     let flashClearTimer: ReturnType<typeof setTimeout> | null = null;
 
+    const logStreamsBox = document.getElementById('cfg-log-streams') as HTMLDivElement;
+
     const panels: Record<string, HTMLElement | null> = {
+      brand: document.getElementById('cfg-panel-brand'),
       thresholds: document.getElementById('cfg-panel-thresholds'),
       mail: document.getElementById('cfg-panel-mail'),
+      logs: document.getElementById('cfg-panel-logs'),
       security: document.getElementById('cfg-panel-security'),
     };
+
+    function makeLogRow(s?: Partial<LogStreamConfig>): HTMLDivElement {
+      const wrap = document.createElement('div');
+      wrap.className = 'cfg-log-row';
+      wrap.setAttribute('data-cfg-log-row', '');
+      wrap.innerHTML = `
+        <div class="cfg-log-row-head">
+          <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">Fichero de log</span>
+          <button type="button" class="cfg-log-remove" data-log-remove>Quitar</button>
+        </div>
+        <div class="cfg-pair cfg-pair--top">
+          <label class="cfg-lbl">
+            <span>Clave (única)</span>
+            <input type="text" class="cron-input cfg-ls-id" autocomplete="off" placeholder="ej. nginx" maxlength="48" />
+          </label>
+          <label class="cfg-lbl">
+            <span>Etiqueta</span>
+            <input type="text" class="cron-input cfg-ls-label" autocomplete="off" placeholder="Nginx access" maxlength="120" />
+          </label>
+        </div>
+        <label class="cfg-lbl" style="margin-bottom:8px">
+          <span>Ruta absoluta en el servidor</span>
+          <input type="text" class="cron-input cfg-ls-path" autocomplete="off" placeholder="/var/log/nginx/access.log" />
+        </label>
+        <label class="cfg-lbl">
+          <span>Regex por línea (opcional)</span>
+          <input type="text" class="cron-input cfg-ls-regex" autocomplete="off" placeholder="ej. ERROR|CRITICAL" />
+        </label>
+      `;
+      const idEl = wrap.querySelector('.cfg-ls-id') as HTMLInputElement;
+      const lb = wrap.querySelector('.cfg-ls-label') as HTMLInputElement;
+      const pt = wrap.querySelector('.cfg-ls-path') as HTMLInputElement;
+      const rx = wrap.querySelector('.cfg-ls-regex') as HTMLInputElement;
+      if (s?.id) idEl.value = s.id;
+      if (s?.label) lb.value = s.label;
+      if (s?.path) pt.value = s.path;
+      if (s?.lineRegex) rx.value = s.lineRegex;
+      wrap.querySelector('[data-log-remove]')?.addEventListener('click', () => {
+        wrap.remove();
+      });
+      return wrap;
+    }
+
+    function fillLogStreams(streams: LogStreamConfig[] | undefined) {
+      logStreamsBox.innerHTML = '';
+      const list = streams?.length ? streams : [];
+      for (const st of list) {
+        logStreamsBox.appendChild(makeLogRow(st));
+      }
+    }
+
+    function collectLogStreamsFromDom(): LogStreamConfig[] {
+      const rows = logStreamsBox.querySelectorAll<HTMLDivElement>('[data-cfg-log-row]');
+      const out: LogStreamConfig[] = [];
+      for (const row of rows) {
+        const id = (row.querySelector('.cfg-ls-id') as HTMLInputElement).value.trim();
+        const label = (row.querySelector('.cfg-ls-label') as HTMLInputElement).value.trim();
+        const p = (row.querySelector('.cfg-ls-path') as HTMLInputElement).value.trim();
+        const lineRegex = (row.querySelector('.cfg-ls-regex') as HTMLInputElement).value.trim();
+        if (!id && !label && !p && !lineRegex) continue;
+        out.push({ id, label, path: p, lineRegex });
+      }
+      return out;
+    }
+
+    document.getElementById('cfg-log-add')?.addEventListener('click', () => {
+      logStreamsBox.appendChild(makeLogRow());
+    });
 
     function setFlash(
       show: boolean,
@@ -510,6 +685,10 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
     }
 
     function fill(s: AppSettings) {
+      const br = s.brand || {};
+      (document.getElementById('br-app-name') as HTMLInputElement).value = br.appName || '';
+      (document.getElementById('br-avatar-url') as HTMLInputElement).value = br.avatarUrl || '';
+
       const th = s.thresholds;
       (document.getElementById('th-disk-warn') as HTMLInputElement).value = String(th.diskWarn);
       (document.getElementById('th-disk-crit') as HTMLInputElement).value = String(th.diskCrit);
@@ -531,6 +710,7 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
       const sev = document.getElementById('al-severity') as HTMLSelectElement;
       sev.value = ['all', 'warning', 'critical'].includes(a.notifyMinSeverity) ? a.notifyMinSeverity : 'warning';
       (document.getElementById('al-cooldown') as HTMLInputElement).value = String(a.emailCooldownMinutes ?? 30);
+      fillLogStreams(s.logStreams ?? []);
       updateStats(s);
     }
 
@@ -551,6 +731,10 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
         emailCooldownMinutes: Number.parseInt((document.getElementById('al-cooldown') as HTMLInputElement).value, 10) || 30,
       };
       const payload: Partial<AppSettings> = {
+        brand: {
+          appName: (document.getElementById('br-app-name') as HTMLInputElement).value.trim(),
+          avatarUrl: (document.getElementById('br-avatar-url') as HTMLInputElement).value.trim(),
+        },
         thresholds: {
           diskWarn: Number.parseInt((document.getElementById('th-disk-warn') as HTMLInputElement).value, 10),
           diskCrit: Number.parseInt((document.getElementById('th-disk-crit') as HTMLInputElement).value, 10),
@@ -567,6 +751,7 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
         const { smtpPass: _p, ...rest } = alerts;
         payload.alerts = rest as AppSettings['alerts'];
       }
+      payload.logStreams = collectLogStreamsFromDom();
       return payload;
     }
 
@@ -602,9 +787,16 @@ const iMail = iconToSvg(Mail, { width: 16, height: 16 });
       setFlash(true, 'wait', 'Guardando en el servidor…');
       saveSettings(collectPayload())
         .then((r) => {
-          if (r.settings) fill(r.settings);
+          if (r.settings) {
+            fill(r.settings);
+            applySettingsBrandOverlay(r.settings);
+          }
           setApiStat('ok');
-          setFlash(true, 'ok', 'Cambios guardados correctamente.', 4500);
+          let msg = 'Cambios guardados correctamente.';
+          if (r.envSynced === false) msg += ' No se pudo escribir el bloque en `.env` (permisos o disco).';
+          if (r.restartScheduled) msg += ' Reiniciando el servidor de la API…';
+          else if (r.restartNote) msg += ' ' + r.restartNote;
+          setFlash(true, 'ok', msg, r.restartScheduled ? 9000 : 6500);
         })
         .catch((e) =>
           setFlash(true, 'err', 'No se pudo guardar: ' + (e && e.message ? e.message : e)),

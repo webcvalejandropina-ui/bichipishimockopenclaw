@@ -4,19 +4,27 @@ import { getBuildBrand } from '../lib/brand';
 import { iconToSvg } from '../lib/lucide-svg-string';
 
 const brand = getBuildBrand();
-import { RefreshCw, Trash2, Download } from 'lucide';
+import { RefreshCw, Trash2, Download, ScrollText } from 'lucide';
 
+const iPageTitle = iconToSvg(ScrollText, { width: 22, height: 22 });
 const iRefresh = iconToSvg(RefreshCw, { width: 16, height: 16 });
 const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
 ---
 <Layout activePage="logs">
-  <div class="wrapper">
+  <div class="wrapper dk-page">
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
     <div class="page-header">
-      <h2 class="page-title">Logs</h2>
-      <p class="page-desc">Líneas reales desde la API (<code>/api/logs</code>): archivo <code>LOG_FILE</code>, journalctl o log de OpenClaw.</p>
+      <div class="dk-page-title-row">
+        <div>
+          <h2 class="page-title">Logs</h2>
+          <p class="page-desc">
+            Líneas desde la API (<code>/api/logs</code>): sistema (<code>LOG_FILE</code> o journal), OpenClaw y los ficheros que definas en <a href="/configuracion">Configuración → Logs</a> (una pestaña por entrada; regex opcional en el servidor).
+          </p>
+        </div>
+      </div>
     </div>
 
-    <div class="logs-tabs">
+    <div class="logs-tabs" id="logs-tabstrip">
       <button type="button" class="logs-tab active" data-log="system">Sistema</button>
       <button type="button" class="logs-tab" data-log="openclaw">OpenClaw</button>
     </div>
@@ -104,21 +112,30 @@ const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
         <div class="log-terminal-body" id="oc-log-body"></div>
       </div>
     </div>
+
+    <div id="logs-custom-panels-root"></div>
   </div>
 
   <script>
-    import { fetchMetrics, updateHeader, apiFetch } from '../lib/metrics';
+    import { fetchMetrics, updateHeader, apiFetch, fetchSettings } from '../lib/metrics';
     import { escHtml } from '../lib/process-hints';
 
     const $ = (id: string) => document.getElementById(id)!;
 
-    document.querySelectorAll('.logs-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.logs-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.logs-panel').forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        $(`panel-${(tab as HTMLElement).dataset.log}`).classList.add('active');
-      });
+    document.getElementById('logs-tabstrip')?.addEventListener('click', (e) => {
+      const tab = (e.target as HTMLElement).closest('button.logs-tab');
+      if (!tab) return;
+      const log = (tab as HTMLElement).dataset.log;
+      if (!log) return;
+      document.querySelectorAll('.logs-tab').forEach((t) => t.classList.remove('active'));
+      document.querySelectorAll('.logs-panel').forEach((p) => p.classList.remove('active'));
+      tab.classList.add('active');
+      if (log === 'custom') {
+        const cid = (tab as HTMLElement).dataset.customId;
+        if (cid) document.getElementById(`panel-custom-${cid}`)?.classList.add('active');
+      } else {
+        $(`panel-${log}`).classList.add('active');
+      }
     });
 
     interface LogEntry { time: string; level: string; msg: string; }
@@ -129,6 +146,17 @@ const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
       return r.json() as Promise<{ entries: LogEntry[]; hint?: string | null }>;
     }
 
+    async function fetchLogCustom(id: string) {
+      const r = await apiFetch(`/api/logs?stream=custom&id=${encodeURIComponent(id)}`);
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json() as Promise<{
+        entries: LogEntry[];
+        hint?: string | null;
+        source?: string | null;
+        label?: string | null;
+      }>;
+    }
+
     let sysLogs: LogEntry[] = [];
     let ocLogs: LogEntry[] = [];
     let sysHint = '';
@@ -136,14 +164,19 @@ const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
     let sysFilter = 'all';
     let ocFilter = 'all';
 
+    type CustomState = { logs: LogEntry[]; hint: string; filter: string };
+    let customState: Record<string, CustomState> = {};
+    let lastStreamsJson = '';
+
     const LEVEL_CLASS = new Set(['info', 'warn', 'error', 'debug', 'cmd', 'out']);
     function levelClass(lvl: string) {
       return LEVEL_CLASS.has(lvl) ? lvl : 'info';
     }
 
     function renderLogs(logs: LogEntry[], containerId: string, filter: string, hint?: string) {
-      const el = $(containerId);
-      const filtered = filter === 'all' ? logs : logs.filter(l => l.level === filter);
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      const filtered = filter === 'all' ? logs : logs.filter((l) => l.level === filter);
 
       if (!filtered.length) {
         const h = hint || 'Sin líneas en esta vista.';
@@ -151,24 +184,41 @@ const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
         return;
       }
 
-      el.innerHTML = filtered.map(l =>
-        `<div class="log-line"><span class="log-time">${escHtml(l.time || '—')}</span><span class="log-level ${levelClass(l.level)}">[${escHtml(l.level).toUpperCase()}]</span><span class="log-msg">${escHtml(l.msg)}</span></div>`
-      ).join('');
+      el.innerHTML = filtered
+        .map(
+          (l) =>
+            `<div class="log-line"><span class="log-time">${escHtml(l.time || '—')}</span><span class="log-level ${levelClass(l.level)}">[${escHtml(l.level).toUpperCase()}]</span><span class="log-msg">${escHtml(l.msg)}</span></div>`,
+        )
+        .join('');
 
       el.scrollTop = el.scrollHeight;
     }
 
     function updateSysStats() {
       $('sl-total').textContent = String(sysLogs.length);
-      $('sl-info').textContent = String(sysLogs.filter(l => l.level === 'info').length);
-      $('sl-warn').textContent = String(sysLogs.filter(l => l.level === 'warn').length);
-      $('sl-error').textContent = String(sysLogs.filter(l => l.level === 'error').length);
+      $('sl-info').textContent = String(sysLogs.filter((l) => l.level === 'info').length);
+      $('sl-warn').textContent = String(sysLogs.filter((l) => l.level === 'warn').length);
+      $('sl-error').textContent = String(sysLogs.filter((l) => l.level === 'error').length);
     }
 
     function updateOcStats() {
       $('ol-total').textContent = String(ocLogs.length);
-      $('ol-cmds').textContent = String(ocLogs.filter(l => l.level === 'cmd').length);
-      $('ol-errors').textContent = String(ocLogs.filter(l => l.level === 'error').length);
+      $('ol-cmds').textContent = String(ocLogs.filter((l) => l.level === 'cmd').length);
+      $('ol-errors').textContent = String(ocLogs.filter((l) => l.level === 'error').length);
+    }
+
+    function updateCustomStats(id: string) {
+      const st = customState[id];
+      if (!st) return;
+      const logs = st.logs;
+      const t = document.getElementById(`cus-total-${id}`);
+      const i = document.getElementById(`cus-info-${id}`);
+      const w = document.getElementById(`cus-warn-${id}`);
+      const er = document.getElementById(`cus-error-${id}`);
+      if (t) t.textContent = String(logs.length);
+      if (i) i.textContent = String(logs.filter((l) => l.level === 'info').length);
+      if (w) w.textContent = String(logs.filter((l) => l.level === 'warn').length);
+      if (er) er.textContent = String(logs.filter((l) => l.level === 'error').length);
     }
 
     async function reloadSystemLogs() {
@@ -201,32 +251,166 @@ const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
       }
     }
 
-    document.querySelectorAll('[data-level]').forEach(btn => {
+    async function reloadCustomLog(id: string) {
+      if (!customState[id]) return;
+      try {
+        const d = await fetchLogCustom(id);
+        customState[id].logs = d.entries || [];
+        customState[id].hint = d.hint || '';
+        const title = document.getElementById(`cus-term-title-${id}`);
+        if (title) {
+          const src = d.source ? escHtml(d.source) : '—';
+          const lb = d.label ? escHtml(d.label) : escHtml(id);
+          title.innerHTML = `${lb} — <span style="opacity:0.85">${src}</span>`;
+        }
+        renderLogs(customState[id].logs, `cus-log-body-${id}`, customState[id].filter, customState[id].hint);
+        updateCustomStats(id);
+      } catch {
+        customState[id].logs = [];
+        customState[id].hint = 'No se pudo cargar este log.';
+        renderLogs([], `cus-log-body-${id}`, customState[id].filter, customState[id].hint);
+        updateCustomStats(id);
+      }
+    }
+
+    document.querySelectorAll('[data-level]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-level]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('[data-level]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         sysFilter = (btn as HTMLElement).dataset.level!;
         renderLogs(sysLogs, 'sys-log-body', sysFilter, sysHint);
       });
     });
 
-    document.querySelectorAll('[data-oclevel]').forEach(btn => {
+    document.querySelectorAll('[data-oclevel]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-oclevel]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('[data-oclevel]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         ocFilter = (btn as HTMLElement).dataset.oclevel!;
         renderLogs(ocLogs, 'oc-log-body', ocFilter, ocHint);
       });
     });
 
-    $('sys-log-refresh').addEventListener('click', () => { reloadSystemLogs(); });
+    let customDelegation = false;
+    function bindCustomToolbarDelegation() {
+      if (customDelegation) return;
+      customDelegation = true;
+      document.querySelector('.wrapper')?.addEventListener('click', (e) => {
+        const lv = (e.target as HTMLElement).closest('[data-cus-level]');
+        if (!lv) return;
+        const id = (lv as HTMLElement).dataset.cusId;
+        if (!id || !customState[id]) return;
+        const panel = document.getElementById(`panel-custom-${id}`);
+        panel?.querySelectorAll('[data-cus-level]').forEach((b) => b.classList.remove('active'));
+        lv.classList.add('active');
+        customState[id].filter = (lv as HTMLElement).dataset.cusLevel || 'all';
+        renderLogs(customState[id].logs, `cus-log-body-${id}`, customState[id].filter, customState[id].hint);
+      });
+    }
+
+    function buildCustomPanelHtml(id: string, label: string) {
+      const safeLabel = escHtml(label || id);
+      return `
+      <div class="logs-panel" id="panel-custom-${id}" data-custom-panel="${escHtml(id)}">
+        <div class="log-toolbar">
+          <button type="button" class="log-filter-btn active" data-cus-level="all" data-cus-id="${escHtml(id)}">Todos</button>
+          <button type="button" class="log-filter-btn" data-cus-level="info" data-cus-id="${escHtml(id)}">Info</button>
+          <button type="button" class="log-filter-btn" data-cus-level="warn" data-cus-id="${escHtml(id)}">Warn</button>
+          <button type="button" class="log-filter-btn" data-cus-level="error" data-cus-id="${escHtml(id)}">Error</button>
+          <button type="button" class="log-filter-btn" data-cus-level="debug" data-cus-id="${escHtml(id)}">Debug</button>
+          <div class="log-toolbar-spacer" aria-hidden="true"></div>
+          <button type="button" class="page-icon-btn" id="cus-refresh-${id}" aria-label="Actualizar este log" title="Volver a cargar desde la API">↻</button>
+          <button type="button" class="page-filter-btn" id="cus-clear-${id}" style="display:flex;align-items:center;gap:5px">Limpiar</button>
+        </div>
+        <div class="page-stat-strip">
+          <div class="page-stat"><span class="page-stat-value" id="cus-total-${id}">0</span><span class="page-stat-label">Total</span></div>
+          <div class="page-stat"><span class="page-stat-value" id="cus-info-${id}" style="color:#58a6ff">0</span><span class="page-stat-label">Info</span></div>
+          <div class="page-stat"><span class="page-stat-value" id="cus-warn-${id}" style="color:#d29922">0</span><span class="page-stat-label">Warn</span></div>
+          <div class="page-stat"><span class="page-stat-value" id="cus-error-${id}" style="color:#f85149">0</span><span class="page-stat-label">Error</span></div>
+        </div>
+        <div class="log-terminal">
+          <div class="log-terminal-bar">
+            <div class="log-terminal-dots">
+              <span class="log-terminal-dot red"></span>
+              <span class="log-terminal-dot yellow"></span>
+              <span class="log-terminal-dot green"></span>
+            </div>
+            <span class="log-terminal-title" id="cus-term-title-${id}">${safeLabel}</span>
+          </div>
+          <div class="log-terminal-body" id="cus-log-body-${id}"></div>
+        </div>
+      </div>`;
+    }
+
+    async function rebuildCustomLogPanels() {
+      const root = document.getElementById('logs-custom-panels-root');
+      const tabstrip = document.getElementById('logs-tabstrip');
+      if (!root || !tabstrip) return;
+
+      root.querySelectorAll('.logs-panel[data-custom-panel]').forEach((n) => n.remove());
+      tabstrip.querySelectorAll('.logs-tab[data-custom-id]').forEach((n) => n.remove());
+
+      customState = {};
+      let streams: { id: string; label: string; path: string; lineRegex: string }[] = [];
+      try {
+        const { settings, fromApi } = await fetchSettings();
+        if (!fromApi) return;
+        streams = settings.logStreams ?? [];
+      } catch {
+        return;
+      }
+
+      for (const st of streams) {
+        if (!st.id) continue;
+        customState[st.id] = { logs: [], hint: '', filter: 'all' };
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'logs-tab';
+        tab.dataset.log = 'custom';
+        tab.dataset.customId = st.id;
+        tab.title = st.path || '';
+        tab.textContent = st.label || st.id;
+        tabstrip.appendChild(tab);
+        root.insertAdjacentHTML('beforeend', buildCustomPanelHtml(st.id, st.label));
+        document.getElementById(`cus-refresh-${st.id}`)?.addEventListener('click', () => reloadCustomLog(st.id));
+        document.getElementById(`cus-clear-${st.id}`)?.addEventListener('click', () => {
+          customState[st.id].logs = [];
+          customState[st.id].hint =
+            'Vista vacía (solo en el navegador). Pulsa ↻ para volver a cargar desde la API.';
+          renderLogs([], `cus-log-body-${st.id}`, customState[st.id].filter, customState[st.id].hint);
+          updateCustomStats(st.id);
+        });
+      }
+      bindCustomToolbarDelegation();
+    }
+
+    async function syncCustomStreamsFromSettings() {
+      try {
+        const { settings, fromApi } = await fetchSettings();
+        if (!fromApi) return;
+        const j = JSON.stringify(settings.logStreams ?? []);
+        if (j !== lastStreamsJson) {
+          lastStreamsJson = j;
+          await rebuildCustomLogPanels();
+        }
+        await Promise.all(Object.keys(customState).map((id) => reloadCustomLog(id)));
+      } catch {
+        /* ignore */
+      }
+    }
+
+    $('sys-log-refresh').addEventListener('click', () => {
+      reloadSystemLogs();
+    });
     $('sys-log-clear').addEventListener('click', () => {
       sysLogs = [];
       sysHint = 'Vista vacía (solo en el navegador). Usa el botón de refrescar para volver a cargar desde la API.';
       renderLogs(sysLogs, 'sys-log-body', sysFilter, sysHint);
       updateSysStats();
     });
-    $('oc-log-refresh').addEventListener('click', () => { reloadOpenclawLogs(); });
+    $('oc-log-refresh').addEventListener('click', () => {
+      reloadOpenclawLogs();
+    });
     $('oc-log-clear').addEventListener('click', () => {
       ocLogs = [];
       ocHint = 'Vista vacía (solo en el navegador). Usa el botón de refrescar para volver a cargar desde la API.';
@@ -238,16 +422,31 @@ const iClear = iconToSvg(Trash2, { width: 14, height: 14 });
       try {
         const d = await fetchMetrics();
         updateHeader(d);
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     reloadSystemLogs();
     reloadOpenclawLogs();
     loadHeaderMetrics();
+    rebuildCustomLogPanels()
+      .then(async () => {
+        try {
+          const { settings } = await fetchSettings();
+          lastStreamsJson = JSON.stringify(settings?.logStreams ?? []);
+        } catch {
+          /* ignore */
+        }
+        await Promise.all(Object.keys(customState).map((id) => reloadCustomLog(id)));
+      })
+      .catch(() => undefined);
+
     setInterval(() => {
       reloadSystemLogs();
       reloadOpenclawLogs();
       loadHeaderMetrics();
+      syncCustomStreamsFromSettings();
     }, 15000);
   </script>
 </Layout>

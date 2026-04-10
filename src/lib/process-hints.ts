@@ -35,22 +35,22 @@ const COMM_HINTS: Record<string, string> = {
 };
 
 const SERVICE_HINTS: Record<string, string> = {
-  ssh: 'Escucha conexiones entrantes; autenticación y canal cifrado para administración remota.',
-  docker: 'API y runtime de contenedores; redes, volúmenes e imágenes.',
-  caddy: 'Terminación TLS, HTTP/2 y reverse proxy hacia backends.',
-  postgresql: 'Base de datos relacional; conexiones de aplicaciones y réplicas.',
-  'docker-compose': 'Orquestación declarativa en compose: redes, volúmenes y servicios.',
-  grafana: 'Visualiza métricas y alertas desde Prometheus u otras fuentes.',
-  'grafana-server': 'Dashboards y alertas sobre fuentes de métricas.',
-  prometheus: 'Scrape HTTP de exporters; almacena series temporales y consultas PromQL.',
-  certbot: 'Renueva certificados Let\'s Encrypt y recarga el servidor web.',
-  redis: 'Almacenamiento clave-valor en RAM; pub/sub y TTL.',
-  nginx: 'Proxy y servidor estático delante de aplicaciones.',
-  cron: 'Ejecución de crontabs del sistema y /etc/cron.*.',
-  'systemd-journald': 'Recoge logs del kernel y servicios en el journal.',
-  ufw: 'Reglas iptables/nftables simplificadas (firewall).',
-  fail2ban: 'Banea IPs tras intentos fallidos (jails + logs).',
-  wireguard: 'Interfaz VPN kernel-space; túnel punto a punto.',
+  ssh: 'SSH: conexiones remotas cifradas.',
+  docker: 'Contenedores: API Docker, redes, volúmenes e imágenes.',
+  caddy: 'Caddy: TLS automático y reverse proxy.',
+  postgresql: 'PostgreSQL: base de datos relacional.',
+  'docker-compose': 'Compose: orquestación declarativa de servicios.',
+  grafana: 'Grafana: métricas y alertas (p. ej. Prometheus).',
+  'grafana-server': 'Grafana: dashboards y alertas.',
+  prometheus: 'Prometheus: series temporales y PromQL.',
+  certbot: "Certbot: certificados Let's Encrypt.",
+  redis: 'Redis: clave-valor en RAM, colas, TTL.',
+  nginx: 'Nginx: proxy y contenido estático.',
+  cron: 'Cron: tareas periódicas del sistema.',
+  'systemd-journald': 'journald: logs del kernel y servicios.',
+  ufw: 'UFW: firewall (iptables/nftables).',
+  fail2ban: 'Fail2ban: bloqueo por intentos fallidos.',
+  wireguard: 'WireGuard: VPN punto a punto.',
 };
 
 function normComm(s: string): string {
@@ -78,5 +78,28 @@ export function serviceActivityDescription(serviceName: string, apiDesc?: string
   if (base && hint) return `${base} · ${hint}`;
   if (hint) return hint;
   if (base) return base;
-  return 'Unidad systemd: define cómo se inicia, reinicia y en qué orden respecto a otras unidades.';
+  return 'Servicio del sistema: inicio y dependencias dependen de la plataforma (systemd, launchd, Windows Services, etc.).';
+}
+
+/** Texto útil por nombre de servicio (tarjetas / listas), sin repetir la descripción genérica de la API. */
+export function serviceCatalogHint(serviceName: string): string {
+  const key = String(serviceName || '')
+    .replace(/\.(service|socket|timer|mount)$/i, '')
+    .toLowerCase();
+  return SERVICE_HINTS[key] || '';
+}
+
+/** Descripciones que la API repite para muchas filas; no aportan si ya hay hint o van en otro sitio. */
+export function isBoilerplateServiceDesc(desc: string): boolean {
+  const t = String(desc || '').trim().toLowerCase();
+  if (!t) return true;
+  return (
+    t.includes('detección por ps') ||
+    t.includes('coincidencia por nombre en procesos') ||
+    t.includes('no es el label launchd') ||
+    t.includes('servicio de windows') ||
+    t === 'unidad systemd' ||
+    t === 'servicio del sistema' ||
+    t === 'daemon / proceso del sistema (detección por ps)'
+  );
 }

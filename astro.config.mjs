@@ -13,11 +13,14 @@ const apiPort =
   process.env.PUBLIC_BICHI_API_PORT ||
   '3001';
 const apiProxyTarget = `http://127.0.0.1:${String(apiPort).trim()}`;
-const publicHost = String(process.env.BICHI_PUBLIC_HOST || 'bichipishi.home').trim() || 'bichipishi.home';
-/** Origen público del sitio (sin barra final). Canonical URLs y `import.meta.env.SITE`. */
-const siteOrigin = String(process.env.PUBLIC_BICHI_SITE_URL || `http://${publicHost}`).replace(/\/$/, '');
-/** Puerto que ve el navegador para HMR (80 con Caddy; 4322 si entras solo por Astro). */
-const hmrClientPort = Number.parseInt(String(process.env.BICHI_HMR_CLIENT_PORT || '80'), 10) || 80;
+const extraAllowedHost = String(process.env.BICHI_PUBLIC_HOST || '').trim();
+/** Origen del sitio (sin barra final). Override: PUBLIC_BICHI_SITE_URL. */
+const siteOrigin = String(process.env.PUBLIC_BICHI_SITE_URL || 'http://127.0.0.1:4322').replace(/\/$/, '');
+/** HMR en local: mismo host/puerto que `server.port` salvo que definas BICHI_HMR_* en .env. */
+const hmrHost = String(process.env.BICHI_HMR_HOST || '127.0.0.1').trim() || '127.0.0.1';
+const hmrClientPort = Number.parseInt(String(process.env.BICHI_HMR_CLIENT_PORT || '4322'), 10) || 4322;
+const allowedHosts = ['localhost', '127.0.0.1'];
+if (extraAllowedHost) allowedHosts.push(extraAllowedHost);
 
 export default defineConfig({
   site: siteOrigin,
@@ -29,10 +32,10 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     server: {
-      allowedHosts: [publicHost, 'localhost', '127.0.0.1'],
+      allowedHosts,
       hmr: {
         protocol: 'ws',
-        host: publicHost,
+        host: hmrHost,
         clientPort: hmrClientPort,
       },
       proxy: {

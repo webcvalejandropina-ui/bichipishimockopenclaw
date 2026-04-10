@@ -1,0 +1,21 @@
+# Desarrollo: Bun + Astro (dev server :4322) y API (:3001) con `bun run dev` (concurrently).
+# En Compose se montan fuentes para HMR; node_modules sale de la imagen.
+
+FROM oven/bun:1
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ procps \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package.json bun.lock ./
+COPY metrics-api/package.json metrics-api/
+RUN bun install --frozen-lockfile
+
+COPY . .
+
+ENV NODE_ENV=development
+ENV ASTRO_TELEMETRY_DISABLED=1
+EXPOSE 4322 3001
+
+CMD ["bun", "run", "dev"]

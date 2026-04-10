@@ -1,0 +1,137 @@
+# Perfiles (activa uno o varios con --profile):
+#   production   — Imagen Dockerfile: build Astro (estático) + API en un solo puerto (despliegue tipo prod).
+#   web-only     — Mismo servicio que production (alias; métricas = contenedor).
+#   local        — Imagen Dockerfile.dev: Bun + `bun run dev` (Astro :4322 + API :3001), fuentes montadas (HMR).
+#   full-host    — Como production con pid/montajes del host Linux (panel “real”).
+#   tunnel       — cloudflared (origen interno http://bichipishi:3001 o :4322; scripts/docker-local.mjs usa 8080 en el host por defecto).
+#
+# Siempre Bun + Astro en las imágenes (no npm).
+#
+# Ejemplos:
+#   docker compose --profile production up -d
+#   docker compose --profile local up -d
+#   docker compose --profile production --profile tunnel up -d
+#   docker compose --profile full-host --profile tunnel up -d
+
+name: bichipishi
+
+networks:
+  bichinet:
+    driver: bridge
+
+volumes:
+  bichidata:
+    name: bichipishi_data
+
+x-app-env: &app-env
+  NODE_ENV: production
+  BICHI_DATA_DIR: /data
+  PUBLIC_BICHI_SITE_URL: ${PUBLIC_BICHI_SITE_URL:-http://127.0.0.1:3001}
+  BICHI_CORS_ORIGIN: ${BICHI_CORS_ORIGIN:-*}
+  BICHI_API_PORT: ${BICHI_API_PORT:-3001}
+  PORT: ${BICHI_API_PORT:-3001}
+
+x-app-common: &app-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: bichipishi:local
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    <<: *app-env
+  volumes:
+    - bichidata:/data
+    # Misma capacidad que el perfil `local`: la API puede listar contenedores del motor del host.
+    - /var/run/docker.sock:/var/run/docker.sock
+  networks:
+    bichinet:
+      aliases:
+        - bichipishi
+  ports:
+    - "${BICHI_PUBLISH:-3001}:${BICHI_API_PORT:-3001}"
+
+services:
+  bichipishi-web:
+    <<: *app-common
+    profiles:
+      - web-only
+      - production
+    container_name: bichipishi-web
+
+  bichipishi-host:
+    <<: *app-common
+    profiles:
+      - full-host
+    container_name: bichipishi-host
+    pid: host
+    privileged: true
+    environment:
+      <<: *app-env
+      BICHI_HOST_DISK_ROOT: /host
+    volumes:
+      - bichidata:/data
+      - /:/host:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /run/systemd/system:/run/systemd/system:ro
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
+      - /var/run/dbus:/var/run/dbus:ro
+    networks:
+      bichinet:
+        aliases:
+          - bichipishi
+
+  # Desarrollo: Astro (Vite) + API; mismo stack que `bun run dev` en el host.
+  bichipishi-local:
+    profiles:
+      - local
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: bichipishi:dev
+    container_name: bichipishi-local
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: development
+      BICHI_DATA_DIR: /data
+      PUBLIC_BICHI_SITE_URL: ${PUBLIC_BICHI_SITE_URL_DEV:-http://127.0.0.1:4322}
+      BICHI_CORS_ORIGIN: ${BICHI_CORS_ORIGIN:-*}
+      BICHI_API_PORT: ${BICHI_API_PORT:-3001}
+      PUBLIC_BICHI_API_PORT: ${BICHI_API_PORT:-3001}
+      PORT: ${BICHI_API_PORT:-3001}
+    volumes:
+      - bichidata:/data
+      # Motor Docker del host (la API usa systeminformation/docker; sin esto la API puede caer al arrancar)
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./src:/app/src:delegated
+      - ./public:/app/public:delegated
+      - ./metrics-api:/app/metrics-api:delegated
+      - ./config:/app/config:delegated
+      - ./scripts:/app/scripts:delegated
+      - ./astro.config.mjs:/app/astro.config.mjs:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./package.json:/app/package.json:ro
+      - ./bun.lock:/app/bun.lock:ro
+    ports:
+      - "${BICHI_DEV_ASTRO:-4322}:4322"
+      - "${BICHI_DEV_API:-3001}:${BICHI_API_PORT:-3001}"
+    networks:
+      bichinet:
+        aliases:
+          - bichipishi
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles:
+      - tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    networks:
+      - bichinet

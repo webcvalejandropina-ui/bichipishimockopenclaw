@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import pineappleImg from '../assets/pineapple.png';
 import { getBuildBrand } from '../lib/brand';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { RefreshCw, Clock, Terminal, Braces, CalendarDays, Files, Package, BookOpen } from 'lucide';
+import { RefreshCw, Clock, Terminal, Braces, CalendarDays, Files, Package, BookOpen, Sparkles } from 'lucide';
 
 const brand = getBuildBrand();
 const avatarSrc = brand.avatarUrl || pineappleImg.src;
@@ -18,10 +18,19 @@ const iCal = iconToSvg(CalendarDays, { width: 18, height: 18 });
 const iKpiWs = iconToSvg(Files, { width: 20, height: 20 });
 const iKpiSkills = iconToSvg(Package, { width: 20, height: 20 });
 const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
+const iPageTitle = iconToSvg(Sparkles, { width: 22, height: 22 });
 ---
 <Layout activePage="openclaw">
   <div class="wrapper wrapper--dashboard openclaw-page">
-    <h1 class="sr-only">OpenClaw</h1>
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
+    <div class="page-header openclaw-page__title">
+      <div class="dk-page-title-row">
+        <div>
+          <h1 class="page-title">OpenClaw</h1>
+          <p class="page-desc">Instalación, perfil y recursos del agente en el host de la API.</p>
+        </div>
+      </div>
+    </div>
 
     <div id="oc-chrome">
       <section class="dashboard-metrics-bar" aria-label="Resumen OpenClaw">
@@ -89,10 +98,33 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
             </div>
           </div>
         </div>
-        <button type="button" class="dashboard-refresh-btn" id="oc-snap-refresh" title="Actualizar snapshot" aria-label="Actualizar snapshot">
-          <span set:html={iRefresh} aria-hidden="true" />
-        </button>
+        <div class="dashboard-refresh-tools">
+          <div class="oc-clone-actions" role="group" aria-label="Clonar sistema OpenClaw">
+            <button
+              type="button"
+              class="oc-clone-btn"
+              id="oc-clone-profile"
+              disabled
+              title="Copiar al portapapeles: personalidad, agentes, skills, estilo y workspace (JSON)"
+            >
+              Copiar perfil
+            </button>
+            <button
+              type="button"
+              class="oc-clone-btn"
+              id="oc-clone-full"
+              disabled
+              title="Descargar JSON: perfil, instalación en disco, sondas CLI y cron del host"
+            >
+              Descargar sistema
+            </button>
+          </div>
+          <button type="button" class="dashboard-refresh-btn" id="oc-snap-refresh" title="Actualizar snapshot" aria-label="Actualizar snapshot">
+            <span set:html={iRefresh} aria-hidden="true" />
+          </button>
+        </div>
       </section>
+      <p class="oc-clone-feedback" id="oc-clone-feedback" hidden aria-live="polite"></p>
 
       <div class="card dashboard-alerts-card openclaw-banner openclaw-banner--hidden" id="oc-global-msg" role="status">
         <div class="dash-alert dash-alert--warning openclaw-banner-inner">
@@ -108,6 +140,7 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
             <div class="pine-glow"></div>
             <img
               src={avatarSrc}
+              data-bichi-build-src={avatarSrc}
               alt={brand.appName}
               class="pine-avatar"
               id="pine-avatar"
@@ -228,6 +261,45 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
       flex-direction: column;
       gap: 6px;
     }
+    .openclaw-page .oc-clone-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .openclaw-page .oc-clone-btn {
+      margin: 0;
+      padding: 5px 11px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      color: var(--text-soft);
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+    .openclaw-page .oc-clone-btn:hover:not(:disabled) {
+      border-color: rgba(250, 204, 21, 0.35);
+      color: var(--accent);
+      background: var(--toggle-hover);
+    }
+    .openclaw-page .oc-clone-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .openclaw-page .oc-clone-feedback {
+      margin: 4px 0 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ok, #15803d);
+    }
+    .openclaw-page .oc-clone-feedback.oc-clone-feedback--err {
+      color: var(--crit, #c53b37);
+    }
+    .openclaw-page .oc-clone-feedback[hidden] {
+      display: none !important;
+    }
     @media (min-width: 1100px) {
       .openclaw-page .dashboard-grid.openclaw-bento-hero {
         grid-template-columns: 260px 1fr 1fr 280px;
@@ -321,9 +393,9 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
       align-items: center;
     }
     .openclaw-quick-links a {
-      font-size: 12px;
-      font-weight: 700;
-      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 10px;
       border-radius: 999px;
       text-decoration: none;
       color: var(--text-soft);
@@ -1094,6 +1166,173 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
     [data-theme='dark'] .openclaw-page .openclaw-fill-grid tbody tr:nth-child(even) td {
       background: rgba(255, 255, 255, 0.03);
     }
+    .openclaw-page .openclaw-fill-row--mock td {
+      border-left: 3px solid rgba(100, 116, 139, 0.45);
+      background: rgba(100, 116, 139, 0.05);
+    }
+    [data-theme='dark'] .openclaw-page .openclaw-fill-row--mock td {
+      background: rgba(148, 163, 184, 0.08);
+    }
+    .openclaw-page .openclaw-fill-mock-hint {
+      margin: 0 0 10px;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .openclaw-page .openclaw-fill-synthetic-note {
+      margin: 0 0 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--bg-subtle);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    [data-theme='dark'] .openclaw-page .openclaw-fill-synthetic-note {
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+    .openclaw-page .openclaw-fill-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+    }
+    .openclaw-page .openclaw-fill-actions-hint {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.4;
+      max-width: 70%;
+    }
+    .openclaw-page .oc-oc-restore {
+      flex-shrink: 0;
+      margin: 0;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-soft);
+      cursor: pointer;
+    }
+    .openclaw-page .oc-oc-restore:hover {
+      border-color: var(--muted);
+      color: var(--text);
+    }
+    .openclaw-page .oc-oc-restore:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .openclaw-page .oc-oc-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .openclaw-page .oc-oc-pill--disk {
+      background: rgba(34, 197, 94, 0.14);
+      color: #15803d;
+    }
+    [data-theme='dark'] .openclaw-page .oc-oc-pill--disk {
+      background: rgba(34, 197, 94, 0.2);
+      color: #86efac;
+    }
+    .openclaw-page .oc-oc-pill--cli {
+      background: rgba(59, 130, 246, 0.14);
+      color: #1d4ed8;
+    }
+    [data-theme='dark'] .openclaw-page .oc-oc-pill--cli {
+      background: rgba(59, 130, 246, 0.22);
+      color: #93c5fd;
+    }
+    .openclaw-page .oc-oc-pill--cat {
+      background: rgba(100, 116, 139, 0.14);
+      color: var(--muted);
+    }
+    .openclaw-page .oc-oc-led {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-soft);
+    }
+    .openclaw-page .oc-oc-led::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: #94a3b8;
+      box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.25);
+    }
+    .openclaw-page .oc-oc-led--ok::before {
+      background: #22c55e;
+      box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.28);
+    }
+    .openclaw-page .oc-oc-led--warn::before {
+      background: #f59e0b;
+      box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.28);
+    }
+    .openclaw-page .oc-oc-led--ref::before {
+      background: #64748b;
+    }
+    .openclaw-page .oc-oc-dismiss {
+      margin: 0;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .openclaw-page .oc-oc-dismiss:hover {
+      border-color: var(--danger, #b91c1c);
+      color: var(--danger, #b91c1c);
+      background: rgba(185, 28, 28, 0.06);
+    }
+    .openclaw-page .openclaw-fill-table--interactive tbody tr {
+      transition: background 0.12s ease;
+    }
+    .openclaw-page .openclaw-fill-table--interactive tbody tr:hover td {
+      background: rgba(0, 0, 0, 0.03);
+    }
+    [data-theme='dark'] .openclaw-page .openclaw-fill-table--interactive tbody tr:hover td {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .openclaw-page .openclaw-fill-table td.oc-oc-actions {
+      width: 1%;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    .openclaw-page .openclaw-fill-skill-name {
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .openclaw-page .oc-install-skill-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+    }
+    .openclaw-page .oc-install-skill-head .oc-oc-dismiss {
+      flex-shrink: 0;
+    }
     .openclaw-page .openclaw-style-dl {
       margin: 0;
       display: grid;
@@ -1358,6 +1597,145 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
 
     const OC_MOCK_OUTPUT_ICON = iconToSvg(Terminal, OC_PROBE_ICON);
 
+    const OC_FILL_DISMISS_LS = 'openclaw.fill.dismiss.v1';
+
+    type OcDismissState = { agents: string[]; skills: string[]; installSkills: string[] };
+
+    function loadOcDismiss(): OcDismissState {
+      try {
+        const raw = localStorage.getItem(OC_FILL_DISMISS_LS);
+        if (!raw) return { agents: [], skills: [], installSkills: [] };
+        const o = JSON.parse(raw) as Partial<OcDismissState>;
+        return {
+          agents: Array.isArray(o.agents) ? o.agents : [],
+          skills: Array.isArray(o.skills) ? o.skills : [],
+          installSkills: Array.isArray(o.installSkills) ? o.installSkills : [],
+        };
+      } catch {
+        return { agents: [], skills: [], installSkills: [] };
+      }
+    }
+
+    function saveOcDismiss(s: OcDismissState) {
+      try {
+        localStorage.setItem(OC_FILL_DISMISS_LS, JSON.stringify(s));
+      } catch {
+        /* ignore */
+      }
+    }
+
+    function ocDismissSets() {
+      const s = loadOcDismiss();
+      return {
+        agents: new Set(s.agents),
+        skills: new Set(s.skills),
+        installSkills: new Set(s.installSkills),
+      };
+    }
+
+    function ocAgentRowId(a: { id?: string; label?: string }) {
+      return `a:${String(a.id || '').trim() || String(a.label || '').trim() || '—'}`;
+    }
+
+    function ocSkillRowId(s: { name?: string; path?: string }) {
+      return `s:${String(s.name || '').trim()}|${String(s.path || '').trim()}`;
+    }
+
+    function ocInstallSkillRowId(dir: string) {
+      return `i:${String(dir || '').trim()}`;
+    }
+
+    function clearOcDismiss() {
+      saveOcDismiss({ agents: [], skills: [], installSkills: [] });
+    }
+
+    function addOcDismiss(kind: string, id: string) {
+      const s = loadOcDismiss();
+      if (kind === 'agent') {
+        if (!s.agents.includes(id)) s.agents.push(id);
+      } else if (kind === 'skill') {
+        if (!s.skills.includes(id)) s.skills.push(id);
+      } else if (kind === 'install-skill') {
+        if (!s.installSkills.includes(id)) s.installSkills.push(id);
+      }
+      saveOcDismiss(s);
+    }
+
+    let ocLastSnapshot: Record<string, unknown> | null = null;
+
+    function summarizePathsFromInstall(il: unknown): Record<string, unknown> | null {
+      if (!il || typeof il !== 'object') return null;
+      const o = il as Record<string, unknown>;
+      if (o.disabled) return { disabled: true, message: o.message };
+      return {
+        roots: o.roots ?? null,
+        hasRealWorkspaceContent: o.hasRealWorkspaceContent,
+        error: o.error,
+      };
+    }
+
+    function buildOpenClawCloneBundle(snapshot: Record<string, unknown>, mode: 'profile' | 'full') {
+      const exportedAt = new Date().toISOString();
+      const source = {
+        capturedAt: snapshot.at,
+        available: snapshot.available,
+        binary: snapshot.binary,
+        mockMode: snapshot.mockMode,
+      };
+      if (mode === 'profile') {
+        return {
+          format: 'openclaw-system-clone',
+          version: 1,
+          exportedAt,
+          mode: 'profile',
+          description:
+            'Personalidad, agentes, skills, estilo y workspace (openclawFill). Incluye rutas base del disco sin el contenido pesado de los ficheros.',
+          source,
+          openclawFill: snapshot.openclawFill ?? null,
+          paths: summarizePathsFromInstall(snapshot.installLayout),
+        };
+      }
+      return {
+        format: 'openclaw-system-clone',
+        version: 1,
+        exportedAt,
+        mode: 'full',
+        description:
+          'Snapshot amplio para replicar o auditar: perfil, lectura de disco de la API, sondas CLI y cron del host.',
+        source,
+        openclawFill: snapshot.openclawFill ?? null,
+        installLayout: snapshot.installLayout ?? null,
+        cronSystem: snapshot.cronSystem ?? null,
+        probes: snapshot.probes ?? null,
+        suppressDemoFill: snapshot.suppressDemoFill,
+        message: snapshot.message,
+        disabled: snapshot.disabled,
+      };
+    }
+
+    function setOcCloneButtonsEnabled(on: boolean) {
+      const p = document.getElementById('oc-clone-profile') as HTMLButtonElement | null;
+      const f = document.getElementById('oc-clone-full') as HTMLButtonElement | null;
+      if (p) p.disabled = !on;
+      if (f) f.disabled = !on;
+    }
+
+    let ocCloneFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+    function showCloneFeedback(msg: string, kind: 'ok' | 'err' = 'ok') {
+      const el = document.getElementById('oc-clone-feedback');
+      if (!el) return;
+      el.textContent = msg;
+      el.hidden = false;
+      el.classList.toggle('oc-clone-feedback--err', kind === 'err');
+      if (ocCloneFeedbackTimer) clearTimeout(ocCloneFeedbackTimer);
+      ocCloneFeedbackTimer = setTimeout(() => {
+        el.hidden = true;
+        el.textContent = '';
+        el.classList.remove('oc-clone-feedback--err');
+        ocCloneFeedbackTimer = null;
+      }, 4500);
+    }
+
     async function syncDashboardProfile() {
       try {
         const d = await fetchMetrics();
@@ -1368,15 +1746,24 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
           pc.classList.add('profile-card--ready');
           pc.removeAttribute('aria-busy');
         }
-        const pn = document.getElementById('profile-name');
-        if (pn) {
-          const dev = typeof d.deviceName === 'string' && d.deviceName.trim() ? d.deviceName.trim() : '';
-          pn.textContent = dev || d.hostname || resolveBichiBrand().appName;
-          pn.classList.remove('skeleton');
-        }
         const hostOk = metricsRepresentHost(d);
         const openclaw =
           d && typeof d.openclawAvailable === 'boolean' ? d.openclawAvailable : false;
+        const pn = document.getElementById('profile-name');
+        if (pn) {
+          const dev = typeof d.deviceName === 'string' && d.deviceName.trim() ? d.deviceName.trim() : '';
+          const hn = typeof d.hostname === 'string' && d.hostname.trim() ? d.hostname.trim() : '';
+          const sameAsHost = hn && dev.toLowerCase() === hn.toLowerCase();
+          /* Sin CLI: solo guion. Con CLI: solo un nombre distinto del hostname (nunca hostname ni marca de la app). */
+          if (!openclaw) {
+            pn.textContent = '-';
+          } else if (dev && !sameAsHost) {
+            pn.textContent = dev;
+          } else {
+            pn.textContent = '-';
+          }
+          pn.classList.remove('skeleton');
+        }
         const pr = document.getElementById('profile-role');
         if (pr) {
           if (!hostOk) {
@@ -1422,7 +1809,11 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
           }
         }
       } catch {
-        /* sin API */
+        const pn = document.getElementById('profile-name');
+        if (pn) {
+          pn.textContent = '-';
+          pn.classList.remove('skeleton');
+        }
       }
     }
 
@@ -1469,11 +1860,22 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
 
     function renderFill(fill: any): string {
       if (!fill || typeof fill !== 'object') return '';
+      const dismiss = ocDismissSets();
       const p = fill.personality;
-      const agents = Array.isArray(fill.agentsPreview) ? fill.agentsPreview : [];
+      const agentsRaw = Array.isArray(fill.agentsPreview) ? fill.agentsPreview : [];
+      const skillsRaw = Array.isArray(fill.skillsPreview) ? fill.skillsPreview : [];
+      const agents = agentsRaw.filter((a: any) => !dismiss.agents.has(ocAgentRowId(a)));
+      const skills = skillsRaw.filter((s: any) => !dismiss.skills.has(ocSkillRowId(s)));
       const ws = fill.workspace;
       const st = fill.style;
+      const isLegacyDemo = !!fill.legacyDemo;
+      const stDismiss = loadOcDismiss();
+      const nHidden = stDismiss.agents.length + stDismiss.skills.length + stDismiss.installSkills.length;
       const note = fill.note ? `<p class="dash-sys-lede openclaw-lede">${escHtml(fill.note)}</p>` : '';
+      const syntheticNote =
+        !isLegacyDemo && fill.syntheticNote
+          ? `<p class="openclaw-fill-synthetic-note" role="status">${escHtml(fill.syntheticNote)}</p>`
+          : '';
 
       let personaBlock = '';
       let personaSummary = '';
@@ -1506,30 +1908,102 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
         const promptBlock = p.systemPromptPreview
           ? `<details class="openclaw-fill-inline-details oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead">System prompt (vista previa)</span></summary><pre class="oc-pre oc-pre--tight">${escHtml(p.systemPromptPreview)}</pre></details>`
           : '';
-        personaBlock = `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-kv"><tbody>${personaRows.join('')}</tbody></table></div>${promptBlock}`;
+        const personaMockHint =
+          p.mock && !isLegacyDemo
+            ? `<p class="oc-muted openclaw-fill-mock-hint" role="note">Simulación plausible: no se encontraron AGENTS.md / SOUL.md / IDENTITY.md con contenido en el workspace.</p>`
+            : '';
+        personaBlock = `${personaMockHint}<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-kv"><tbody>${personaRows.join('')}</tbody></table></div>${promptBlock}`;
       }
 
-      let agentsBlock = '';
-      if (agents.length) {
-        const rows = agents
-          .map(
-            (a: any) =>
-              `<tr>
+      const dismissBtn = (kind: string, id: string) =>
+        `<td class="oc-oc-actions"><button type="button" class="oc-oc-dismiss" data-oc-dismiss="${escHtml(kind)}" data-oc-id="${escHtml(encodeURIComponent(id))}">Quitar</button></td>`;
+
+      const agentsAllHidden =
+        agentsRaw.length > 0 && agents.length === 0
+          ? '<tr><td colspan="6" class="oc-muted">Todas las filas están ocultas. Usa <strong>Mostrar quitados</strong> arriba para recuperarlas.</td></tr>'
+          : '';
+      const agentsEmptyMsg = isLegacyDemo
+        ? ''
+        : '<tr><td colspan="6" class="oc-muted">Sin filas desde <code>agents list --json</code> (o JSON no reconocido). Detalle en la sección «Agentes».</td></tr>';
+      const agentRows =
+        agents.length > 0
+          ? agents
+              .map((a: any) => {
+                const rowId = ocAgentRowId(a);
+                const clsAttr = a.mock ? ' class="openclaw-fill-row--mock"' : '';
+                const title = a.mock ? ' title="Vista de catálogo / sin CLI"' : '';
+                const led = a.mock ? 'oc-oc-led oc-oc-led--ref' : 'oc-oc-led oc-oc-led--ok';
+                const ledTxt = a.mock ? 'Referencia' : 'Activo';
+                return `<tr${clsAttr}${title}>
+            <td><span class="${led}">${escHtml(ledTxt)}</span></td>
             <td>${escHtml(a.label || a.id || '—')}</td>
             <td><code>${escHtml(String(a.id || '—'))}</code></td>
             <td class="oc-td-cmd">${escHtml(String(a.binding || '—'))}</td>
             <td>${escHtml(String(a.persona || '—'))}</td>
-          </tr>`,
-          )
-          .join('');
-        agentsBlock = `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-grid">
-          <thead><tr><th scope="col">Agente</th><th scope="col">ID</th><th scope="col">Binding</th><th scope="col">Persona</th></tr></thead>
-          <tbody>${rows}</tbody>
+            ${dismissBtn('agent', rowId)}
+          </tr>`;
+              })
+              .join('')
+          : agentsAllHidden || agentsEmptyMsg;
+      const agentsBlock = `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-grid openclaw-fill-table--interactive">
+          <thead><tr><th scope="col">Estado</th><th scope="col">Agente</th><th scope="col">ID</th><th scope="col">Binding</th><th scope="col">Persona</th><th scope="col" class="oc-oc-actions"> </th></tr></thead>
+          <tbody>${agentRows}</tbody>
         </table></div>`;
-      }
+
+      const skillsAllHidden =
+        skillsRaw.length > 0 && skills.length === 0
+          ? '<tr><td colspan="5" class="oc-muted">Todas las skills están ocultas. Pulsa <strong>Mostrar quitados</strong> para volver a verlas.</td></tr>'
+          : '';
+      const skillsEmptyMsg = isLegacyDemo
+        ? '<tr><td colspan="5" class="oc-muted">Modo OPENCLAW_DEMO_FILL=1: usa la sección «Skills» para el listado de sondas.</td></tr>'
+        : '<tr><td colspan="5" class="oc-muted">Sin skills desde <code>skills list --json</code> ni carpetas con SKILL.md en la ruta de skills del layout.</td></tr>';
+      const skillRows =
+        skills.length > 0
+          ? skills
+              .map((s: any) => {
+                const rowId = ocSkillRowId(s);
+                let ledClass = 'oc-oc-led oc-oc-led--ref';
+                let ledTxt = 'Referencia';
+                let pill = '<span class="oc-oc-pill oc-oc-pill--cat">Catálogo</span>';
+                if (s.source === 'disk') {
+                  pill = '<span class="oc-oc-pill oc-oc-pill--disk">Disco</span>';
+                  if (s.hasSkillMd === true) {
+                    ledClass = 'oc-oc-led oc-oc-led--ok';
+                    ledTxt = 'En catálogo';
+                  } else if (s.hasSkillMd === false) {
+                    ledClass = 'oc-oc-led oc-oc-led--warn';
+                    ledTxt = 'Incompleto';
+                  } else {
+                    ledTxt = 'En disco';
+                  }
+                } else if (s.source === 'cli') {
+                  ledClass = 'oc-oc-led oc-oc-led--ok';
+                  ledTxt = 'Registrada';
+                  pill = '<span class="oc-oc-pill oc-oc-pill--cli">CLI</span>';
+                }
+                const clsAttrSk = s.source === 'mock' ? ' class="openclaw-fill-row--mock"' : '';
+                const titleSk = s.source === 'mock' ? ' title="Entrada de catálogo (sin CLI o sin disco)"' : '';
+                return `<tr${clsAttrSk}${titleSk}>
+            <td><span class="${ledClass}">${escHtml(ledTxt)}</span></td>
+            <td><span class="openclaw-fill-skill-name">${escHtml(String(s.name || '—'))}</span></td>
+            <td class="openclaw-fill-td-path"><code>${escHtml(String(s.path || '—'))}</code></td>
+            <td>${pill}</td>
+            ${dismissBtn('skill', rowId)}
+          </tr>`;
+              })
+              .join('')
+          : skillsAllHidden || skillsEmptyMsg;
+      const skillsBlock = `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-grid openclaw-fill-table--interactive">
+          <thead><tr><th scope="col">Estado</th><th scope="col">Skill</th><th scope="col">Ruta</th><th scope="col">Origen</th><th scope="col" class="oc-oc-actions"> </th></tr></thead>
+          <tbody>${skillRows}</tbody>
+        </table></div>`;
 
       let wsBlock = '';
       if (ws && typeof ws === 'object') {
+        const wsMockHint =
+          ws.mock && !isLegacyDemo
+            ? `<p class="oc-muted openclaw-fill-mock-hint" role="note">Rutas simuladas plausibles (OPENCLAW_* / valores por defecto): la tarjeta «Instalación en disco» confirma lo legible.</p>`
+            : '';
         const dirs = Array.isArray(ws.skillsDirs) ? ws.skillsDirs : [];
         const mem = Array.isArray(ws.memoryFiles) ? ws.memoryFiles : [];
         const wsRows: string[] = [
@@ -1537,13 +2011,17 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
         ];
         if (dirs.length)
           wsRows.push(
-            `<tr><th scope="row">Skills</th><td>${dirs.map((t: string) => escHtml(t)).join(' · ')}</td></tr>`,
+            `<tr><th scope="row">Dirs. skills</th><td>${dirs.map((t: string) => `<code>${escHtml(t)}</code>`).join(' · ')}</td></tr>`,
           );
         if (mem.length)
           wsRows.push(
-            `<tr><th scope="row">Memoria</th><td>${mem.map((t: string) => escHtml(t)).join(' · ')}</td></tr>`,
+            `<tr><th scope="row">Memoria</th><td>${mem.map((t: string) => `<code>${escHtml(t)}</code>`).join(' · ')}</td></tr>`,
           );
-        wsBlock = `<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-kv"><tbody>${wsRows.join('')}</tbody></table></div>`;
+        if (!mem.length && !isLegacyDemo)
+          wsRows.push(
+            `<tr><th scope="row">Memoria</th><td class="oc-muted">Sin entradas listadas (revisa <code>memory/</code> en la tarjeta de instalación).</td></tr>`,
+          );
+        wsBlock = `${wsMockHint}<div class="openclaw-fs-table-wrap"><table class="openclaw-fill-table openclaw-fill-kv"><tbody>${wsRows.join('')}</tbody></table></div>`;
       }
 
       let styleBlock = '';
@@ -1554,22 +2032,47 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
         </dl>`;
       }
 
+      const personaNoteExtra = p && (p as any).mock && !isLegacyDemo ? ' · simulación plausible' : '';
+      const agentsAllMock = agentsRaw.length > 0 && agentsRaw.every((a: any) => a.mock);
+      const skillsAllMock = skillsRaw.length > 0 && skillsRaw.every((s: any) => s.source === 'mock');
+      const agT = agentsRaw.length;
+      const agV = agents.length;
+      const skT = skillsRaw.length;
+      const skV = skills.length;
+      const agPanelNote = agentsAllMock
+        ? `${agV} · catálogo`
+        : agV
+          ? agT > agV
+            ? `${agV} en vista · ${agT} total`
+            : `${agV} activos`
+          : 'CLI';
+      const skPanelNote = skillsAllMock
+        ? `${skV} · catálogo`
+        : skV
+          ? skT > skV
+            ? `${skV} en vista · ${skT} total`
+            : `${skV} en lista`
+          : 'CLI + disco';
+      const wsPanelNote = ws && (ws as any).mock && !isLegacyDemo ? 'simulación plausible' : 'rutas API';
+
       const panels: string[] = [];
       if (personaBlock) {
         panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure" open>
-      <summary><span class="oc-chevron-disclosure__lead">Personalidad <span class="openclaw-fill-panel-note">${personaSummary}</span></span></summary>
+      <summary><span class="oc-chevron-disclosure__lead">Personalidad <span class="openclaw-fill-panel-note">${personaSummary}${personaNoteExtra}</span></span></summary>
       <div class="openclaw-fill-panel-body">${personaBlock}</div>
     </details>`);
       }
-      if (agentsBlock) {
-        panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure">
-      <summary><span class="oc-chevron-disclosure__lead">Agentes <span class="openclaw-fill-panel-note">${agents.length} filas</span></span></summary>
+      panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure"${agentsRaw.length ? ' open' : ''}>
+      <summary><span class="oc-chevron-disclosure__lead">Agentes <span class="openclaw-fill-panel-note">${agPanelNote}</span></span></summary>
       <div class="openclaw-fill-panel-body">${agentsBlock}</div>
     </details>`);
-      }
+      panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure"${skillsRaw.length ? ' open' : ''}>
+      <summary><span class="oc-chevron-disclosure__lead">Skills <span class="openclaw-fill-panel-note">${skPanelNote}</span></span></summary>
+      <div class="openclaw-fill-panel-body">${skillsBlock}</div>
+    </details>`);
       if (wsBlock) {
-        panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure">
-      <summary><span class="oc-chevron-disclosure__lead">Workspace <span class="openclaw-fill-panel-note">referencia demo</span></span></summary>
+        panels.push(`<details class="openclaw-fill-panel oc-chevron-disclosure" open>
+      <summary><span class="oc-chevron-disclosure__lead">Workspace <span class="openclaw-fill-panel-note">${wsPanelNote}</span></span></summary>
       <div class="openclaw-fill-panel-body">${wsBlock}</div>
     </details>`);
       }
@@ -1582,13 +2085,22 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
 
       if (!panels.length) return '';
 
+      const dek = isLegacyDemo
+        ? 'Contenido ilustrativo (OPENCLAW_DEMO_FILL=1). Cada bloque se pliega por separado.'
+        : 'Vista tipo consola: estado por fila, orígenes con etiquetas y acciones rápidas. Quitar solo oculta en este navegador.';
+      const restoreBtn = `<button type="button" class="oc-oc-restore" id="oc-fill-restore-dismissed"${nHidden ? '' : ' disabled'}>Mostrar quitados${nHidden ? ` (${nHidden})` : ''}</button>`;
+      const fillToolbar = `<div class="openclaw-fill-actions">
+        <p class="oc-muted openclaw-fill-actions-hint">Quitar oculta la fila aquí (local). No modifica el servidor ni el disco.</p>
+        ${restoreBtn}
+      </div>`;
       return `<div class="card openclaw-fill-card">
         <div class="card-header oc-card-header--icon">
           <span class="oc-card-header__ico" aria-hidden="true">${OC_CARD_ICON.profile}</span>
           <h3>Perfil, agentes y estilo</h3>
         </div>
-        <p class="openclaw-fill-dek">Demostración en tablas: personalidad, agentes y workspace comparten el mismo contenedor visual; estilo aparte. Cada bloque se pliega por separado.</p>
-        ${note}
+        <p class="openclaw-fill-dek">${escHtml(dek)}</p>
+        ${note}${syntheticNote}
+        ${fillToolbar}
         <div class="openclaw-fill-stack">${panels.join('')}</div>
       </div>`;
     }
@@ -1736,9 +2248,12 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
       if (sk.error) {
         skillsBlock = `<p class="oc-err-note">${escHtml(String(sk.error))}</p>`;
       } else {
-        const items = Array.isArray(sk.items) ? sk.items : [];
+        const dismissSk = ocDismissSets().installSkills;
+        const itemsAll = Array.isArray(sk.items) ? sk.items : [];
+        const items = itemsAll.filter((s: any) => !dismissSk.has(ocInstallSkillRowId(s.skillDir)));
         const skillList = items
           .map((s: any) => {
+            const rowId = ocInstallSkillRowId(s.skillDir);
             const meta = s.exists && s.content ? `${fmtBytes(s.size)}${s.truncated ? ' · truncado' : ''}` : s.error || '—';
             const body =
               s.exists && s.content
@@ -1749,13 +2264,21 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
             const pathLine = s.skillMdPath
               ? `<p class="oc-muted" style="margin:0 0 8px;font-size:11px;font-family:ui-monospace,monospace">${escHtml(s.skillMdPath)}</p>`
               : '';
-            return `<details class="openclaw-details oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead">${escHtml(s.skillDir || 'skill')} · SKILL.md <span class="oc-fs-meta">${escHtml(meta)}</span></span></summary>${pathLine}${body}</details>`;
+            return `<details class="openclaw-details oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead oc-install-skill-head"><span>${escHtml(s.skillDir || 'skill')} · SKILL.md <span class="oc-fs-meta">${escHtml(meta)}</span></span><button type="button" class="oc-oc-dismiss" data-oc-dismiss="install-skill" data-oc-id="${escHtml(encodeURIComponent(rowId))}">Quitar</button></span></summary>${pathLine}${body}</details>`;
           })
           .join('');
-        skillsBlock = `<details class="openclaw-details openclaw-fs-rollup oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead"><span class="openclaw-fs-rollup-title">Skills instaladas</span> <span class="oc-fs-meta">${items.length} carpetas</span></span></summary>
+        const visNote =
+          itemsAll.length && !items.length
+            ? '<p class="oc-muted">Todas las carpetas están ocultas en esta vista. Pulsa <strong>Mostrar quitados</strong> en la tarjeta de perfil.</p>'
+            : '';
+        const rollupMeta =
+          itemsAll.length && items.length < itemsAll.length
+            ? `${items.length} visibles · ${itemsAll.length} en disco`
+            : `${itemsAll.length} carpetas`;
+        skillsBlock = `<details class="openclaw-details openclaw-fs-rollup oc-chevron-disclosure"><summary><span class="oc-chevron-disclosure__lead"><span class="openclaw-fs-rollup-title">Skills instaladas</span> <span class="oc-fs-meta">${escHtml(rollupMeta)}</span></span></summary>
       <div class="openclaw-fs-rollup-body">
       <p class="oc-muted openclaw-install-section-meta">${sk.exists ? 'Directorio local' : 'No accesible'} · <code>${escHtml(sk.dir || '')}</code></p>
-      ${skillList || '<p class="oc-muted">Sin carpetas de skill.</p>'}
+      ${visNote || skillList || '<p class="oc-muted">Sin carpetas de skill.</p>'}
       </div></details>`;
       }
 
@@ -2048,6 +2571,7 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
     }
 
     async function load() {
+      setOcCloneButtonsEnabled(false);
       const msgBox = $('oc-global-msg');
       const msgText = $('oc-global-msg-text');
       const el = $('oc-sections');
@@ -2083,22 +2607,25 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
         cj.classList.remove('skeleton');
 
         updateOpenClawKpis(data);
+        ocLastSnapshot = data;
 
         if (data.message && data.disabled) {
           msgText.textContent = data.message;
           msgBox.classList.remove('openclaw-banner--hidden');
         } else if (data.mockMode) {
-          msgText.textContent = data.suppressDemoFill
-            ? 'OpenClaw no está instalado o no está en PATH: las sondas son de demostración, pero el workspace, memoria, skills y documentación local se leen del disco. Cron del host es real.'
-            : 'OpenClaw no está instalado o no está en PATH. Se muestran datos de demostración (sondas y bloque de personalidad) y el cron real del host.';
+          msgText.textContent =
+            'OpenClaw no está en PATH en la API: todas las sondas muestran JSON de vista previa (agentes, skills/permisos, MCP, gateway, aprobaciones, sandbox, seguridad…). La instalación en disco y el cron del host siguen siendo lecturas reales donde aplique.';
           msgBox.classList.remove('openclaw-banner--hidden');
         } else {
           msgBox.classList.add('openclaw-banner--hidden');
         }
 
         renderAll(data);
+        setOcCloneButtonsEnabled(true);
       } catch (e) {
         console.error(e);
+        ocLastSnapshot = null;
+        setOcCloneButtonsEnabled(false);
         msgBox.classList.add('openclaw-banner--hidden');
         updateOpenClawKpis({});
         el.removeAttribute('aria-busy');
@@ -2109,7 +2636,78 @@ const iKpiDocs = iconToSvg(BookOpen, { width: 20, height: 20 });
       }
     }
 
+    function ensureOcDismissWire() {
+      const el = $('oc-sections');
+      if ((el as HTMLElement).dataset.ocDismissBound) return;
+      (el as HTMLElement).dataset.ocDismissBound = '1';
+      el.addEventListener('click', (e: Event) => {
+        const ev = e as MouseEvent;
+        const t = ev.target as HTMLElement | null;
+        if (!t) return;
+        const restore = t.closest('#oc-fill-restore-dismissed') as HTMLButtonElement | null;
+        if (restore) {
+          ev.preventDefault();
+          if (restore.disabled) return;
+          clearOcDismiss();
+          if (ocLastSnapshot) renderAll(ocLastSnapshot as Record<string, unknown>);
+          return;
+        }
+        const btn = t.closest('[data-oc-dismiss]') as HTMLElement | null;
+        if (!btn || !el.contains(btn)) return;
+        const kind = btn.getAttribute('data-oc-dismiss');
+        const idRaw = btn.getAttribute('data-oc-id');
+        if (!kind || !idRaw) return;
+        let id: string;
+        try {
+          id = decodeURIComponent(idRaw);
+        } catch {
+          id = idRaw;
+        }
+        ev.preventDefault();
+        ev.stopPropagation();
+        addOcDismiss(kind, id);
+        if (ocLastSnapshot) renderAll(ocLastSnapshot as Record<string, unknown>);
+      });
+    }
+
     $('oc-snap-refresh').addEventListener('click', load);
+    ensureOcDismissWire();
+
+    document.getElementById('oc-clone-profile')?.addEventListener('click', async () => {
+      if (!ocLastSnapshot) {
+        showCloneFeedback('Sin datos: pulsa actualizar primero.', 'err');
+        return;
+      }
+      const bundle = buildOpenClawCloneBundle(ocLastSnapshot, 'profile');
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+        showCloneFeedback('Perfil copiado al portapapeles (JSON).', 'ok');
+      } catch {
+        showCloneFeedback('No se pudo copiar. Revisa permisos del portapapeles o usa Descargar sistema.', 'err');
+      }
+    });
+
+    document.getElementById('oc-clone-full')?.addEventListener('click', () => {
+      if (!ocLastSnapshot) {
+        showCloneFeedback('Sin datos: pulsa actualizar primero.', 'err');
+        return;
+      }
+      const bundle = buildOpenClawCloneBundle(ocLastSnapshot, 'full');
+      const json = JSON.stringify(bundle, null, 2);
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().replace('T', '_').replace(/:/g, '-').slice(0, 19);
+      a.download = `openclaw-sistema-${stamp}.json`;
+      a.href = url;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showCloneFeedback('Archivo JSON del sistema descargado.', 'ok');
+    });
+
     load();
   </script>
 </Layout>

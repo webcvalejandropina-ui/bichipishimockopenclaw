@@ -112,14 +112,12 @@ const navItems = [
     >
       Dashboard
     </a>
-    <div class="mobile-nav-group" role="group" aria-label="Sistema">
-      <span class="mobile-nav-group-title">Sistema</span>
-      <a href="/sistema" class={`mobile-nav-link mobile-nav-link--sub${activePage === 'sistema' ? ' active' : ''}`}>Resumen</a>
-      <a href="/rendimiento" class={`mobile-nav-link mobile-nav-link--sub${activePage === 'rendimiento' ? ' active' : ''}`}>Rendimiento</a>
-      <a href="/procesos" class={`mobile-nav-link mobile-nav-link--sub${activePage === 'procesos' ? ' active' : ''}`}>Procesos</a>
-      <a href="/servicios" class={`mobile-nav-link mobile-nav-link--sub${activePage === 'servicios' ? ' active' : ''}`}>Servicios</a>
-      <a href="/tareas-programadas" class={`mobile-nav-link mobile-nav-link--sub${activePage === 'tareas-programadas' ? ' active' : ''}`}>Tareas programadas</a>
-    </div>
+    <a
+      href="/sistema"
+      class={`mobile-nav-link${isSistemaSection ? ' active' : ''}`}
+    >
+      Sistema
+    </a>
     {navItems
       .filter((item) => item.id !== 'dashboard' && item.id !== 'sistema')
       .map((item) => (

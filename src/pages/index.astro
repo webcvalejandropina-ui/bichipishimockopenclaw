@@ -33,6 +33,8 @@ const i = {
   sysGpu:  iconToSvg(CircuitBoard, iconSm),
   sysMem:  iconToSvg(MemoryStick, iconSm),
   sysDisk: iconToSvg(HardDrive,  iconSm),
+  /** Marca de agua del encabezado (mismo patrón que el resto de páginas). */
+  dashWm: iconToSvg(LayoutGrid, { width: 22, height: 22 }),
 };
 
 const brand = getBuildBrand();
@@ -43,79 +45,95 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
   <h1 class="sr-only">Monitor del sistema {brand.appName}</h1>
 
   <div class="wrapper wrapper--dashboard">
+    <span class="page-header__watermark" set:html={i.dashWm} aria-hidden="true" />
+    <div class="page-header">
+      <div class="dk-page-title-row">
+        <div>
+          <h2 class="page-title">Panel</h2>
+          <p class="page-desc">Vista rápida de CPU, memoria, disco, alertas y actividad del host.</p>
+        </div>
+      </div>
+    </div>
+
     <section class="dashboard-metrics-bar" aria-label="Resumen rápido">
       <div class="dashboard-metrics-bar__main">
-      <div class="quick-badges">
-        <div class="q-badge">
-          <span class="q-badge-icon" set:html={i.cpu} aria-hidden="true" />
-          <span class="q-badge-stack">
-            <span class="q-badge-name">CPU</span>
-            <strong id="qb-cpu" class="skeleton q-badge-val">&mdash;</strong>
+      <div class="page-stat-strip dashboard-summary-strip dashboard-summary-strip--metrics" aria-label="Métricas del host">
+        <div class="page-stat dashboard-stat-chip">
+          <span class="info-card-icon blue" set:html={i.cpu} aria-hidden="true" />
+          <span class="dashboard-stat-chip__pair">
+            <span id="qb-cpu" class="page-stat-value skeleton">&mdash;</span>
+            <span class="page-stat-label">CPU</span>
           </span>
         </div>
-        <div class="q-badge q-badge--accent">
-          <span class="q-badge-icon" set:html={i.mem} aria-hidden="true" />
-          <span class="q-badge-stack">
-            <span class="q-badge-name">RAM</span>
-            <strong id="qb-ram" class="skeleton q-badge-val">&mdash;</strong>
+        <div class="page-stat dashboard-stat-chip dashboard-stat-chip--accent">
+          <span class="info-card-icon gold" set:html={i.mem} aria-hidden="true" />
+          <span class="dashboard-stat-chip__pair">
+            <span id="qb-ram" class="page-stat-value skeleton">&mdash;</span>
+            <span class="page-stat-label">RAM</span>
           </span>
         </div>
-        <div class="q-badge">
-          <span class="q-badge-icon" set:html={i.disk} aria-hidden="true" />
-          <span class="q-badge-stack">
-            <span class="q-badge-name">Disco</span>
-            <strong id="qb-disk" class="skeleton q-badge-val">&mdash;</strong>
+        <div class="page-stat dashboard-stat-chip">
+          <span class="info-card-icon yellow" set:html={i.disk} aria-hidden="true" />
+          <span class="dashboard-stat-chip__pair">
+            <span id="qb-disk" class="page-stat-value skeleton">&mdash;</span>
+            <span class="page-stat-label">Disco</span>
           </span>
         </div>
-        <div class="q-badge">
-          <span class="q-badge-icon" set:html={i.gpu} aria-hidden="true" />
-          <span class="q-badge-stack">
-            <span class="q-badge-name">GPU</span>
-            <strong id="qb-gpu" class="skeleton q-badge-val">&mdash;</strong>
+        <div class="page-stat dashboard-stat-chip">
+          <span class="info-card-icon green" set:html={i.gpu} aria-hidden="true" />
+          <span class="dashboard-stat-chip__pair">
+            <span id="qb-gpu" class="page-stat-value skeleton">&mdash;</span>
+            <span class="page-stat-label">GPU</span>
           </span>
         </div>
-        <div class="q-badge">
-          <span class="q-badge-icon" set:html={i.load} aria-hidden="true" />
-          <span class="q-badge-stack">
-            <span class="q-badge-name">Carga</span>
-            <strong id="qb-load" class="skeleton q-badge-val">&mdash;</strong>
+        <div class="page-stat dashboard-stat-chip">
+          <span class="info-card-icon blue" set:html={i.load} aria-hidden="true" />
+          <span class="dashboard-stat-chip__pair">
+            <span id="qb-load" class="page-stat-value skeleton">&mdash;</span>
+            <span class="page-stat-label">Carga</span>
           </span>
         </div>
       </div>
-      <div class="kpi-strip">
-        <div class="kpi">
-          <span class="kpi-icon" set:html={i.users} aria-hidden="true" />
-          <div class="kpi-body">
-            <div class="kpi-row-main">
-              <span class="kpi-value skeleton" id="kpi-proc">&mdash;</span>
-              <span class="kpi-title">Procesos</span>
-            </div>
-            <p class="kpi-meta" id="kpi-proc-meta"></p>
+      <div class="page-stat-strip dashboard-summary-strip dashboard-summary-strip--kpi" aria-label="Recuentos">
+        <div class="dashboard-kpi-item">
+          <div class="page-stat dashboard-stat-chip">
+            <span class="info-card-icon green" set:html={i.users} aria-hidden="true" />
+            <span class="dashboard-stat-chip__pair">
+              <span class="page-stat-value skeleton" id="kpi-proc">&mdash;</span>
+              <span class="page-stat-label">Procesos</span>
+            </span>
+          </div>
+          <p class="kpi-meta dashboard-kpi-meta" id="kpi-proc-meta"></p>
+        </div>
+        <div class="dashboard-kpi-item">
+          <div class="page-stat dashboard-stat-chip">
+            <span class="info-card-icon blue" set:html={i.settings} aria-hidden="true" />
+            <span class="dashboard-stat-chip__pair">
+              <span class="page-stat-value skeleton" id="kpi-svc">&mdash;</span>
+              <span class="page-stat-label">Servicios</span>
+            </span>
           </div>
         </div>
-        <div class="kpi">
-          <span class="kpi-icon" set:html={i.settings} aria-hidden="true" />
-          <div class="kpi-body">
-            <div class="kpi-row-main">
-              <span class="kpi-value skeleton" id="kpi-svc">&mdash;</span>
-              <span class="kpi-title">Servicios</span>
-            </div>
-          </div>
-        </div>
-        <div class="kpi">
-          <span class="kpi-icon" set:html={i.pkg} aria-hidden="true" />
-          <div class="kpi-body">
-            <div class="kpi-row-main">
-              <span class="kpi-value skeleton" id="kpi-ctnr">&mdash;</span>
-              <span class="kpi-title">Contenedores</span>
-            </div>
+        <div class="dashboard-kpi-item">
+          <div class="page-stat dashboard-stat-chip">
+            <span class="info-card-icon gold" set:html={i.pkg} aria-hidden="true" />
+            <span class="dashboard-stat-chip__pair">
+              <span class="page-stat-value skeleton" id="kpi-ctnr">&mdash;</span>
+              <span class="page-stat-label">Contenedores</span>
+            </span>
           </div>
         </div>
       </div>
       </div>
-      <button type="button" class="dashboard-refresh-btn" id="refresh-btn" title="Actualizar métricas" aria-label="Actualizar métricas">
-        <span set:html={i.refresh} aria-hidden="true" />
-      </button>
+      <div class="dashboard-refresh-tools">
+        <div class="dashboard-sync-status" id="dashboard-sync-status" aria-live="polite">
+          <span class="dashboard-sync-status__label">Sincronización</span>
+          <strong class="dashboard-sync-status__value skeleton" id="dashboard-sync-status-value">Cargando…</strong>
+        </div>
+        <button type="button" class="dashboard-refresh-btn" id="refresh-btn" title="Actualizar métricas" aria-label="Actualizar métricas">
+          <span set:html={i.refresh} aria-hidden="true" />
+        </button>
+      </div>
     </section>
 
     <section
@@ -139,6 +157,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
           <div class="pine-glow"></div>
           <img
             src={avatarSrc}
+            data-bichi-build-src={avatarSrc}
             alt={brand.appName}
             class="pine-avatar"
             id="pine-avatar"
@@ -550,6 +569,8 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
     const $ = (id: string) => document.getElementById(id)!;
     let bichiCronRefresh: (() => Promise<void>) | null = null;
     let lastMetricsForAlerts: any = null;
+    let syncStatusTimer: ReturnType<typeof setInterval> | null = null;
+    let lastMetricsSuccessAt = 0;
 
     /* ── Clock ── */
     function updateClock() {
@@ -557,6 +578,28 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
       $('live-clock').textContent = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       $('sys-time').textContent = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
+
+    function setSyncStatus(kind: 'loading' | 'ok' | 'error', text: string) {
+      const box = document.getElementById('dashboard-sync-status');
+      const val = document.getElementById('dashboard-sync-status-value');
+      if (!box || !val) return;
+      box.dataset.state = kind;
+      val.textContent = text;
+      val.classList.remove('skeleton');
+    }
+
+    function syncStatusTextFromAge(ms: number) {
+      if (ms < 15_000) return 'Actualizado hace unos segundos';
+      if (ms < 60_000) return `Actualizado hace ${Math.max(1, Math.round(ms / 1000))} s`;
+      const mins = Math.max(1, Math.round(ms / 60_000));
+      return `Actualizado hace ${mins} min`;
+    }
+
+    function refreshSyncStatusAge() {
+      if (!lastMetricsSuccessAt) return;
+      setSyncStatus('ok', syncStatusTextFromAge(Date.now() - lastMetricsSuccessAt));
+    }
+
     updateClock();
     setInterval(updateClock, 1000);
 
@@ -872,8 +915,11 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
     async function load() {
       const btn = document.getElementById('refresh-btn');
       btn?.classList.add('spinning');
+      setSyncStatus('loading', lastMetricsSuccessAt ? 'Actualizando métricas…' : 'Conectando con la API…');
       try {
         const d = await fetchMetrics();
+         lastMetricsForAlerts = d;
+        updateHeader(d);
         lastMetricsForAlerts = d;
         updateHeader(d);
 
@@ -1073,6 +1119,8 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         const running = (d.services||[]).filter((s: any) => s.running).length + (d.topCpu||[]).length;
         $('activity-count').textContent = `${running}/${total}`;
 
+        lastMetricsSuccessAt = Date.now();
+        refreshSyncStatusAge();
         prevCpu = Number.isFinite(cpu) ? cpu : 0;
         void bichiCronRefresh?.();
       } catch (e) {
@@ -1110,6 +1158,7 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
         $('ctnr-list').innerHTML = '<div class="act-empty">Sin conexión a la API</div>';
         $('warn-list').innerHTML = '<div class="act-empty">Sin conexión a la API</div>';
         setDashSysTip('sys-gpu-model', 'sys-gpu-model-tip', '—', '—');
+        setSyncStatus('error', lastMetricsSuccessAt ? 'Sin conexión · mostrando último estado válido' : 'Sin conexión con la API');
       }
       finally {
         btn?.classList.remove('spinning');
@@ -1123,10 +1172,13 @@ const customAvatarClass = brand.avatarUrl ? ' profile-card--custom-avatar' : '';
       applyBichiBrandToDocument();
       createUptimeChart();
       if (metricsPoll) clearInterval(metricsPoll);
+      if (syncStatusTimer) clearInterval(syncStatusTimer);
       wireDashSysTips();
       initCopyableValues(document.body);
+      setSyncStatus('loading', 'Conectando con la API…');
       load();
       metricsPoll = setInterval(load, 12000);
+      syncStatusTimer = setInterval(refreshSyncStatusAge, 10_000);
     }
 
     document.body.addEventListener('click', (e) => {

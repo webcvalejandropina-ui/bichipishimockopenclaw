@@ -1,4 +1,4 @@
-# Raíz: bun.lock, pnpm-lock.yaml y package-lock.json pueden convivir (Bun / pnpm / npm).
+# Raíz: bun.lock y pnpm-lock.yaml (Bun / pnpm); no uses npm en los flujos del repo (ver docs/PAQUETES.md).
 
 # build output (web estática servida por metrics-api)
 dist/
@@ -8,6 +8,13 @@ dist/
 
 # dependencies
 node_modules/
+
+# salida de procesos en segundo plano (no subir)
+nohup.out
+**/nohup.out
+
+# archivos comprimidos sueltos en la raíz (copias locales)
+/*.zip
 
 # logs
 npm-debug.log*

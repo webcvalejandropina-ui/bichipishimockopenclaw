@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import SistemaSectionTabs from '../components/SistemaSectionTabs.astro';
 import { iconToSvg } from '../lib/lucide-svg-string';
-import { Cpu, MemoryStick, HardDrive, Clock, Monitor, RefreshCw, CircuitBoard, Copy } from 'lucide';
+import { Cpu, MemoryStick, HardDrive, Clock, Monitor, RefreshCw, CircuitBoard, Copy, Info } from 'lucide';
 
 const iPageTitle = iconToSvg(Monitor, { width: 22, height: 22 });
 const icons = {
@@ -12,15 +12,23 @@ const icons = {
   gpu: iconToSvg(CircuitBoard, { width: 18, height: 18 }),
   clock: iconToSvg(Clock, { width: 18, height: 18 }),
   monitor: iconToSvg(Monitor, { width: 18, height: 18 }),
+  /** Marcas de agua en tarjetas Sistema (esquina superior derecha, criterio Docker .info-card--svc::before) */
+  monitorBg: iconToSvg(Monitor, { width: 200, height: 200, 'stroke-width': 1.35 }),
+  cpuBg: iconToSvg(Cpu, { width: 200, height: 200, 'stroke-width': 1.35 }),
+  memBg: iconToSvg(MemoryStick, { width: 200, height: 200, 'stroke-width': 1.35 }),
+  diskBg: iconToSvg(HardDrive, { width: 200, height: 200, 'stroke-width': 1.35 }),
+  gpuBg: iconToSvg(CircuitBoard, { width: 200, height: 200, 'stroke-width': 1.35 }),
+  clockBg: iconToSvg(Clock, { width: 200, height: 200, 'stroke-width': 1.35 }),
   refresh: iconToSvg(RefreshCw, { width: 16, height: 16 }),
   copy: iconToSvg(Copy, { width: 14, height: 14 }),
+  info: iconToSvg(Info, { width: 16, height: 16 }),
 };
 ---
 <Layout activePage="sistema">
   <div class="wrapper dk-page sistema-page sys-page">
+    <span class="page-header__watermark" set:html={iPageTitle} aria-hidden="true" />
     <div class="page-header">
       <div class="dk-page-title-row">
-        <span class="dk-page-title-icon" set:html={iPageTitle} aria-hidden="true" />
         <div>
           <h2 class="page-title">Sistema</h2>
           <p class="page-desc">Hardware, uso de recursos y tiempo de actividad del host que ejecuta la API.</p>
@@ -49,33 +57,48 @@ const icons = {
     <p class="sys-page-results" id="sys-results">Cargando…</p>
 
     <div class="page-stat-strip sys-stat-strip" id="sys-stat-strip" aria-label="Resumen rápido">
-      <div class="page-stat" data-metric="cpu">
-        <span class="page-stat-value skeleton" id="st-cpu">—</span>
-        <span class="page-stat-label">CPU</span>
+      <div class="page-stat dashboard-stat-chip" data-metric="cpu">
+        <span class="info-card-icon blue" set:html={icons.cpu} aria-hidden="true" />
+        <span class="dashboard-stat-chip__pair">
+          <span class="page-stat-value skeleton" id="st-cpu">—</span>
+          <span class="page-stat-label">CPU</span>
+        </span>
       </div>
-      <div class="page-stat" data-metric="mem">
-        <span class="page-stat-value skeleton" id="st-mem">—</span>
-        <span class="page-stat-label">RAM</span>
+      <div class="page-stat dashboard-stat-chip dashboard-stat-chip--accent" data-metric="mem">
+        <span class="info-card-icon gold" set:html={icons.mem} aria-hidden="true" />
+        <span class="dashboard-stat-chip__pair">
+          <span class="page-stat-value skeleton" id="st-mem">—</span>
+          <span class="page-stat-label">RAM</span>
+        </span>
       </div>
-      <div class="page-stat" data-metric="disk">
-        <span class="page-stat-value skeleton" id="st-disk">—</span>
-        <span class="page-stat-label">Disco</span>
+      <div class="page-stat dashboard-stat-chip" data-metric="disk">
+        <span class="info-card-icon yellow" set:html={icons.disk} aria-hidden="true" />
+        <span class="dashboard-stat-chip__pair">
+          <span class="page-stat-value skeleton" id="st-disk">—</span>
+          <span class="page-stat-label">Disco</span>
+        </span>
       </div>
-      <div class="page-stat" data-metric="gpu">
-        <span class="page-stat-value skeleton" id="st-gpu">—</span>
-        <span class="page-stat-label">GPU</span>
+      <div class="page-stat dashboard-stat-chip" data-metric="gpu">
+        <span class="info-card-icon green" set:html={icons.gpu} aria-hidden="true" />
+        <span class="dashboard-stat-chip__pair">
+          <span class="page-stat-value skeleton" id="st-gpu">—</span>
+          <span class="page-stat-label">GPU</span>
+        </span>
       </div>
-      <div class="page-stat" data-metric="uptime">
-        <span class="page-stat-value page-stat-value--uptime skeleton" id="st-uptime">—</span>
-        <span class="page-stat-label">Uptime</span>
+      <div class="page-stat dashboard-stat-chip" data-metric="uptime">
+        <span class="info-card-icon blue" set:html={icons.clock} aria-hidden="true" />
+        <span class="dashboard-stat-chip__pair">
+          <span class="page-stat-value page-stat-value--uptime skeleton" id="st-uptime">—</span>
+          <span class="page-stat-label">Uptime</span>
+        </span>
       </div>
     </div>
 
     <div class="sys-panel-grid" id="sys-panels">
-      <div class="sys-panel">
-        <div class="sys-panel-heading">
-          <span class="sys-panel-icon" aria-hidden="true" set:html={icons.monitor} />
-          <h3 class="sys-panel-title">Información del sistema</h3>
+      <div class="sys-panel sys-panel--dk-watermark">
+        <span class="sys-panel-bg-icon" aria-hidden="true" set:html={icons.monitorBg} />
+        <div class="info-card-header sys-panel-heading sys-panel-heading--title-only">
+          <h3 class="info-card-title sys-panel-title">Información del sistema</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
           <div class="sys-item sys-item--full">
@@ -124,14 +147,17 @@ const icons = {
             </div>
           </div>
         </div>
-        <p class="sys-mem-note" id="si-host-note" hidden></p>
+        <p class="sys-mem-note sys-panel-footnote" id="si-host-note" hidden>
+          <span class="info-card-icon gold sys-panel-footnote__ico" aria-hidden="true" set:html={icons.info} />
+          <span class="sys-panel-footnote__text"></span>
+        </p>
         <button type="button" class="sistema-copy-summary" id="si-copy-summary">Copiar resumen de esta tarjeta</button>
       </div>
 
-      <div class="sys-panel">
-        <div class="sys-panel-heading">
-          <span class="sys-panel-icon" aria-hidden="true" set:html={icons.cpu} />
-          <h3 class="sys-panel-title">Procesador</h3>
+      <div class="sys-panel sys-panel--dk-watermark">
+        <span class="sys-panel-bg-icon" aria-hidden="true" set:html={icons.cpuBg} />
+        <div class="info-card-header sys-panel-heading sys-panel-heading--title-only">
+          <h3 class="info-card-title sys-panel-title">Procesador</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
           <div class="sys-item sys-item--full">
@@ -165,10 +191,10 @@ const icons = {
         </div>
       </div>
 
-      <div class="sys-panel">
-        <div class="sys-panel-heading">
-          <span class="sys-panel-icon sys-panel-icon--mem" aria-hidden="true" set:html={icons.mem} />
-          <h3 class="sys-panel-title">Memoria RAM</h3>
+      <div class="sys-panel sys-panel--dk-watermark">
+        <span class="sys-panel-bg-icon" aria-hidden="true" set:html={icons.memBg} />
+        <div class="info-card-header sys-panel-heading sys-panel-heading--title-only">
+          <h3 class="info-card-title sys-panel-title">Memoria RAM</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
           <div class="sys-item">
@@ -195,13 +221,16 @@ const icons = {
           <div class="sys-meter-track"><div class="sys-meter-fill" id="si-mem-bar" style="width:0%"></div></div>
           <div class="sys-meter-foot"><span>0%</span><span id="si-mem-foot">100%</span></div>
         </div>
-        <p class="sys-mem-note" id="si-mem-note" hidden></p>
+        <p class="sys-mem-note sys-panel-footnote" id="si-mem-note" hidden>
+          <span class="info-card-icon gold sys-panel-footnote__ico" aria-hidden="true" set:html={icons.info} />
+          <span class="sys-panel-footnote__text"></span>
+        </p>
       </div>
 
-      <div class="sys-panel sys-panel--disk">
-        <div class="sys-panel-heading">
-          <span class="sys-panel-icon sys-panel-icon--disk" aria-hidden="true" set:html={icons.disk} />
-          <h3 class="sys-panel-title">Disco principal</h3>
+      <div class="sys-panel sys-panel--dk-watermark sys-panel--disk">
+        <span class="sys-panel-bg-icon" aria-hidden="true" set:html={icons.diskBg} />
+        <div class="info-card-header sys-panel-heading sys-panel-heading--title-only">
+          <h3 class="info-card-title sys-panel-title">Disco principal</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
           <div class="sys-item">
@@ -237,13 +266,16 @@ const icons = {
           <div class="sys-meter-track"><div class="sys-meter-fill sys-meter-fill--disk" id="si-disk-bar" style="width:0%"></div></div>
           <div class="sys-meter-foot"><span>0%</span><span id="si-disk-foot">100%</span></div>
         </div>
-        <p class="sys-mem-note" id="si-disk-note" hidden></p>
+        <p class="sys-mem-note sys-panel-footnote" id="si-disk-note" hidden>
+          <span class="info-card-icon yellow sys-panel-footnote__ico" aria-hidden="true" set:html={icons.info} />
+          <span class="sys-panel-footnote__text"></span>
+        </p>
       </div>
 
-      <div class="sys-panel">
-        <div class="sys-panel-heading">
-          <span class="sys-panel-icon" aria-hidden="true" set:html={icons.gpu} />
-          <h3 class="sys-panel-title">GPU</h3>
+      <div class="sys-panel sys-panel--dk-watermark">
+        <span class="sys-panel-bg-icon" aria-hidden="true" set:html={icons.gpuBg} />
+        <div class="info-card-header sys-panel-heading sys-panel-heading--title-only">
+          <h3 class="info-card-title sys-panel-title">GPU</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
           <div class="sys-item sys-item--full">
@@ -270,13 +302,16 @@ const icons = {
           <div class="sys-meter-track"><div class="sys-meter-fill" id="si-gpu-bar" style="width:0%"></div></div>
           <div class="sys-meter-foot"><span>0%</span><span id="si-gpu-foot">100%</span></div>
         </div>
-        <p class="sys-mem-note" id="si-gpu-note" hidden></p>
+        <p class="sys-mem-note sys-panel-footnote" id="si-gpu-note" hidden>
+          <span class="info-card-icon yellow sys-panel-footnote__ico" aria-hidden="true" set:html={icons.info} />
+          <span class="sys-panel-footnote__text"></span>
+        </p>
       </div>
 
-      <div class="sys-panel">
-        <div class="sys-panel-heading">
-          <span class="sys-panel-icon sys-panel-icon--clock" aria-hidden="true" set:html={icons.clock} />
-          <h3 class="sys-panel-title">Tiempo</h3>
+      <div class="sys-panel sys-panel--dk-watermark">
+        <span class="sys-panel-bg-icon" aria-hidden="true" set:html={icons.clockBg} />
+        <div class="info-card-header sys-panel-heading sys-panel-heading--title-only">
+          <h3 class="info-card-title sys-panel-title">Tiempo</h3>
         </div>
         <div class="sys-grid sys-grid--dense">
           <div class="sys-item">
@@ -333,6 +368,24 @@ const icons = {
       const forClip = (copyOverride !== undefined ? copyOverride : display).trim();
       if (forClip && forClip !== '—') el.dataset.copyText = forClip;
       else delete el.dataset.copyText;
+    }
+
+    /** Nota al pie con icono tipo Docker (badge + texto) */
+    function setSysFootnote(wrapperId: string, text: string, multiline = false) {
+      const wrap = document.getElementById(wrapperId);
+      const textEl = wrap?.querySelector('.sys-panel-footnote__text');
+      if (!wrap || !textEl) return;
+      const t = text.trim();
+      if (t) {
+        textEl.textContent = t;
+        if (multiline) (textEl as HTMLElement).style.whiteSpace = 'pre-line';
+        else (textEl as HTMLElement).style.removeProperty('white-space');
+        wrap.removeAttribute('hidden');
+      } else {
+        textEl.textContent = '';
+        (textEl as HTMLElement).style.removeProperty('white-space');
+        wrap.setAttribute('hidden', '');
+      }
     }
 
     function wireSistemaCopyButtons() {
@@ -506,33 +559,14 @@ const icons = {
           hostOk && d.mem != null ? statusColor(Number(d.mem), 'mem') : 'var(--bar-bg)';
         $('si-mem-foot').textContent = hostOk && d.mem != null ? `${Math.round(memPct)}%` : '—';
 
-        const memNoteEl = document.getElementById('si-mem-note');
-        if (memNoteEl) {
-          const note = typeof d.memNote === 'string' ? d.memNote.trim() : '';
-          if (note) {
-            memNoteEl.textContent = note;
-            memNoteEl.removeAttribute('hidden');
-          } else {
-            memNoteEl.textContent = '';
-            memNoteEl.setAttribute('hidden', '');
-          }
-        }
+        const note = typeof d.memNote === 'string' ? d.memNote.trim() : '';
+        setSysFootnote('si-mem-note', note, false);
 
-        const hostNoteEl = document.getElementById('si-host-note');
-        if (hostNoteEl) {
-          const hnote =
-            typeof (d as { hostMetricsNote?: string }).hostMetricsNote === 'string'
-              ? String((d as { hostMetricsNote?: string }).hostMetricsNote).trim()
-              : '';
-          if (hnote) {
-            hostNoteEl.textContent = hnote;
-            (hostNoteEl as HTMLElement).style.whiteSpace = 'pre-line';
-            hostNoteEl.removeAttribute('hidden');
-          } else {
-            hostNoteEl.textContent = '';
-            hostNoteEl.setAttribute('hidden', '');
-          }
-        }
+        const hnote =
+          typeof (d as { hostMetricsNote?: string }).hostMetricsNote === 'string'
+            ? String((d as { hostMetricsNote?: string }).hostMetricsNote).trim()
+            : '';
+        setSysFootnote('si-host-note', hnote, true);
 
         const diskTotal = typeof d.diskTotal === 'number' && d.diskTotal > 0 ? d.diskTotal : null;
         setSiField('si-disk-total', diskTotal != null ? `${diskTotal} GiB` : '—');
@@ -550,20 +584,11 @@ const icons = {
           hostOk && d.disk != null ? statusColor(Number(d.disk), 'disk') : 'var(--bar-bg)';
         $('si-disk-foot').textContent = hostOk && d.disk != null ? `${Math.round(diskPct)}%` : '—';
 
-        const diskNoteEl = document.getElementById('si-disk-note');
-        if (diskNoteEl) {
-          const dnote = typeof (d as { diskNote?: string }).diskNote === 'string' ? String((d as { diskNote?: string }).diskNote).trim() : '';
-          const dmount =
-            typeof (d as { diskMount?: string }).diskMount === 'string' ? String((d as { diskMount?: string }).diskMount).trim() : '';
-          if (dnote || dmount) {
-            diskNoteEl.textContent = [dmount && `Montaje: ${dmount}`, dnote].filter(Boolean).join('\n');
-            (diskNoteEl as HTMLElement).style.whiteSpace = 'pre-line';
-            diskNoteEl.removeAttribute('hidden');
-          } else {
-            diskNoteEl.textContent = '';
-            diskNoteEl.setAttribute('hidden', '');
-          }
-        }
+        const dnote = typeof (d as { diskNote?: string }).diskNote === 'string' ? String((d as { diskNote?: string }).diskNote).trim() : '';
+        const dmount =
+          typeof (d as { diskMount?: string }).diskMount === 'string' ? String((d as { diskMount?: string }).diskMount).trim() : '';
+        const diskFoot = [dmount && `Montaje: ${dmount}`, dnote].filter(Boolean).join('\n');
+        setSysFootnote('si-disk-note', diskFoot, true);
 
         setSiField('si-gpu-model', gpuModelStr ? gpuModelStr : '—');
         const vramMb = typeof d.gpuVramMb === 'number' && d.gpuVramMb > 0 ? d.gpuVramMb : null;
@@ -576,16 +601,14 @@ const icons = {
         ($('si-gpu-bar') as HTMLElement).style.background =
           hostOk && Number.isFinite(gpuU) ? statusColor(gpuU, 'gpu') : 'var(--bar-bg)';
         $('si-gpu-foot').textContent = hostOk && Number.isFinite(gpuU) ? `${Math.round(gpuBarPct)}%` : '—';
-        const gpuNoteEl = document.getElementById('si-gpu-note');
-        if (gpuNoteEl) {
-          if (hostOk && gpuModelStr && !Number.isFinite(gpuU)) {
-            gpuNoteEl.textContent =
-              'El porcentaje de uso no está disponible en este sistema o GPU (p. ej. integradas Apple/AMD sin nvidia-smi). El modelo sigue siendo informativo.';
-            gpuNoteEl.removeAttribute('hidden');
-          } else {
-            gpuNoteEl.textContent = '';
-            gpuNoteEl.setAttribute('hidden', '');
-          }
+        if (hostOk && gpuModelStr && !Number.isFinite(gpuU)) {
+          setSysFootnote(
+            'si-gpu-note',
+            'El porcentaje de uso no está disponible en este sistema o GPU (p. ej. integradas Apple/AMD sin nvidia-smi). El modelo sigue siendo informativo.',
+            false,
+          );
+        } else {
+          setSysFootnote('si-gpu-note', '', false);
         }
 
         setSiField('si-uptime', hasValidSystemUptime(d.uptime) ? fmtUptime(d.uptime) : '—');

@@ -9,9 +9,9 @@ const iActivity = iconToSvg(Activity, { width: 22, height: 22 });
 ---
 <Layout activePage="rendimiento">
   <div class="wrapper perf-page dk-page">
+    <span class="page-header__watermark" set:html={iActivity} aria-hidden="true" />
     <div class="page-header perf-header">
       <div class="dk-page-title-row">
-        <span class="dk-page-title-icon" set:html={iActivity} aria-hidden="true" />
         <div>
           <h2 class="page-title">Rendimiento por días</h2>
           <p class="page-desc">

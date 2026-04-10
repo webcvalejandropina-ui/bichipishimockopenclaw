@@ -1,0 +1,29 @@
+# Git y entorno local
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+# Dependencias y artefactos (se generan en la imagen)
+node_modules
+**/node_modules
+dist
+.astro
+
+# Datos y basura
+data
+**/nohup.out
+*.zip
+metrics-api/nohup.out
+
+# IDE y docs no necesarios para el build
+.vscode
+.idea
+*.md
+!README.md
+
+# Docker (evitar recursión)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
