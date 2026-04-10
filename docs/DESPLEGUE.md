@@ -12,7 +12,7 @@ Esta guía está pensada para que **cualquier persona con acceso a un servidor o
 2. [Obtener el código y el fichero de entorno](#2-obtener-el-código-y-el-fichero-de-entorno)
 3. [Despliegue sin Docker (Bun o Node)](#3-despliegue-sin-docker-bun-o-node)
 4. [Despliegue con Docker](#4-despliegue-con-docker) — perfiles **production** y **local** (Bun + Astro; motivos en [PAQUETES.md](PAQUETES.md))
-5. [Cloudflare Tunnel (HTTPS público sin puertos abiertos)](#5-cloudflare-tunnel-https-público-sin-puertos-abiertos) — incluye [puerto 8080 en el host (túnel)](#puerto-8080-en-el-host-con-túnel-y-cómo-cambiarlo)
+5. [Cloudflare Tunnel (HTTPS público sin puertos abiertos)](#5-cloudflare-tunnel-https-público-sin-puertos-abiertos) — incluye [puerto 8080 en el host (túnel)](#tunel-puerto-8080-host)
 6. [Variables de entorno importantes](#6-variables-de-entorno-importantes)
 7. [Seguridad en producción](#7-seguridad-en-producción)
 8. [Datos persistentes y copias de seguridad](#8-datos-persistentes-y-copias-de-seguridad)
@@ -284,6 +284,8 @@ TUNNEL_TOKEN=pega_aqui_el_token_completo
 ```
 
 Sin comillas salvo que el propio token las requiera (lo habitual es una sola línea sin espacios).
+
+<a id="tunel-puerto-8080-host"></a>
 
 ### Puerto 8080 en el host con túnel (y cómo cambiarlo)
 

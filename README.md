@@ -8,7 +8,7 @@ La interfaz es una aplicación **Astro** (estática en `dist/`); los datos los s
 
 **Versión actual del monorepo:** `1.1.0` (ver `package.json`).
 
-**Despliegue paso a paso (Bun/pnpm, Docker, Cloudflare Tunnel, variables, seguridad y averías):** [docs/DESPLEGUE.md](docs/DESPLEGUE.md). Con **túnel + Docker**, el puerto **8080** en el host es **solo el valor por defecto** del script (se puede cambiar con `BICHI_PUBLISH` / `BICHI_DEV_API`); Cloudflare sigue apuntando a **`http://bichipishi:3001`** en la red interna — detalle en [§ Túnel y puerto 8080](#cloudflare-tunnel-y-puerto-8080-en-el-host-importante) y en [docs/DESPLEGUE.md — túnel](docs/DESPLEGUE.md#puerto-8080-en-el-host-con-túnel-y-cómo-cambiarlo). **Paquetes (por qué no npm, vulnerabilidades y lockfiles):** [docs/PAQUETES.md](docs/PAQUETES.md).
+**Despliegue paso a paso (Bun/pnpm, Docker, Cloudflare Tunnel, variables, seguridad y averías):** [docs/DESPLEGUE.md](docs/DESPLEGUE.md). Con **túnel + Docker**, el puerto **8080** en el host es **solo el valor por defecto** del script (se puede cambiar con `BICHI_PUBLISH` / `BICHI_DEV_API`); Cloudflare sigue apuntando a **`http://bichipishi:3001`** en la red interna — detalle en [§ Túnel y puerto 8080](#cloudflare-tunnel-y-puerto-8080-en-el-host-importante) y en [docs/DESPLEGUE.md — túnel](docs/DESPLEGUE.md#tunel-puerto-8080-host). **Paquetes (por qué no npm, vulnerabilidades y lockfiles):** [docs/PAQUETES.md](docs/PAQUETES.md).
 
 > **Docker / Compose:** el soporte documentado en este repo es **modo experimental**: puede cambiar entre versiones, no ofrece el mismo nivel de pruebas que el flujo `bun run deploy` en el host, y en entornos distintos (macOS vs Linux, Docker Desktop vs motor en servidor) el comportamiento de métricas y montajes puede diferir. Úsalo bajo tu criterio; la guía detallada está en la sección [Despliegue con Docker (experimental)](#despliegue-con-docker-experimental) y en [docs/DESPLEGUE.md](docs/DESPLEGUE.md).
 
@@ -170,6 +170,8 @@ BICHI_DEV_API=8080 docker compose --profile local --profile tunnel up -d --build
 ```
 
 **Guía completa** (Zero Trust, variables, seguridad, backups, averías, orígenes HTTP internos): **[docs/DESPLEGUE.md](docs/DESPLEGUE.md)**.
+
+<a id="cloudflare-tunnel-y-puerto-8080-en-el-host-importante"></a>
 
 ### Cloudflare Tunnel y puerto **8080** en el host (importante)
 
