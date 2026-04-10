@@ -36,6 +36,7 @@ La interfaz es una aplicación **Astro** (estática en `dist/`); los datos los s
 - **Uso bajo tu propia responsabilidad.** Las acciones sobre el host (señales a procesos, servicios, contenedores Docker, edición de tareas cron / Programador de tareas) pueden afectar al sistema; revisa la configuración de tokens y desactiva lo que no necesites en entornos expuestos.
 - La API debe ejecutarse **en el host** que quieres monitorizar. Si solo la levantas dentro de un contenedor **aislado** (p. ej. Docker sin montajes ni perfil `full-host`), la interfaz puede indicar que las métricas **no representan tu máquina física**; con el **`docker-compose` de perfil `full-host`** en Linux se acerca mucho más a monitorizar el sistema real (a costa de privilegios elevados).
 - Los comandos que configures en tareas programadas deben ser **válidos para tu shell y SO**; caracteres sobrantes al final de la línea (por ejemplo comillas o puntuación pegada al comando) harán fallar la ejecución.
+- **OpenClaw** es **opcional**: al clonar en otro equipo no hace falta instalarlo; la página correspondiente muestra vista previa o mensajes claros y **`/api/openclaw`** responde **200** con datos degradados en lugar de tumbar el panel (variables en `.env.example`: `OPENCLAW_BIN`, `OPENCLAW_FORCE=0`, etc.).
 
 ---
 

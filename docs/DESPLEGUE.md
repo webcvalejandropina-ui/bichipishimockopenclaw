@@ -425,6 +425,7 @@ Los datos en el volumen **`bichipishi_data`** se conservan si no borras el volum
 | **Métricas “no son tu máquina”** | Estás en **`production`** sin montajes de host; cambia a **`full-host`** en Linux o ejecuta la API **sin Docker** en el host. |
 | **Docker desde el contenedor falla** | Perfil **`full-host`**, socket montado; usuario con permiso sobre el socket en el host. |
 | **Build Docker falla en `bun install`** | Red estable; si falla `better-sqlite3`, suele ser falta de toolchain en builder (el Dockerfile ya instala `python3 make g++`). Comprueba que **`bun.lock`** esté al día con `package.json`. |
+| **OpenClaw en otra máquina “no va”** | Es normal si no instalaste el CLI: el resto de Bichipishi no depende de él. Opciones: **`OPENCLAW_BIN`** con ruta absoluta al binario, **`OPENCLAW_LOG_PATH`** si tienes log, **`OPENCLAW_FORCE=0`** para no marcar disponibilidad en métricas, o ignora la página OpenClaw. La API devuelve JSON usable aunque el snapshot falle. |
 
 ---
 

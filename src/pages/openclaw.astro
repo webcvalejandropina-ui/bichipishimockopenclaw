@@ -2612,6 +2612,15 @@ const iPageTitle = iconToSvg(Sparkles, { width: 22, height: 22 });
         if (data.message && data.disabled) {
           msgText.textContent = data.message;
           msgBox.classList.remove('openclaw-banner--hidden');
+        } else if (data.degraded) {
+          const snapErr =
+            typeof (data as { snapshotError?: unknown }).snapshotError === 'string'
+              ? (data as { snapshotError: string }).snapshotError
+              : '';
+          msgText.textContent = String(
+            data.message || snapErr || 'Snapshot degradado: el servidor no pudo ejecutar todas las comprobaciones.',
+          );
+          msgBox.classList.remove('openclaw-banner--hidden');
         } else if (data.mockMode) {
           msgText.textContent =
             'OpenClaw no está en PATH en la API: todas las sondas muestran JSON de vista previa (agentes, skills/permisos, MCP, gateway, aprobaciones, sandbox, seguridad…). La instalación en disco y el cron del host siguen siendo lecturas reales donde aplique.';

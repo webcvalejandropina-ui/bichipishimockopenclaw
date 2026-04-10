@@ -3578,6 +3578,47 @@ async function collectOpenClawFullSnapshot() {
   };
 }
 
+/**
+ * Si el snapshot completo falla (timeout, bug, SO distinto…), devolvemos 200 + JSON usable
+ * para que la página OpenClaw no rompa el panel en máquinas sin CLI o con rutas raras.
+ */
+async function collectOpenClawSnapshotOnFailure(err) {
+  const d = new Date();
+  let cronSystem = { jobs: [], dates: {}, hint: null, platform: process.platform };
+  try {
+    cronSystem = await collectCronPayload(d.getFullYear(), d.getMonth() + 1);
+  } catch {
+    /* ignorar */
+  }
+  const mockProbes = buildOpenClawMockProbes();
+  const installLayout = { error: true, message: String(err && err.message ? err.message : err) };
+  let openclawFill;
+  try {
+    openclawFill = resolveOpenClawFillForSnapshot(mockProbes, installLayout, {
+      available: false,
+      mockMode: true,
+    });
+  } catch {
+    openclawFill = {};
+  }
+  return {
+    at: Date.now(),
+    available: false,
+    degraded: true,
+    mockMode: true,
+    snapshotError: String(err && err.message ? err.message : err),
+    binary: getOpenClawBin(),
+    platform: process.platform,
+    probes: mockProbes,
+    cronSystem,
+    openclawFill,
+    installLayout,
+    suppressDemoFill: true,
+    message:
+      'No se pudo completar el snapshot OpenClaw en el servidor; se muestra vista previa. OpenClaw es opcional: el resto de Bichipishi funciona sin el CLI.',
+  };
+}
+
 /* ── Crontab real (usuario, /etc/crontab, CRON_EXTRA_FILE) ── */
 
 const CRON_MACROS = {
@@ -4456,7 +4497,24 @@ function serveApi(req, res) {
   if (pathname === '/api/openclaw' && req.method === 'GET') {
     collectOpenClawFullSnapshot()
       .then((data) => json(res, 200, data))
-      .catch((err) => json(res, 500, { error: String(err && err.message ? err.message : err) }));
+      .catch((err) => {
+        console.warn('[bichi] /api/openclaw snapshot:', err && err.message ? err.message : err);
+        collectOpenClawSnapshotOnFailure(err)
+          .then((data) => json(res, 200, data))
+          .catch((e2) => {
+            console.warn('[bichi] /api/openclaw degraded:', e2);
+            json(res, 200, {
+              at: Date.now(),
+              available: false,
+              degraded: true,
+              mockMode: true,
+              message:
+                'OpenClaw es opcional. Sin CLI en PATH, esta página muestra vista previa; define OPENCLAW_BIN o OPENCLAW_FORCE=0.',
+              cronSystem: { jobs: [], dates: {}, hint: null, platform: process.platform },
+              probes: buildOpenClawMockProbes(),
+            });
+          });
+      });
     return;
   }
 
