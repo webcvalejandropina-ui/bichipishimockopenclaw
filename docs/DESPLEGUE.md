@@ -12,7 +12,7 @@ Esta guía está pensada para que **cualquier persona con acceso a un servidor o
 2. [Obtener el código y el fichero de entorno](#2-obtener-el-código-y-el-fichero-de-entorno)
 3. [Despliegue sin Docker (Bun o Node)](#3-despliegue-sin-docker-bun-o-node)
 4. [Despliegue con Docker](#4-despliegue-con-docker) — perfiles **production** y **local** (Bun + Astro; motivos en [PAQUETES.md](PAQUETES.md))
-5. [Cloudflare Tunnel (HTTPS público sin puertos abiertos)](#5-cloudflare-tunnel-https-público-sin-puertos-abiertos)
+5. [Cloudflare Tunnel (HTTPS público sin puertos abiertos)](#5-cloudflare-tunnel-https-público-sin-puertos-abiertos) — incluye [puerto 8080 en el host (túnel)](#puerto-8080-en-el-host-con-túnel-y-cómo-cambiarlo)
 6. [Variables de entorno importantes](#6-variables-de-entorno-importantes)
 7. [Seguridad en producción](#7-seguridad-en-producción)
 8. [Datos persistentes y copias de seguridad](#8-datos-persistentes-y-copias-de-seguridad)
@@ -284,6 +284,24 @@ TUNNEL_TOKEN=pega_aqui_el_token_completo
 ```
 
 Sin comillas salvo que el propio token las requiera (lo habitual es una sola línea sin espacios).
+
+### Puerto 8080 en el host con túnel (y cómo cambiarlo)
+
+Hay que distinguir **tres** puertos para no liarse:
+
+1. **Puerto interno de la API en el contenedor** — Por defecto **3001** (`BICHI_API_PORT` / `PORT`). Es el que usa **`http://bichipishi:3001`** en la red Docker y el que debe figurar como **origen (Service URL)** en Cloudflare Zero Trust (salvo que cambies el interno a propósito).
+2. **Puerto publicado en el anfitrión (tu VPS o PC)** — Es el del mapeo `HOST:CONTENEDOR` de Compose. **Sin** perfil `tunnel`, el default del compose suele ser **3001** en el host. **Con** `tunnel`, el script del repo pone **8080** en el host **solo si** no has definido **`BICHI_PUBLISH`** (producción / `full-host`) ni **`BICHI_DEV_API`** (perfil `local`). Sirve para **probar en local** con `curl` o navegador en `http://127.0.0.1:8080` sin chocar con otro proceso en 3001.
+3. **Tráfico público** — Entra por **HTTPS** en Cloudflare (puerto 443 hacia el mundo). No configuras 8080 ahí.
+
+**El 8080 no es obligatorio:** es un valor por defecto **solo** en el script cuando llevas el perfil `tunnel`. Para usar otro puerto en el host, añade a **`.env`**, por ejemplo:
+
+```env
+BICHI_PUBLISH=9090
+# o en desarrollo con túnel:
+# BICHI_DEV_API=9090
+```
+
+Vuelve a levantar los contenedores. Cloudflare **sigue** apuntando a **`http://bichipishi:3001`** (o al puerto interno que tenga la API), **no** al 8080 ni al 9090 del host.
 
 ### 5.4 Arrancar la aplicación y cloudflared
 

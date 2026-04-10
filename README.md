@@ -8,7 +8,7 @@ La interfaz es una aplicación **Astro** (estática en `dist/`); los datos los s
 
 **Versión actual del monorepo:** `1.1.0` (ver `package.json`).
 
-**Despliegue paso a paso (Bun/pnpm, Docker, Cloudflare Tunnel, variables, seguridad y averías):** [docs/DESPLEGUE.md](docs/DESPLEGUE.md). **Paquetes (por qué no npm, vulnerabilidades y lockfiles):** [docs/PAQUETES.md](docs/PAQUETES.md).
+**Despliegue paso a paso (Bun/pnpm, Docker, Cloudflare Tunnel, variables, seguridad y averías):** [docs/DESPLEGUE.md](docs/DESPLEGUE.md). Con **túnel + Docker**, el puerto **8080** en el host es **solo el valor por defecto** del script (se puede cambiar con `BICHI_PUBLISH` / `BICHI_DEV_API`); Cloudflare sigue apuntando a **`http://bichipishi:3001`** en la red interna — detalle en [§ Túnel y puerto 8080](#cloudflare-tunnel-y-puerto-8080-en-el-host-importante) y en [docs/DESPLEGUE.md — túnel](docs/DESPLEGUE.md#puerto-8080-en-el-host-con-túnel-y-cómo-cambiarlo). **Paquetes (por qué no npm, vulnerabilidades y lockfiles):** [docs/PAQUETES.md](docs/PAQUETES.md).
 
 > **Docker / Compose:** el soporte documentado en este repo es **modo experimental**: puede cambiar entre versiones, no ofrece el mismo nivel de pruebas que el flujo `bun run deploy` en el host, y en entornos distintos (macOS vs Linux, Docker Desktop vs motor en servidor) el comportamiento de métricas y montajes puede diferir. Úsalo bajo tu criterio; la guía detallada está en la sección [Despliegue con Docker (experimental)](#despliegue-con-docker-experimental) y en [docs/DESPLEGUE.md](docs/DESPLEGUE.md).
 
@@ -171,9 +171,28 @@ BICHI_DEV_API=8080 docker compose --profile local --profile tunnel up -d --build
 
 **Guía completa** (Zero Trust, variables, seguridad, backups, averías, orígenes HTTP internos): **[docs/DESPLEGUE.md](docs/DESPLEGUE.md)**.
 
-### Cloudflare Tunnel (resumen)
+### Cloudflare Tunnel y puerto **8080** en el host (importante)
 
-Con el perfil **`tunnel`**, **cloudflared** sale hacia Cloudflare sin abrir puertos en el router. Los scripts **`docker:up:tunnel`** / **`docker:up:local:tunnel`** publican la API en el **host** en el puerto **8080** por defecto (`BICHI_PUBLISH` / `BICHI_DEV_API`), para no chocar con otros servicios en **3001** y alinearse con un acceso local habitual. En el panel de Zero Trust, el **origen (upstream)** sigue siendo la red Docker: **`http://bichipishi:3001`** (producción) o **`http://bichipishi:4322`** (local / HMR) — **no** uses `127.0.0.1:8080` ahí.
+El perfil **`tunnel`** arranca **cloudflared** junto a la app: el tráfico público entra por Cloudflare (HTTPS) y llega a tu contenedor **por la red Docker**, sin abrir puertos en el router.
+
+| Concepto | Qué es |
+|----------|--------|
+| **Puerto dentro del contenedor** | La API sigue escuchando en **`BICHI_API_PORT`** (por defecto **3001**). Eso **no** cambia al usar túnel. |
+| **Puerto en tu máquina (host)** | Es el que ves en el navegador como `http://127.0.0.1:PUERTO`. **Sin túnel**, Compose mapea por defecto **3001**→3001. **Con túnel**, el script `scripts/docker-local.mjs` asigna **8080** en el host si no defines nada más: **8080**→3001 (producción / `full-host`) o API en **8080** (perfil `local`). |
+| **Por qué 8080 por defecto con túnel** | Evita solapar **3001** en el host si ya tienes otra API u otro proceso; es solo una convención del repo. **No** es un requisito de Cloudflare. |
+| **Cloudflare Zero Trust (origen / upstream)** | Debe ser el **nombre del servicio en Compose**, no `127.0.0.1`: **`http://bichipishi:3001`** (app en modo producción) o **`http://bichipishi:4322`** (perfil `local`). El **8080** del host **no** se pone aquí: cloudflared habla con la app **dentro** de la red Docker. |
+
+**Cambiar el puerto del host (8080 es solo el valor por defecto del script con túnel)**
+
+- **Producción o `full-host` + túnel:** en **`.env`** define, por ejemplo, **`BICHI_PUBLISH=9090`** (o el puerto que quieras). El mapeo será `9090`→`3001` en el contenedor.
+- **Perfil `local` + túnel:** define **`BICHI_DEV_API=9090`** (u otro) para mapear la API en el host; **`BICHI_DEV_ASTRO`** sigue controlando el puerto de Astro (p. ej. 4322).
+- Si **ya** tienes **`BICHI_PUBLISH`** / **`BICHI_DEV_API`** en `.env`, el script **respeta** tu valor y **no** fuerza 8080.
+- Comando manual equivalente:  
+  `BICHI_PUBLISH=9090 docker compose --profile production --profile tunnel up -d --build`
+
+Tras cambiar puertos, para **probar en local** usa **`http://127.0.0.1:<tu_BICHI_PUBLISH>/`**. Para el **dominio público**, sigue configurando el túnel con **`http://bichipishi:3001`** (o el puerto interno si cambiaste **`BICHI_API_PORT`**).
+
+Detalle paso a paso (token, DNS, seguridad): **[docs/DESPLEGUE.md — § 5](docs/DESPLEGUE.md#5-cloudflare-tunnel-https-público-sin-puertos-abiertos)**.
 
 ---
 
