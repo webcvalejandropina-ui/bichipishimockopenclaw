@@ -26,6 +26,8 @@
     "dev:node": "node scripts/dev.mjs",
     "dev:api": "cd metrics-api && bun server.js",
     "dev:astro": "bun ./node_modules/astro/astro.js dev --host",
+    "docker:dev": "docker compose --profile local up -d --build",
+    "docker:dev:logs": "docker compose logs -f bichipishi-local",
     "docker:up": "bun scripts/docker-local.mjs up production",
     "docker:up:local": "bun scripts/docker-local.mjs up local",
     "docker:up:prod": "bun scripts/docker-local.mjs up production",

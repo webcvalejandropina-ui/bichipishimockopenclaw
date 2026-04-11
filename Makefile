@@ -1,11 +1,13 @@
 # Sin Docker: web en dist/, API en metrics-api/, datos en data/. Requiere Bun.
 # Con Docker: perfil web-only por defecto (ver docs/DESPLEGUE.md § local).
-.PHONY: install deploy dev docker-up docker-up-local docker-up-tunnel docker-up-local-tunnel docker-down docker-logs docker-logs-local docker-build docker-build-local help
+.PHONY: install deploy dev dev-docker dev-docker-logs docker-up docker-up-local docker-up-tunnel docker-up-local-tunnel docker-down docker-logs docker-logs-local docker-build docker-build-local help
 
 help:
 	@echo "make install        — .env si falta + bun run deploy"
 	@echo "make deploy         — bun run deploy (build + servidor)"
-	@echo "make dev            — bun run dev (Astro :4322 + API; /api vía Vite)"
+	@echo "make dev            — bun run dev (Astro :4322 + API; /api vía Vite) sin Docker"
+	@echo "make dev-docker     — docker compose --profile local up -d --build (Astro :4322 + API)"
+	@echo "make dev-docker-logs— docker compose logs -f bichipishi-local"
 	@echo "make docker-up      — Docker perfil production (dist + API :3001)"
 	@echo "make docker-up-local— Docker perfil local (Astro dev :4322 + API :3001)"
 	@echo "make docker-up-tunnel — production + Cloudflare Tunnel (host :8080 por defecto; TUNNEL_TOKEN en .env)"
@@ -25,6 +27,12 @@ deploy:
 
 dev:
 	bun run dev
+
+dev-docker:
+	docker compose --profile local up -d --build
+
+dev-docker-logs:
+	docker compose logs -f bichipishi-local
 
 docker-up:
 	bun scripts/docker-local.mjs up production

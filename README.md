@@ -97,14 +97,18 @@ bun run deploy
 
 Abre **http://127.0.0.1:3001/** (o el puerto definido en `BICHI_API_PORT` / `PUBLIC_BICHI_API_PORT`).
 
+**Solo con Docker (avanzar en dev sin Bun en el host):** `cp .env.example .env` y luego **`bun run docker:dev`** o **`make dev-docker`**; la UI queda en **http://127.0.0.1:4322/**. Con **`COMPOSE_PROFILES=local`** en `.env` (viene en el ejemplo), también vale un **`docker compose up -d --build`** sin más flags.
+
 | Comando | Descripción |
 |---------|-------------|
 | `bun run deploy` | Instala dependencias (raíz + workspace `metrics-api`), build de Astro → `dist/`, migra datos antiguos de `metrics-api/data/` a `data/` si aplica, arranca el servidor unificado. |
 | `bun start` | Solo servidor (necesitas haber hecho el build antes). |
 | `bun run dev` | Astro en caliente (p. ej. `:4322`) + API en el puerto de `.env`. |
 | `bun run build:astro` | Solo genera `dist/`. |
+| `bun run docker:dev` | **Solo Docker Compose**, modo **desarrollo**: `docker compose --profile local up -d --build` (Astro **:4322** + API **:3001**). No hace falta Bun en el host. |
+| `bun run docker:dev:logs` | Sigue los logs del contenedor **`bichipishi-local`**. |
 | `bun run docker:up` | Docker **producción**: build + `up -d` (perfil `production`; alias `web-only`). |
-| `bun run docker:up:local` | Docker **desarrollo**: Astro `:4322` + API `:3001` (perfil `local`). |
+| `bun run docker:up:local` | Igual que **`docker:dev`** (perfil `local` vía script interno). |
 | `bun run docker:up:tunnel` / `docker:up:local:tunnel` | Mismo que arriba + **Cloudflare Tunnel** (`TUNNEL_TOKEN` en `.env`). |
 | `pnpm run deploy:node` | Solo si usas **Node + pnpm** sin Bun (ver [docs/PAQUETES.md](docs/PAQUETES.md)). |
 

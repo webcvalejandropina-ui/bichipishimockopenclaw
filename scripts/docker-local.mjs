@@ -2,7 +2,7 @@
  * Atajos para Docker Compose (Bun + Astro en todos los flujos).
  *
  * Uso:
- *   bun scripts/docker-local.mjs up [perfil ...]     # por defecto: production
+ *   bun scripts/docker-local.mjs up [perfil ...]     # por defecto: production (los scripts npm pasan perfil)
  *   bun scripts/docker-local.mjs down                # baja todo el proyecto Compose
  *   bun scripts/docker-local.mjs logs [perfil ...]
  *   bun scripts/docker-local.mjs build [perfil ...]
@@ -84,9 +84,11 @@ if (cmd === 'down') {
   process.exit(1);
 }
 
-/** Con perfil tunnel, puerto publicado en el host por defecto 8080 (Cloudflare sigue hablando con bichipishi:3001 o :4322 dentro de Docker). */
+/** Entorno para `docker compose`: quita COMPOSE_PROFILES para no mezclar perfiles del .env con los --profile de esta llamada. */
 function envForCompose() {
   const env = { ...process.env };
+  delete env.COMPOSE_PROFILES;
+
   if (cmd !== 'up' || !profiles.includes('tunnel')) {
     return env;
   }

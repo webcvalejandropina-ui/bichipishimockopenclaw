@@ -124,10 +124,13 @@ make docker-up
 **Desarrollo en contenedor (mismo stack que `bun run dev` en el host):**
 
 ```bash
-bun run docker:up:local
-# o:
-make docker-up-local
+bun run docker:dev
+# equivalente:
+docker compose --profile local up -d --build
+make dev-docker
 ```
+
+Si en **`.env`** tienes **`COMPOSE_PROFILES=local`** (por defecto en `.env.example`), también basta **`docker compose up -d --build`** sin escribir el perfil.
 
 **Mismo esquema con Cloudflare Tunnel** (tras poner **`TUNNEL_TOKEN`** en `.env`; ver [§ 5](#5-cloudflare-tunnel-https-público-sin-puertos-abiertos)):
 
