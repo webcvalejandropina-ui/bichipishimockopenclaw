@@ -214,7 +214,9 @@ docker compose --profile local up -d --build
 ```
 
 - **URLs:** **http://127.0.0.1:4322/** (interfaz con proxy `/api`) y API directa en **http://127.0.0.1:3001/** (ajusta con **`BICHI_DEV_ASTRO`** y **`BICHI_DEV_API`** en `.env` si hay conflicto de puertos).
-- Se montan `src/`, `public/`, `metrics-api/`, `config/`, `scripts/` y ficheros raíz clave; **`node_modules`** permanece en la imagen (`Dockerfile.dev`). Si cambias dependencias en `package.json` / `bun.lock`, vuelve a construir: `docker compose --profile local build`.
+- **No mezcles** `local` con **`production`**, **`web-only`** ni **`full-host`** en el mismo `docker compose up` (dos stacks distintos, alias de red `bichipishi` y puertos). El script **`bun scripts/docker-local.mjs`** lo rechaza con un mensaje claro. Para desarrollo en contenedor: solo **`up local`** (opcional **`tunnel`**).
+- En el servicio se definen **`BICHI_DOCKER_DEV=1`** y **`CHOKIDAR_USEPOLLING=true`** para que **Vite/Astro** detecten cambios en volúmenes bind (sobre todo **Docker Desktop** en macOS/Windows).
+- Se montan `src/`, `public/`, `metrics-api/`, `config/`, `scripts/`, **`pnpm-workspace.yaml`** y ficheros raíz clave; **`node_modules`** permanece en la imagen (`Dockerfile.dev`). Si cambias dependencias en `package.json` / `bun.lock`, vuelve a construir: `docker compose --profile local build`.
 - Se monta **`/var/run/docker.sock`** del host para que la API pueda listar contenedores (**paridad** con el servicio **`production`**, que también monta el socket). La imagen incluye **`procps`** (`ps`) para que `concurrently` pueda cerrar procesos al salir.
 - La **interfaz** está en **:4322**; la raíz **:3001** puede responder **404** si no has generado `dist/` (normal en dev: usa la URL de Astro).
 

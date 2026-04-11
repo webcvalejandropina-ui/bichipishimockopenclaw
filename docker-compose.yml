@@ -2,6 +2,7 @@
 #   production   — Imagen Dockerfile: build Astro (estático) + API en un solo puerto (despliegue tipo prod).
 #   web-only     — Mismo servicio que production (alias; métricas = contenedor).
 #   local        — Imagen Dockerfile.dev: Bun + `bun run dev` (Astro :4322 + API :3001), fuentes montadas (HMR).
+#                No mezcles `local` con production/web-only/full-host en el mismo `up` (el script docker-local lo bloquea).
 #   full-host    — Como production con pid/montajes del host Linux (panel “real”).
 #   tunnel       — cloudflared (origen interno http://bichipishi:3001 o :4322; scripts/docker-local.mjs usa 8080 en el host por defecto).
 #
@@ -98,6 +99,8 @@ services:
         required: false
     environment:
       NODE_ENV: development
+      BICHI_DOCKER_DEV: "1"
+      CHOKIDAR_USEPOLLING: "true"
       BICHI_DATA_DIR: /data
       PUBLIC_BICHI_SITE_URL: ${PUBLIC_BICHI_SITE_URL_DEV:-http://127.0.0.1:4322}
       BICHI_CORS_ORIGIN: ${BICHI_CORS_ORIGIN:-*}
@@ -117,6 +120,7 @@ services:
       - ./tsconfig.json:/app/tsconfig.json:ro
       - ./package.json:/app/package.json:ro
       - ./bun.lock:/app/bun.lock:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
     ports:
       - "${BICHI_DEV_ASTRO:-4322}:4322"
       - "${BICHI_DEV_API:-3001}:${BICHI_API_PORT:-3001}"

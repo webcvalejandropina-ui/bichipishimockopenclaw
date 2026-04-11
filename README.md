@@ -143,6 +143,7 @@ Ambos perfiles siguen el **mismo procedimiento**; solo cambian imagen, puertos y
 
 ### Límites del modo experimental
 
+- **Un solo stack de app a la vez:** no actives **`local`** junto con **`production`** / **`web-only`** / **`full-host`** en el mismo `up` (Compose y el script `docker-local` lo evitan). **Producción en Docker** y **desarrollo en Docker** son dos modos válidos por separado: `docker:up` vs `docker:up:local`.
 - **Métricas “del PC”:** en **`production`** / **`local`** sin **`full-host`**, lo que ves suele ser el **contenedor**, no el hardware completo del anfitrión. Para acercarte al host real en Linux existe el perfil **`full-host`** (montajes, `pid: host`, privilegios; **riesgo alto** si lo expones a Internet).
 - **Entorno:** en **Docker Desktop** (macOS/Windows) el comportamiento no es idéntico a un **Linux** servidor; la documentación larga está en [docs/DESPLEGUE.md](docs/DESPLEGUE.md).
 - **Estabilidad:** la composición de imágenes y volúmenes puede ajustarse en futuras versiones del repo sin periodo de deprecación formal.

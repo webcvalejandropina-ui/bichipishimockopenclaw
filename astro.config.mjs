@@ -22,6 +22,10 @@ const hmrClientPort = Number.parseInt(String(process.env.BICHI_HMR_CLIENT_PORT |
 const allowedHosts = ['localhost', '127.0.0.1'];
 if (extraAllowedHost) allowedHosts.push(extraAllowedHost);
 
+/** Docker Compose perfil `local`: volúmenes bind en Mac/Windows suelen necesitar polling para que Vite/Astro detecten cambios. */
+const dockerDev =
+  process.env.BICHI_DOCKER_DEV === '1' || String(process.env.CHOKIDAR_USEPOLLING || '') === 'true';
+
 export default defineConfig({
   site: siteOrigin,
   server: {
@@ -33,6 +37,14 @@ export default defineConfig({
     plugins: [tailwindcss()],
     server: {
       allowedHosts,
+      ...(dockerDev
+        ? {
+            watch: {
+              usePolling: true,
+              interval: 800,
+            },
+          }
+        : {}),
       hmr: {
         protocol: 'ws',
         host: hmrHost,

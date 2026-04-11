@@ -31,6 +31,31 @@ const defaultProfiles =
   cmd === 'up' || cmd === 'logs' || cmd === 'build' ? ['production'] : [];
 const profiles = profileArgs.length > 0 ? profileArgs : defaultProfiles;
 
+if (cmd === 'up') {
+  const hasLocal = profiles.includes('local');
+  const hasProdStack = profiles.some((p) =>
+    ['production', 'web-only', 'full-host'].includes(p),
+  );
+  if (hasLocal && hasProdStack) {
+    console.error(
+      '[docker-local] No combines `local` (Astro dev en contenedor) con `production`, `web-only` ni `full-host` en el mismo `up`.\n' +
+        '  Son stacks distintos (alias de red `bichipishi`, puertos). Usa solo uno:\n' +
+        '    bun scripts/docker-local.mjs up local\n' +
+        '    bun scripts/docker-local.mjs up production',
+    );
+    process.exit(1);
+  }
+  const hasWebProd = profiles.includes('production') || profiles.includes('web-only');
+  if (hasWebProd && profiles.includes('full-host')) {
+    console.error(
+      '[docker-local] No combines `production`/`web-only` con `full-host` en el mismo `up` (dos servicios compiten por el mismo alias en red).\n' +
+        '  Elige un perfil de app y, si hace falta, `tunnel`:\n' +
+        '    up production   o   up full-host   o   up local',
+    );
+    process.exit(1);
+  }
+}
+
 let args;
 if (cmd === 'down') {
   args = ['compose', 'down', '--remove-orphans'];
